@@ -29,9 +29,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(result, indent=2, default=str))
     else:
-        print(result.get("answer") or "", flush=True)
-        print(f"\n[level={result.get('level')} stakes={result.get('stakes')} mail_cal={result.get('mail_cal')}]", file=sys.stderr)
+        _print_run(prompt, result)
     return 0 if result.get("ok") else 1
+
+
+def _print_run(prompt: str, result: dict[str, Any]) -> None:
+    answer = str(result.get("answer") or "").strip()
+    print("---------- Prompt ----------", flush=True)
+    print(prompt, flush=True)
+    print("---------- Response ----------", flush=True)
+    if answer:
+        print(answer, flush=True)
+    else:
+        print("(empty — the model produced no user-facing answer)", flush=True)
+    print("---------- Meta ----------", flush=True)
+    print(
+        f"ok={result.get('ok')} level={result.get('level')} "
+        f"stakes={result.get('stakes')} mail_cal={result.get('mail_cal')} "
+        f"run_id={result.get('run_id')}",
+        flush=True,
+    )
 
 
 def _route_fields(prompt: str, no_model: bool) -> dict[str, Any]:

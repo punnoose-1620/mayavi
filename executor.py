@@ -269,6 +269,9 @@ def run_session(
     run.level = mapped["level"]
     run.stakes = mapped["stakes"]
     run.mail_cal = mapped["mail_cal"]
+    run.file_ops = mapped["file_ops"]
+    run.web_ops = mapped["web_ops"]
+    run.needs_code_exec = mapped["needs_code_exec"]
     run.intent = mapped["intent"]
     answer = None
     try:
@@ -499,20 +502,33 @@ def _extract_json(text: str) -> Any:
     return None
 
 
+def _ops_needed(value: str | None) -> bool:
+    return str(value or "0").strip() not in {"", "0", "no", "off"}
+
+
 def _tools_for(run: Run, agent: Agent) -> dict[str, Callable[..., Any]]:
     aid = agent.agent_name
-    tools: dict[str, Callable[..., Any]] = {
-        "search_dir": lambda **kw: file_tools.search_dir(agent_id=aid, **kw),
-        "read_file": lambda **kw: file_tools.read_file(agent_id=aid, **kw),
-        "write_doc": lambda **kw: file_tools.write_doc(agent_id=aid, **kw),
-        "write_pdf": lambda **kw: file_tools.write_pdf(agent_id=aid, **kw),
-        "write_json": lambda **kw: file_tools.write_json(agent_id=aid, **kw),
-        "append_file": lambda **kw: file_tools.append_file(agent_id=aid, **kw),
-        "mkdir": lambda **kw: file_tools.mkdir(agent_id=aid, **kw),
-        "get_url": lambda **kw: web_scrape.get_url(agent_id=aid, **kw),
-        "post_url": lambda **kw: web_scrape.post_url(agent_id=aid, **kw),
-        "resetSession": lambda **kw: web_scrape.resetSession(agent_id=aid, **kw),
-    }
+    tools: dict[str, Callable[..., Any]] = {}
+    if _ops_needed(run.file_ops):
+        tools.update(
+            {
+                "search_dir": lambda **kw: file_tools.search_dir(agent_id=aid, **kw),
+                "read_file": lambda **kw: file_tools.read_file(agent_id=aid, **kw),
+                "write_doc": lambda **kw: file_tools.write_doc(agent_id=aid, **kw),
+                "write_pdf": lambda **kw: file_tools.write_pdf(agent_id=aid, **kw),
+                "write_json": lambda **kw: file_tools.write_json(agent_id=aid, **kw),
+                "append_file": lambda **kw: file_tools.append_file(agent_id=aid, **kw),
+                "mkdir": lambda **kw: file_tools.mkdir(agent_id=aid, **kw),
+            }
+        )
+    if _ops_needed(run.web_ops):
+        tools.update(
+            {
+                "get_url": lambda **kw: web_scrape.get_url(agent_id=aid, **kw),
+                "post_url": lambda **kw: web_scrape.post_url(agent_id=aid, **kw),
+                "resetSession": lambda **kw: web_scrape.resetSession(agent_id=aid, **kw),
+            }
+        )
     if run.level in {"medium", "large"}:
         tools.update(
             {
@@ -580,12 +596,15 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
         f"User intent: {run.intent}\n"
         f"Available tools: {names}\n"
         "Reply with a single JSON object.\n"
+        'Prefer a direct reply: {"final": "answer for the user"}.\n'
+        "Call a tool only if the user asked for a file, a live URL, mail/calendar, or sandbox code, "
+        "and only if that tool is in the list above. Do not write, save, or build a document unless they asked.\n"
         'Call a tool: {"tool": "name", "args": {}}\n'
-        'Finish with the user-facing answer: {"final": "..."}\n'
+        "If the tool list is empty, answer with final. Do not invent tools.\n"
         "On medium/large, post drafts/critiques/votes with sendMessageToBlackboard. "
         "The script also records your final as a draft (builders/drafter) or vote (executor/checkers). "
         "Blackboard rules and debug messages are not the user answer.\n"
-        "Do not invent tools. Do not pass agent_id. Do not request tokens or passwords.\n"
+        "Do not pass agent_id. Do not request tokens or passwords.\n"
     )
 
 

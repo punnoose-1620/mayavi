@@ -39,6 +39,9 @@ class Run:
     level: str = "small"
     stakes: str = "low"
     mail_cal: str = "off"
+    file_ops: str = "0"
+    web_ops: str = "0"
+    needs_code_exec: str = "no"
     intent: str = ""
     user_prompt: str = ""
     provider: str | None = None

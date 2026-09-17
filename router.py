@@ -12,6 +12,8 @@ ROUTER_SYSTEM = """You are the routing model. You do not answer the user. You on
 
 You are the smallest model in the system. Stay cheap and strict. If unsure about stakes, mark them low. If unsure about effort, round counts down. Greetings, chat, summaries, and casual how-to are low stakes.
 
+Prefer a direct spoken answer. Count a tool family only when the user clearly needs it. Do not count file, web, or code tools just because they exist. "hi", chat, and questions that can be answered from the model's own knowledge are file_ops 0, web_ops 0, needs_code_exec no.
+
 Output only these fields. Do not output small, medium, or large. Do not invent tools that are not listed.
 
 - file_ops: 0 | 1 | 2 | 3+
@@ -21,9 +23,9 @@ Output only these fields. Do not output small, medium, or large. Do not invent t
 - stakes: low | high
 - intent: one short sentence of what the user wants
 
-file_ops is how many file tool calls the job needs (read or discovery). A folder discovery sweep that stays under the safety cap counts as one file op, not one op per file inside it.
+file_ops is how many file tool calls the job needs (read, discovery, or write). Count a write only if the user asked to create, save, edit, or build a file (doc, pdf, csv, json, and similar). A folder discovery sweep that stays under the safety cap counts as one file op, not one op per file inside it. Do not count write_doc for a greeting or a spoken answer.
 
-web_ops is how many web scrape tool calls the job needs. v1 calls are get_url / post_url (agent-built URLs). Dedicated search APIs are v2.
+web_ops is how many web scrape tool calls the job needs. v1 calls are get_url / post_url (agent-built URLs). Dedicated search APIs are v2. Count web only if they asked to fetch, scrape, or look up a live URL. Casual "how do I" questions are 0.
 
 needs_code_exec is yes only if the job cannot finish without writing and running custom code in the closed sandbox. Using the provided PDF/doc writer is not code execution. If unsure, mark no.
 
@@ -146,10 +148,19 @@ def heuristic_route(prompt: str) -> dict[str, Any]:
     if needs != "yes" and any(mark in text for mark in ("email", "gmail", "outlook", "calendar", "inbox", "meeting")):
         mail = "write" if any(mark in text for mark in ("send", "reply", "create event", "cancel")) else "read"
     file_ops = "0"
-    if any(mark in text for mark in ("file", "folder", "pdf", "document", "docx", "csv", "xlsx")):
+    write_marks = (
+        "write a doc",
+        "write a document",
+        "save as",
+        "save this",
+        "create a pdf",
+        "write a pdf",
+        "write a csv",
+    )
+    if any(mark in text for mark in ("file", "folder", "pdf", "document", "docx", "csv", "xlsx") + write_marks):
         file_ops = "3+" if any(mark in text for mark in ("folder", "all files", "documents in")) else "1"
     web_ops = "0"
-    if any(mark in text for mark in ("http://", "https://", "website", "scrape", "url")):
+    if any(mark in text for mark in ("http://", "https://", "website", "scrape", "url", "google", "look up", "search the web")):
         web_ops = "2+" if "several" in text or "multiple" in text else "1"
     return normalize_fields(
         {
