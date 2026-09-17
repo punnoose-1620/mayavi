@@ -41,7 +41,7 @@ def _route_fields(prompt: str, no_model: bool) -> dict[str, Any]:
     if not loaded.get("ok"):
         return router.heuristic_route(prompt)
     try:
-        out = models.generate("router", messages=[{"role": "system", "content": router.ROUTER_SYSTEM}, {"role": "user", "content": prompt}])
+        out = models.generate("router", messages=[{"role": "system", "content": router.ROUTER_SYSTEM}, {"role": "user", "content": prompt}], max_tokens=128)
         text = out.get("text") or ""
         return router.parse_router_output(text)
     finally:

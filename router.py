@@ -10,7 +10,7 @@ import logger
 
 ROUTER_SYSTEM = """You are the routing model. You do not answer the user. You only inspect the prompt and emit a structured plan so the script can pick a tier.
 
-You are the smallest model in the system. Stay cheap and strict. If unsure about stakes, mark them high. If unsure about effort, round counts up.
+You are the smallest model in the system. Stay cheap and strict. If unsure about stakes, mark them low. If unsure about effort, round counts down. Greetings, chat, summaries, and casual how-to are low stakes.
 
 Output only these fields. Do not output small, medium, or large. Do not invent tools that are not listed.
 
@@ -25,13 +25,13 @@ file_ops is how many file tool calls the job needs (read or discovery). A folder
 
 web_ops is how many web scrape tool calls the job needs. v1 calls are get_url / post_url (agent-built URLs). Dedicated search APIs are v2.
 
-needs_code_exec is yes only if the job cannot finish without writing and running custom code in the closed sandbox. Using the provided PDF/doc writer is not code execution.
+needs_code_exec is yes only if the job cannot finish without writing and running custom code in the closed sandbox. Using the provided PDF/doc writer is not code execution. If unsure, mark no.
 
 mail_cal is off unless the user clearly needs inbox or calendar. Default off when needs_code_exec is yes. Use read for list/open/search/free-busy only. Use write only for send, reply, create, update, or cancel events. Coding tasks must not get schedule access.
 
-High stakes: legal, official, contractual, policy, government, financial, medical, or something they will sign, file, send as official, or rely on as a record. If unsure, mark high.
+High stakes: legal, official, contractual, policy, government, financial, medical, or something they will sign, file, send as official, or rely on as a record. Only mark high when that is clearly true. If unsure, mark low.
 
-Low stakes: personal, hobby, how-to, or casual troubleshooting.
+Low stakes: greetings, chat, personal, hobby, how-to, search, summaries, or casual troubleshooting. Default low.
 
 Output a JSON object with exactly those fields.
 """
@@ -93,22 +93,22 @@ def normalize_fields(fields: dict[str, Any]) -> dict[str, Any]:
     web_ops = str(fields.get("web_ops", "0")).strip()
     needs = str(fields.get("needs_code_exec", "no")).strip().lower()
     mail = str(fields.get("mail_cal", "off")).strip().lower()
-    stakes = str(fields.get("stakes", "high")).strip().lower()
+    stakes = str(fields.get("stakes", "low")).strip().lower()
     intent = str(fields.get("intent") or "").strip()
     if file_ops.isdigit() and int(file_ops) >= 3:
         file_ops = "3+"
     if web_ops.isdigit() and int(web_ops) >= 2:
         web_ops = "2+"
     if file_ops not in FILE_OPS:
-        file_ops = "3+"
+        file_ops = "0"
     if web_ops not in WEB_OPS:
-        web_ops = "2+"
+        web_ops = "0"
     if needs not in YES_NO:
-        needs = "yes"
+        needs = "no"
     if mail not in MAIL:
         mail = "off"
     if stakes not in STAKES:
-        stakes = "high"
+        stakes = "low"
     if needs == "yes":
         mail = "off"
     return {

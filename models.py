@@ -22,6 +22,7 @@ _LOADED_ROLE: str | None = None
 _LOADED_PATH: Path | None = None
 _LOADED_ROOT: str | None = None
 RESERVE_BYTES = 2 * 1024 ** 3
+GENERATE_MIN_AVAILABLE = 256 * 1024 ** 2
 
 
 def load_manifest() -> dict[str, Any]:
@@ -79,12 +80,15 @@ def resolveModel(role: str) -> dict[str, Any]:
         if not ram:
             last_error = "ram"
             continue
-        digest = _sha256(path)
         expected = item.get("sha256") or ""
-        if expected and digest != expected:
-            last_error = "hash_mismatch"
-            continue
-        chosen = {**item, "sha256": digest, "ok": True}
+        if expected:
+            digest = _sha256(path)
+            if digest != expected:
+                last_error = "hash_mismatch"
+                continue
+        else:
+            digest = ""
+        chosen = {**item, "path": str(path), "sha256": digest, "ok": True}
         break
     if chosen is None and config.ALLOW_HF_DOWNLOAD:
         chosen = _download_backup(role, spec)
@@ -207,7 +211,7 @@ def generate(role: str, prompt: str | None = None, messages: list[dict[str, str]
     try:
         if messages is None:
             messages = [{"role": "user", "content": prompt or ""}]
-        if _available_ram() < RESERVE_BYTES:
+        if _available_ram() < GENERATE_MIN_AVAILABLE:
             unloadModel()
             return logger.finish(
                 event="tool",
@@ -392,7 +396,9 @@ def _download_backup(role: str, spec: dict[str, Any]) -> dict[str, Any]:
 
 def _ram_ok(path: Path) -> bool:
     size = path.stat().st_size
-    return _available_ram() >= int(size * 1.2) + RESERVE_BYTES
+    need = int(size * 1.2) + RESERVE_BYTES
+    # Spec is approximate; mmap does not copy the file, and Windows available RAM jitters.
+    return _available_ram() + 256 * 1024 * 1024 >= need
 
 
 def _available_ram() -> int:

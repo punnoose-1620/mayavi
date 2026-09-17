@@ -11,3 +11,5 @@ google-auth-httplib2>=0.2
 msal>=1.28
 python-dotenv>=1.0
 pytest>=8.0
+# Inference (CPU wheel; avoids a local C compiler):
+# pip install -r requirements-inference.txt

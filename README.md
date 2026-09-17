@@ -47,15 +47,7 @@ Install Python deps:
 ```powershell
 cd "d:\Documents\Github Repositories\id10t"
 python -m pip install -r requirements.txt
-```
-
-For real inference (not `--no-model`), also install llama.cpp bindings:
-
-```powershell
-python -m pip install llama-cpp-python
-```
-
-GPU builds of `llama-cpp-python` are optional and platform-specific; CPU works without them.
+python -m pip install -r requirements-inference.txt
 
 ## Quick start
 

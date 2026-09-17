@@ -232,3 +232,5 @@ token_google_*.json
 token_ms_*.json
 createdIndex.json
 /tests
+/inputs
+/input

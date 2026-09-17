@@ -293,21 +293,61 @@ def run_session(
     }
 
 
+ANSWER_KINDS = {"vote", "draft"}
+
+
 def select_vote(run: Run) -> str:
-    if run.blackboard is None:
-        return ""
-    votes = [m["body"] for m in run.blackboard.messages if m.get("kind") == "vote"]
-    if votes:
-        counts: dict[str, int] = {}
-        for body in votes:
-            counts[body] = counts.get(body, 0) + 1
-        return max(counts.items(), key=lambda kv: kv[1])[0]
-    drafts = [m["body"] for m in run.blackboard.messages if m.get("kind") == "draft"]
-    if drafts:
-        return drafts[-1]
-    if run.blackboard.messages:
-        return run.blackboard.messages[-1]["body"]
+    """Pick the user-facing answer. Never return factory rules or sandbox debug."""
+    if run.blackboard is not None:
+        votes = [m["body"] for m in run.blackboard.messages if m.get("kind") == "vote" and str(m.get("body") or "").strip()]
+        if votes:
+            counts: dict[str, int] = {}
+            for body in votes:
+                counts[body] = counts.get(body, 0) + 1
+            return max(counts.items(), key=lambda kv: kv[1])[0]
+        drafts = [m["body"] for m in run.blackboard.messages if m.get("kind") == "draft" and str(m.get("body") or "").strip()]
+        if drafts:
+            return drafts[-1]
+    return _latest_final(run)
+
+
+def _latest_final(run: Run) -> str:
+    preferred: list[str] = []
+    others: list[str] = []
+    for agent in run.agents.values():
+        if agent.role == "router":
+            continue
+        finals = [m["content"] for m in agent.history if m.get("role") == "final" and str(m.get("content") or "").strip()]
+        if not finals:
+            continue
+        if agent.role in {"executor", "drafter"}:
+            preferred.append(finals[-1])
+        else:
+            others.append(finals[-1])
+    if preferred:
+        return preferred[-1]
+    if others:
+        return others[-1]
     return ""
+
+
+def _agent_posted_answer(run: Run, agent_name: str) -> bool:
+    if run.blackboard is None:
+        return False
+    return any(
+        m.get("agent_id") == agent_name and m.get("kind") in ANSWER_KINDS
+        for m in run.blackboard.messages
+    )
+
+
+def _promote_final_to_board(run: Run, agent: Agent, text: str) -> None:
+    body = (text or "").strip()
+    if run.level not in {"medium", "large"} or run.blackboard is None or not body:
+        return
+    if _agent_posted_answer(run, agent.agent_name):
+        return
+    kind = "draft" if agent.role in {"drafter", "builder"} else "vote"
+    runtime.sendMessageToBlackboard(body, kind, agent_id=agent.agent_name)
 
 
 def _run_small(run: Run) -> str:
@@ -403,6 +443,7 @@ def _run_agent_loop(run: Run, agent: Agent) -> dict[str, Any]:
         if parsed.get("final"):
             final = parsed["final"]
             agent.history.append({"role": "final", "content": final})
+            _promote_final_to_board(run, agent, final)
             break
         if parsed.get("tool"):
             result = _dispatch_tool(run, agent, parsed["tool"], parsed.get("args") or {})
@@ -411,6 +452,7 @@ def _run_agent_loop(run: Run, agent: Agent) -> dict[str, Any]:
             continue
         final = raw.strip()
         agent.history.append({"role": "final", "content": final})
+        _promote_final_to_board(run, agent, final)
         break
     return {"ok": True, "agent_name": agent.agent_name, "final": bool(final)}
 
@@ -539,8 +581,10 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
         f"Available tools: {names}\n"
         "Reply with a single JSON object.\n"
         'Call a tool: {"tool": "name", "args": {}}\n'
-        'Finish: {"final": "answer for the user"}\n'
-        'On medium/large, post drafts/critiques/votes with sendMessageToBlackboard.\n'
+        'Finish with the user-facing answer: {"final": "..."}\n'
+        "On medium/large, post drafts/critiques/votes with sendMessageToBlackboard. "
+        "The script also records your final as a draft (builders/drafter) or vote (executor/checkers). "
+        "Blackboard rules and debug messages are not the user answer.\n"
         "Do not invent tools. Do not pass agent_id. Do not request tokens or passwords.\n"
     )
 
