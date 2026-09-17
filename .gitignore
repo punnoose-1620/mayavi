@@ -216,3 +216,19 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+/prompts
+
+# id10t runtime
+*.gguf
+/state
+/sandboxes
+/outputs/*
+!/outputs/.gitkeep
+/input/*
+!/input/.gitkeep
+/models/*
+!/models/.gitkeep
+token_google_*.json
+token_ms_*.json
+createdIndex.json
+/tests
