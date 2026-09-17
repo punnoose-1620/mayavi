@@ -6,11 +6,11 @@ It is designed to run on a single machine (overnight / sequential). It does **no
 
 ## What it does
 
-1. A **router** inspects the prompt and emits effort/stakes fields (not a tier name).
+1. A **router** inspects the prompt and emits effort/stakes fields (not a tier name). It does not answer the user and does not call tools.
 2. The script maps those fields to `small` | `medium` | `large`.
-3. A **factory** (`executor.py`) creates agents, optional blackboard, optional sandbox, and (if requested) mail/calendar OAuth.
-4. Workers use tools: files, web GET/POST, mail/calendar, sandbox code.
-5. The script returns **one** user-facing answer. On medium/large, that answer is selected from blackboard votes, not automatically from the executor agent.
+3. A **factory** (`executor.py`) creates agents, optional blackboard, optional sandbox, and (if requested) mail/calendar OAuth. File and web tools are **gated** from the router counts: `file_ops=0` hides writers/readers; `web_ops=0` hides scrape tools.
+4. Workers prefer a direct `{"final": "..."}`. They only get a tool if the router counted that family and the user asked for a file, URL, mail, or sandbox code.
+5. The CLI prints **one** user-facing answer (Prompt / Response / Meta). Tokens are not streamed. On medium/large, that answer comes from blackboard `vote` then `draft`. Factory `rules` and sandbox `debug` are never the answer. If the model only emits `final`, the script copies it onto the board.
 6. A daily binary **audit log** records who spawned and which exported functions ran. It does not store transcripts, file bodies, mail bodies, or tokens.
 
 ## Tiers
@@ -25,6 +25,8 @@ The router never outputs `small` / `medium` / `large`. Mapping is:
 | else | **small** |
 
 `mail_cal` does not pick the tier. Coding tasks force `mail_cal` to `off`.
+
+If the router is **unsure**, fields default **cheap**: `stakes=low`, `needs_code_exec=no`, `file_ops=0`, `web_ops=0` → **small**. High stakes only when the prompt is clearly legal/official/medical/financial (or similar). Greetings, chat, how-to, and summaries are low. A write counts toward `file_ops` only if the user asked to create or save a file. Missing or garbage router JSON uses those same cheap defaults (it does **not** round up to large).
 
 | Tier | Agents | Blackboard | Sandbox | Typical use |
 | --- | --- | --- | --- | --- |
@@ -48,6 +50,7 @@ Install Python deps:
 cd "d:\Documents\Github Repositories\id10t"
 python -m pip install -r requirements.txt
 python -m pip install -r requirements-inference.txt
+```
 
 ## Quick start
 
@@ -70,11 +73,33 @@ python main.py --no-model "How do I fix this issue on my electric scooter?"
 python -m pytest
 ```
 
+`--no-model` and `pytest` use **stubs**. They will not print a real 3B chat reply. `pytest` also prints each test’s captured call/result (`-s` is on by default); most of those 44 tests are gates (path deny, SSRF, mail policy), not conversations.
+
 Run for real (loads the router GGUF, then workers as needed):
 
 ```powershell
+python main.py "hi"
 python main.py "Summarize the files in the input folder"
 ```
+
+Double-clickable live checks (open a cmd window, show Prompt / Response / Meta, pause):
+
+- `tests\run_hi.bat`
+- `tests\run_resume.bat` — expects resumes under `input/` (or `inputs/` if you pointed `ID10T_WORKSPACE` there)
+- `tests\run_scooter.bat`
+
+The CLI does **not** stream tokens. After the run finishes you get:
+
+```text
+---------- Prompt ----------
+hi
+---------- Response ----------
+...model answer...
+---------- Meta ----------
+ok=True level=small stakes=low mail_cal=off run_id=run_...
+```
+
+If the model produced no `final`/vote/draft, Response is `(empty — the model produced no user-facing answer)` even when the process exits 0.
 
 ## Configuration
 
@@ -121,8 +146,10 @@ python main.py --provider microsoft PROMPT
 | Flag | Meaning |
 | --- | --- |
 | `--no-model` | Heuristic routing + stub replies. Does not load GGUFs. Use this before weights exist. |
-| `--json` | Print the full run record instead of only the answer. |
+| `--json` | Print the full run record instead of the Prompt/Response block. |
 | `--provider` | Prefer Google or Microsoft when `mail_cal` is not `off`. |
+
+Stdout is the labeled Prompt / Response / Meta block (or JSON). Exit code 0 means the **session** finished, not that the answer is non-empty.
 
 If `--no-model` is omitted and the router GGUF cannot load, routing falls back to the heuristic and workers still try to load models when their turn comes.
 
@@ -182,7 +209,18 @@ Do **not** use Write, Inference, CI/CD, or Full access tokens for this project.
 
 Agents never import `executor.py`, `logger.py`, `models.py`, `google.py`, or `microsoft.py`. The runtime injects `agent_id`; models must not pass their own id.
 
-**Files** (`file_tools.py`): `search_dir`, `read_file`, `write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir`.
+The worker system prompt tells them to **answer directly** unless the user asked for a file, a live URL, mail/calendar, or sandbox code. The factory also **removes tools they should not have**:
+
+| Router field | Tools exposed |
+| --- | --- |
+| `file_ops` is `0` | No `search_dir` / `read_file` / `write_doc` / `write_pdf` / `write_json` / `append_file` / `mkdir` |
+| `web_ops` is `0` | No `get_url` / `post_url` / `resetSession` |
+| `mail_cal` is `off` | No mail/calendar tools |
+| not `large` | No sandbox tools |
+
+A model that still calls a hidden tool gets `unknown_tool` and can finish with `{"final": "..."}`. That is why a greeting must not invoke `write_doc`.
+
+**Files** (`file_tools.py`): `search_dir`, `read_file`, `write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir` (only if `file_ops` ≠ `0`).
 
 - Reads: `input/` and `outputs/` (allowed roots).
 - Writes: `outputs/` only.
@@ -190,7 +228,7 @@ Agents never import `executor.py`, `logger.py`, `models.py`, `google.py`, or `mi
 - Created files are tracked in `state/createdIndex.json` (agents cannot read that index).
 - Reads/writes are paged (max 5 pages per call).
 
-**Web** (`web_scrape.py`): `get_url`, `post_url`, `resetSession`.
+**Web** (`web_scrape.py`): `get_url`, `post_url`, `resetSession` (only if `web_ops` ≠ `0`).
 
 - http/https only. Loopback, private, and link-local IPs are rejected (SSRF).
 - No captcha solving, no search APIs (v2).
@@ -203,6 +241,8 @@ Agents never import `executor.py`, `logger.py`, `models.py`, `google.py`, or `mi
 - OAuth is browser **Allow**, not mailbox password. Tokens stay on blocked paths.
 
 **Committee** (`runtime.py`, medium/large): `viewSessionDetails`, blackboard send/view.
+
+Allowed blackboard kinds: `draft`, `critique`, `debug`, `vote`, `rules`. Only the factory may post `rules` (coding-rules pin on large). `select_vote` uses `vote`, then `draft`, then worker `final` text. It never returns `rules` or `debug`.
 
 **Sandbox** (`runtime.py`, large only): `openSandbox`, `sandbox_read`, `sandbox_write` (builders), `executeScriptInSandbox` / `sandbox_fetch` (executor), `getResultsFromSandbox`.
 
@@ -258,7 +298,11 @@ If `mail_cal` is `off`, connect is skipped.
 python -m pytest
 ```
 
-Tests use a temp tree (no real GGUF load, no browser OAuth). They cover routing, logs, file gates, SSRF, mail policy, sandbox execute/fetch, and small/medium/large teardown.
+Pytest uses a temp tree (no real GGUF load, no browser OAuth). It covers routing defaults, vote selection, tool gating, logs, file gates, SSRF, mail policy, sandbox execute/fetch, and small/medium/large teardown.
+
+Those 44 tests are **not** a live chat log. Session tests inject `stub_generate` (they echo `intent`). Other tests print the tool call and JSON result. For a real model answer, use `python main.py "..."` or the `.bat` scripts above.
+
+Live bats live under `tests/` (gitignored with the rest of that folder). They call `main.py` with unbuffered output.
 
 ## License
 
