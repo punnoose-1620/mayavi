@@ -1,4 +1,7 @@
-# id10t
+# Project ID-10-T
+
+![Display Image](assets/displayImage.jpg)
+
 
 Local multi-agent runtime that routes a user request into a **small**, **medium**, or **large** session, then runs local GGUF models one at a time with a locked-down tool set.
 
