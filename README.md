@@ -7,13 +7,15 @@ Local multi-agent runtime that routes a user request into a **small**, **medium*
 
 It is designed to run on a single machine (overnight / sequential). It does **not** keep five models in RAM. Weights come from Hugging Face as GGUF files. Inference uses llama.cpp (`llama-cpp-python`).
 
+Release history lives in [`CHANGELOG.md`](CHANGELOG.md), newest version **first** (`1.0.2` above `1.0.1`, and so on), so the top entry is always the current feature set.
+
 ## What it does
 
 1. A **router** inspects the prompt and emits effort/stakes fields (not a tier name). It does not answer the user and does not call tools.
 2. The script maps those fields to `small` | `medium` | `large`.
 3. A **factory** (`executor.py`) creates agents, optional blackboard, optional sandbox, and (if requested) mail/calendar OAuth. File and web tools are **gated** from the router counts: `file_ops=0` hides writers/readers; `web_ops=0` hides scrape tools.
 4. Workers prefer a direct `{"final": "..."}`. They only get a tool if the router counted that family and the user asked for a file, URL, mail, or sandbox code.
-5. The CLI prints **one** user-facing answer (Prompt / Response / Meta). Tokens are not streamed. On medium/large, that answer comes from blackboard `vote` then `draft`. Factory `rules` and sandbox `debug` are never the answer. If the model only emits `final`, the script copies it onto the board.
+5. The CLI prints **one** user-facing answer (Prompt / Response / Meta). Tokens are not streamed. On medium/large, that answer comes from blackboard `vote` then `draft`. Factory `rules`, sandbox `debug`, and bare `ship` / `reject` ballots are never the answer; a shipped large run answers `saved`, with the artifacts in `outputs/<run_id>/`. If the model only emits `final`, the script copies it onto the board.
 6. A daily binary **audit log** records who spawned and which exported functions ran. It does not store transcripts, file bodies, mail bodies, or tokens.
 
 ## Tiers
@@ -37,7 +39,7 @@ If the router is **unsure**, fields default **cheap**: `stakes=low`, `needs_code
 | Medium | drafter + 2 checkers | yes | no | more file/web work, review |
 | Large | 1 executor + builders | yes | **always** | high stakes and/or custom code |
 
-Large always creates a sandbox and injects `coding-rules.md`, even when the user task is not “write a program.” If the USB model library is present, large uses four unique builders. If not, it uses the thinner backup pair (Llama 3.2 3B + Qwen 3B).
+Large always creates a sandbox and a keep folder, and injects `coding-rules.md`, even when the user task is not “write a program.” If the USB model library is present, large uses four unique builders. If not, it uses the thinner backup pair (Llama 3.2 3B + Qwen 3B).
 
 ## Requirements
 
@@ -45,7 +47,7 @@ Large always creates a sandbox and injects `coding-rules.md`, even when the user
 - Enough disk for GGUFs (~7GB backup set, or ~26GB full USB set)
 - Enough RAM to load **one** GGUF at a time (file size × 1.2, plus a 2GB reserve)
 - Hugging Face account + **Read** token (needed for gated Llama/Gemma)
-- Optional: GPU via `N_GPU_LAYERS`; CPU mmap is the default
+- Optional: GPU via `N_GPU_LAYERS` (`auto` = detect CUDA wheel + dedicated VRAM vs this GGUF, working agents only; `0` = CPU)
 
 Install Python deps:
 
@@ -76,7 +78,7 @@ python main.py --no-model "How do I fix this issue on my electric scooter?"
 python -m pytest
 ```
 
-`--no-model` and `pytest` use **stubs**. They will not print a real 3B chat reply. `pytest` also prints each test’s captured call/result (`-s` is on by default); most of those 44 tests are gates (path deny, SSRF, mail policy), not conversations.
+`--no-model` and `pytest` use **stubs**. They will not print a real 3B chat reply. `pytest` also prints each test’s captured call/result (`-s` is on by default); most of those 73 tests are gates (path deny, SSRF, mail policy), not conversations.
 
 Run for real (loads the router GGUF, then workers as needed):
 
@@ -116,7 +118,7 @@ Copy `.env.example` to `.env`. **Never put secrets in `.env.example`.** `.env` i
 | `ID10T_WORKSPACE` | **Input** root agents may **read** (`input/` by default). |
 | `ID10T_OUTPUTS` | **Output** root for **writes** (`outputs/` by default). |
 | `ID10T_HF_DOWNLOAD` | `1` to allow resolve/update to download from Hugging Face into `BACKUP_MODELS_DIR`. Default `0`. |
-| `N_GPU_LAYERS` | llama.cpp GPU offload. `0` = CPU. |
+| `N_GPU_LAYERS` | llama.cpp GPU offload. `auto` (default) uses GPU only if driver, device, GPU wheel, and dedicated VRAM beat this GGUF, and only for the working agents — the router always stays on CPU. `0` = CPU everywhere. A positive integer forces that many layers for every role, router included. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_LOGIN_HINT` | Gmail + Calendar OAuth (browser Allow). |
 | `MS_CLIENT_ID` / `MS_TENANT` / `MS_LOGIN_HINT` | Microsoft Graph mail + calendar OAuth. |
 | `ID10T_DATA_DIR` | Private state (logs, tokens, createdIndex). Default `state/`. |
@@ -130,6 +132,7 @@ Relative paths in `.env` are resolved from the **repo root**, not the current wo
 | --- | --- |
 | `input/` | Allowed **read** root. Put source documents here. |
 | `outputs/` | Allowed **write** root. `write_doc` / `write_pdf` / `write_json` / `append_file` / `mkdir` only write here. |
+| `outputs/<run_id>/` | Keep folder for one large run. Writers stay locked until the committee ships; approved sandbox files land here. |
 | `models/` | GGUF files. On `BLOCKED_PATHS` (agents cannot `read_file` weights). |
 | `state/` | Logs, OAuth token files, session JSON, `createdIndex.json`. Blocked. |
 | `sandboxes/` | Per-`run_id` jail. Blocked from file tools; runtime sandbox APIs only. |
@@ -220,13 +223,14 @@ The worker system prompt tells them to **answer directly** unless the user asked
 | `web_ops` is `0` | No `get_url` / `post_url` / `resetSession` |
 | `mail_cal` is `off` | No mail/calendar tools |
 | not `large` | No sandbox tools |
+| `large` before the ship vote | No writers; the sandbox is the only place to build |
 
-A model that still calls a hidden tool gets `unknown_tool` and can finish with `{"final": "..."}`. That is why a greeting must not invoke `write_doc`.
+A model that still calls a hidden tool gets `unknown_tool` and can finish with `{"final": "..."}`. That is why a greeting must not invoke `write_doc`. A writer called too early on a large run gets `ship_locked`.
 
 **Files** (`file_tools.py`): `search_dir`, `read_file`, `write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir` (only if `file_ops` ≠ `0`).
 
 - Reads: `input/` and `outputs/` (allowed roots).
-- Writes: `outputs/` only.
+- Writes: `outputs/` only. On a large run they are locked until the ship vote, then remapped into that run's keep folder.
 - Original files that exist on disk but are not in `createdIndex` cannot be overwritten.
 - Created files are tracked in `state/createdIndex.json` (agents cannot read that index).
 - Reads/writes are paged (max 5 pages per call).
@@ -249,7 +253,11 @@ Allowed blackboard kinds: `draft`, `critique`, `debug`, `vote`, `rules`. Only th
 
 **Sandbox** (`runtime.py`, large only): `openSandbox`, `sandbox_read`, `sandbox_write` (builders), `executeScriptInSandbox` / `sandbox_fetch` (executor), `getResultsFromSandbox`.
 
-Sandbox v1: `.py` / `.html` / `.css` / `.js` only. Execute is `python <file.py>` under the sandbox root, timed, host env stripped. One exclusive lock covers write, execute, and fetch. HTML/CSS/JS are written as UI, not run as a GUI. Full rules: `coding-rules.md`.
+Sandbox v1: `.py` / `.html` / `.css` / `.js` only. Execute is `python <file.py>` under the sandbox root, timed, host env stripped. One exclusive lock covers write, execute, and fetch. HTML/CSS/JS are written as UI, not run as a GUI. `getResultsFromSandbox` returns `not_run` until a script has actually executed, so a committee cannot vote on output that was never produced. Full rules: `coding-rules.md`.
+
+### Keep vs wipe on a large run
+
+The factory makes `outputs/<run_id>/` at the start of the run and keeps every writer (`write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir`) shut. Builders can only use `sandbox_write`; the executor runs the script and reads the results. Once a script has run and the committee votes **ship** by majority, the factory unlocks the writers, copies the sandbox's `.py` / `.html` / `.css` / `.js` files plus captured stdout (`result.txt`) into the keep folder, and remaps any later write into that same folder. Without a ship, the sandbox is wiped at teardown and nothing durable survives — a failed build cannot pass itself off as finished work.
 
 ## Path policy
 
@@ -278,11 +286,13 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `mailAndCalendar.py` | Agent-facing mail/calendar door |
 | `google.py` / `microsoft.py` | Private OAuth backends |
 | `models.py` | Resolve / RAM check / load / generate / pin refresh |
+| `gpu-check.py` | Factory-only GPU decision per role (driver, device, wheel, dedicated VRAM) |
 | `models.json` | Role → repo/file/revision |
 | `logger.py` | Spawn + event audit log |
 | `config.py` | Paths, env, allowed/blocked lists |
 | `store.py` | Private run registry |
 | `coding-rules.md` | Injected on every large run |
+| `CHANGELOG.md` | Hand-written release history, newest first (never updated automatically) |
 | `downloader-scripts/` | HF GGUF fetchers (not imported by the runtime) |
 
 ## Mail and calendar (optional)
@@ -301,9 +311,9 @@ If `mail_cal` is `off`, connect is skipped.
 python -m pytest
 ```
 
-Pytest uses a temp tree (no real GGUF load, no browser OAuth). It covers routing defaults, vote selection, tool gating, logs, file gates, SSRF, mail policy, sandbox execute/fetch, and small/medium/large teardown.
+Pytest uses a temp tree (no real GGUF load, no browser OAuth). It covers routing defaults, vote selection, tool gating, logs, file gates, SSRF, mail policy, sandbox execute/fetch, the large-run keep folder and ship lock, the GPU decision per role, and small/medium/large teardown.
 
-Those 44 tests are **not** a live chat log. Session tests inject `stub_generate` (they echo `intent`). Other tests print the tool call and JSON result. For a real model answer, use `python main.py "..."` or the `.bat` scripts above.
+Those 73 tests are **not** a live chat log. Session tests inject `stub_generate` (they echo `intent`). Other tests print the tool call and JSON result. For a real model answer, use `python main.py "..."` or the `.bat` scripts above.
 
 Live bats live under `tests/` (gitignored with the rest of that folder). They call `main.py` with unbuffered output.
 

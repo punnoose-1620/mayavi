@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import threading
 from pathlib import Path
@@ -23,6 +24,20 @@ _LOADED_PATH: Path | None = None
 _LOADED_ROOT: str | None = None
 RESERVE_BYTES = 2 * 1024 ** 3
 GENERATE_MIN_AVAILABLE = 256 * 1024 ** 2
+_GPU_CHECK = None
+
+
+def _gpu_check():
+    global _GPU_CHECK
+    if _GPU_CHECK is None:
+        path = Path(__file__).resolve().parent / "gpu-check.py"
+        spec = importlib.util.spec_from_file_location("gpu_check", path)
+        if spec is None or spec.loader is None:
+            raise ImportError("gpu-check.py missing")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _GPU_CHECK = mod
+    return _GPU_CHECK
 
 
 def load_manifest() -> dict[str, Any]:
@@ -144,11 +159,16 @@ def loadModel(role: str) -> dict[str, Any]:
         )
     path = Path(resolved["path"])
     try:
+        gpu = _gpu_check().use_gpu(role, path)
+    except Exception as exc:
+        gpu = {"n_gpu_layers": 0, "reason": f"check_failed:{type(exc).__name__}"}
+    layers = int(gpu.get("n_gpu_layers") or 0)
+    try:
         _LLM = Llama(
             model_path=str(path),
             use_mmap=True,
             n_ctx=4096,
-            n_gpu_layers=config.N_GPU_LAYERS,
+            n_gpu_layers=layers,
             verbose=False,
         )
         _LOADED_ROLE = role
@@ -159,9 +179,45 @@ def loadModel(role: str) -> dict[str, Any]:
             tool="loadModel",
             run_id=run_id,
             agent_name=agent,
-            result={"ok": True, "role": role, "root": _LOADED_ROOT, "path": str(path)},
+            result={
+                "ok": True,
+                "role": role,
+                "root": _LOADED_ROOT,
+                "path": str(path),
+                "n_gpu_layers": layers,
+                "gpu": gpu.get("reason"),
+            },
         )
     except Exception as exc:
+        if layers:
+            try:
+                _LLM = Llama(
+                    model_path=str(path),
+                    use_mmap=True,
+                    n_ctx=4096,
+                    n_gpu_layers=0,
+                    verbose=False,
+                )
+                _LOADED_ROLE = role
+                _LOADED_PATH = path
+                _LOADED_ROOT = resolved.get("root")
+                return logger.finish(
+                    event="factory",
+                    tool="loadModel",
+                    run_id=run_id,
+                    agent_name=agent,
+                    result={
+                        "ok": True,
+                        "role": role,
+                        "root": _LOADED_ROOT,
+                        "path": str(path),
+                        "n_gpu_layers": 0,
+                        "gpu": "fallback_cpu",
+                    },
+                    summary=f"gpu_fail={type(exc).__name__} cpu_fallback",
+                )
+            except Exception as retry_exc:
+                exc = retry_exc
         _LLM = None
         _LOADED_ROLE = None
         return logger.finish(
