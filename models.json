@@ -7,13 +7,15 @@
         "repo_id": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
         "filename": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
         "revision": "main",
-        "sha256": ""
+        "sha256": "",
+        "bytes": 1117320736
       },
       "backup": {
         "repo_id": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
         "filename": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
         "revision": "main",
-        "sha256": ""
+        "sha256": "",
+        "bytes": 1117320736
       }
     },
     "executor": {
@@ -28,7 +30,8 @@
         "repo_id": "Qwen/Qwen2.5-Coder-3B-Instruct-GGUF",
         "filename": "qwen2.5-coder-3b-instruct-q4_k_m.gguf",
         "revision": "main",
-        "sha256": ""
+        "sha256": "",
+        "bytes": 2104932800
       }
     },
     "builder_llama": {
@@ -43,7 +46,8 @@
         "repo_id": "bartowski/Llama-3.2-3B-Instruct-GGUF",
         "filename": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
         "revision": "main",
-        "sha256": ""
+        "sha256": "",
+        "bytes": 2019377696
       }
     },
     "builder_qwen": {
@@ -58,7 +62,8 @@
         "repo_id": "Qwen/Qwen2.5-3B-Instruct-GGUF",
         "filename": "qwen2.5-3b-instruct-q4_k_m.gguf",
         "revision": "main",
-        "sha256": ""
+        "sha256": "",
+        "bytes": 2104932768
       }
     },
     "builder_mistral": {

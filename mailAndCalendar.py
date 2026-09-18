@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any, Callable
 
-import google as google_backend
+import google_backend
 import logger
 import microsoft as microsoft_backend
 import store

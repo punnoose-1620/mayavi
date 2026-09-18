@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -32,6 +33,8 @@ MODELS_DIR = _env_path("MODELS_DIR")
 BACKUP_MODELS_DIR = _env_path("BACKUP_MODELS_DIR")
 HF_TOKEN = os.environ.get("HF_TOKEN")
 ALLOW_HF_DOWNLOAD = os.environ.get("ID10T_HF_DOWNLOAD", "").strip() in {"1", "true", "yes"}
+# Downloads are always hashed. Re-hashing multi-GB weights on every load is opt-in.
+VERIFY_MODEL_HASH = os.environ.get("ID10T_VERIFY_MODEL_HASH", "").strip() in {"1", "true", "yes"}
 CODING_RULES_PATH = REPO_ROOT / "coding-rules.md"
 MODELS_JSON = REPO_ROOT / "models.json"
 
@@ -92,11 +95,23 @@ def refresh_paths() -> None:
     BLOCKED_PATHS = blocked
 
 
+def _unpinned_manifest() -> str:
+    """The tracked manifest with every sha256/bytes pin cleared."""
+    blob = json.loads((REPO_ROOT / "models.json").read_text(encoding="utf-8"))
+    for spec in (blob.get("roles") or {}).values():
+        for slot in spec.values():
+            if isinstance(slot, dict):
+                slot.pop("bytes", None)
+                if "sha256" in slot:
+                    slot["sha256"] = ""
+    return json.dumps(blob, indent=2)
+
+
 def use_temp(root: Path, *, allow_hf: bool = False) -> None:
     """Point all mutable state at a temp tree (tests)."""
     global DATA_DIR, LOG_DIR, SESSION_DIR, TOKEN_DIR, CREATED_INDEX
     global SANDBOX_ROOT, WORKSPACE, OUTPUTS, ALLOW_HF_DOWNLOAD
-    global MODELS_DIR, BACKUP_MODELS_DIR
+    global MODELS_DIR, BACKUP_MODELS_DIR, MODELS_JSON
     root = Path(root).resolve()
     DATA_DIR = root / "state"
     LOG_DIR = DATA_DIR / "logs"
@@ -109,6 +124,11 @@ def use_temp(root: Path, *, allow_hf: bool = False) -> None:
     MODELS_DIR = None
     BACKUP_MODELS_DIR = None
     ALLOW_HF_DOWNLOAD = allow_hf
+    # Pin rewrites are real writes; keep them off the tracked manifest. Strip the pins too, so a
+    # real run that has already recorded sizes cannot make the fake GGUFs in tests look tampered.
+    manifest = root / "models.json"
+    manifest.write_text(_unpinned_manifest(), encoding="utf-8")
+    MODELS_JSON = manifest
     _ensure_dirs()
     refresh_paths()
 

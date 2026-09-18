@@ -96,14 +96,20 @@ def resolveModel(role: str) -> dict[str, Any]:
             last_error = "ram"
             continue
         expected = item.get("sha256") or ""
-        if expected:
+        size = item.get("bytes") or 0
+        if size and path.stat().st_size != size:
+            last_error = "size_mismatch"
+            continue
+        digest = ""
+        if config.VERIFY_MODEL_HASH:
             digest = _sha256(path)
-            if digest != expected:
+            if expected and digest != expected:
                 last_error = "hash_mismatch"
                 continue
-        else:
-            digest = ""
-        chosen = {**item, "path": str(path), "sha256": digest, "ok": True}
+            _pin_file(role, item["filename"], digest, path.stat().st_size)
+        elif not size:
+            _pin_file(role, item["filename"], expected, path.stat().st_size)
+        chosen = {**item, "path": str(path), "sha256": digest or expected, "ok": True}
         break
     if chosen is None and config.ALLOW_HF_DOWNLOAD:
         chosen = _download_backup(role, spec)
@@ -388,6 +394,7 @@ def _candidates(role: str, spec: dict[str, Any]) -> list[dict[str, Any]]:
                 "filename": primary["filename"],
                 "revision": primary.get("revision") or "main",
                 "sha256": primary.get("sha256") or "",
+                "bytes": primary.get("bytes") or 0,
                 "path": config.MODELS_DIR / primary["filename"],
             }
         )
@@ -401,6 +408,7 @@ def _candidates(role: str, spec: dict[str, Any]) -> list[dict[str, Any]]:
                 "filename": backup["filename"],
                 "revision": backup.get("revision") or "main",
                 "sha256": backup.get("sha256") or "",
+                "bytes": backup.get("bytes") or 0,
                 "path": config.BACKUP_MODELS_DIR / backup["filename"],
             }
         )
@@ -412,6 +420,7 @@ def _candidates(role: str, spec: dict[str, Any]) -> list[dict[str, Any]]:
                 "filename": spec["primary"]["filename"],
                 "revision": spec["primary"].get("revision") or "main",
                 "sha256": spec["primary"].get("sha256") or "",
+                "bytes": spec["primary"].get("bytes") or 0,
                 "path": config.BACKUP_MODELS_DIR / spec["primary"]["filename"],
             }
         )
@@ -438,6 +447,7 @@ def _download_backup(role: str, spec: dict[str, Any]) -> dict[str, Any]:
         digest = _sha256(Path(path))
         if slot.get("sha256") and digest != slot["sha256"]:
             return {"ok": False, "error": "hash_mismatch", "role": role}
+        _pin_file(role, slot["filename"], digest, Path(path).stat().st_size)
         return {
             "ok": True,
             "role": role,
@@ -450,6 +460,28 @@ def _download_backup(role: str, spec: dict[str, Any]) -> dict[str, Any]:
         }
     except Exception as exc:
         return {"ok": False, "error": type(exc).__name__, "role": role}
+
+
+def _pin_file(role: str, filename: str, digest: str, size: int) -> None:
+    """First good copy of a file records its pin; later loads check the pin instead of trusting the name."""
+    try:
+        data = load_manifest()
+        spec = data.get("roles", {}).get(role) or {}
+        changed = False
+        for key in ("primary", "backup"):
+            slot = spec.get(key) or {}
+            if slot.get("filename") != filename:
+                continue
+            if digest and not slot.get("sha256"):
+                slot["sha256"] = digest
+                changed = True
+            if size and not slot.get("bytes"):
+                slot["bytes"] = size
+                changed = True
+        if changed:
+            save_manifest(data)
+    except Exception:
+        return
 
 
 def _ram_ok(path: Path) -> bool:

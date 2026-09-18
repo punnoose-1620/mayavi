@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import config
-import google as google_backend
+import google_backend
 import logger
 import mailAndCalendar
 import models
@@ -92,6 +92,8 @@ def startThread(agent_name: str) -> dict[str, Any]:
         return _factory("startThread", run, agent_name, err)
     if run.level in {"medium", "large"} and not (run.rules_frozen and run.session_frozen):
         return _factory("startThread", run, agent_name, {"ok": False, "error": "not_frozen"})
+    if run.level == "large" and run.sandbox_path is not None:
+        runtime.openSandbox(agent_id=agent_name)
     agent.thread_state = "started"
     result = _run_agent_loop(run, agent)
     return _factory("startThread", run, agent_name, result)
@@ -305,6 +307,7 @@ def run_session(
         "mail_cal": run.mail_cal,
         "intent": run.intent,
         "answer": answer,
+        "notices": list(run.notices),
     }
 
 
@@ -431,31 +434,34 @@ def _run_large(run: Run) -> str:
 
 
 def _teardown(run: Run) -> None:
-    names = [n for n, a in list(run.agents.items()) if a.role != "router"]
-    for name in names:
-        agent = run.agents.get(name)
-        if agent and agent.thread_state not in {"ended", "deleted", "none"}:
-            endThread(name)
-            deleteThread(name)
-        if name in run.agents:
-            deleteAgent(name)
-    if run.level == "large":
-        _refresh_ship_lock(run)
-    if run.sandbox_path is not None:
-        deleted = deleteSandbox(run.run_id)
-        if not deleted.get("ok"):
+    # A leftover jail is a leak, so agent cleanup must never be able to skip deleteSandbox.
+    try:
+        names = [n for n, a in list(run.agents.items()) if a.role != "router"]
+        for name in names:
+            agent = run.agents.get(name)
+            if agent and agent.thread_state not in {"ended", "deleted", "none"}:
+                endThread(name)
+                deleteThread(name)
+            if name in run.agents:
+                deleteAgent(name)
+        if run.level == "large":
+            _refresh_ship_lock(run)
+    finally:
+        leaked = False
+        if run.sandbox_path is not None:
+            leaked = not deleteSandbox(run.run_id).get("ok")
+        if run.router_agent and run.router_agent in run.agents:
+            deleteAgent(run.router_agent)
+        if run.session_path and run.session_path.exists():
+            run.session_path.unlink()
+        if leaked:
             raise RuntimeError("sandbox_leak")
-    if run.router_agent and run.router_agent in run.agents:
-        deleteAgent(run.router_agent)
-    if run.session_path and run.session_path.exists():
-        run.session_path.unlink()
 
 
 def _connect_mail(run: Run) -> None:
-    if run.provider == "microsoft":
-        connectToMicrosoft()
-    else:
-        connectToGoogle()
+    out = connectToMicrosoft() if run.provider == "microsoft" else connectToGoogle()
+    if not out.get("ok"):
+        run.notices.append(f"mail_connect_failed:{out.get('error') or 'unknown'}")
 
 
 def _run_agent_loop(run: Run, agent: Agent) -> dict[str, Any]:
@@ -646,6 +652,14 @@ def _as_int(value: Any, default: int) -> int:
         return default
 
 
+def _exec_timeout(value: Any) -> int:
+    """A model may ask for a shorter run, never a longer one than the configured cap."""
+    limit = int(config.EXECUTE_TIMEOUT)
+    if value is None:
+        return limit
+    return max(1, min(_as_int(value, limit), limit))
+
+
 def _ops_needed(value: str | None) -> bool:
     return str(value or "0").strip() not in {"", "0", "no", "off"}
 
@@ -716,6 +730,7 @@ def _tools_for(run: Run, agent: Agent) -> dict[str, Callable[..., Any]]:
         if agent.role == "executor":
             tools["executeScriptInSandbox"] = lambda **kw: runtime.executeScriptInSandbox(
                 path=str(kw.get("path") or kw.get("file") or ""),
+                timeout=_exec_timeout(kw.get("timeout")),
                 agent_id=aid,
             )
             tools["sandbox_fetch"] = lambda **kw: runtime.sandbox_fetch(

@@ -7,7 +7,7 @@ Local multi-agent runtime that routes a user request into a **small**, **medium*
 
 It is designed to run on a single machine (overnight / sequential). It does **not** keep five models in RAM. Weights come from Hugging Face as GGUF files. Inference uses llama.cpp (`llama-cpp-python`).
 
-Release history lives in [`CHANGELOG.md`](CHANGELOG.md), newest version **first** (`1.0.2` above `1.0.1`, and so on), so the top entry is always the current feature set.
+Release history lives in [`CHANGELOG.md`](CHANGELOG.md), newest version **first** (`1.0.2` above `1.0.1`, and so on), so the top entry is always the current feature set. Work that is deliberately not in v1 is parked in [`docs/v2-scope.md`](docs/v2-scope.md).
 
 ## What it does
 
@@ -43,16 +43,25 @@ Large always creates a sandbox and a keep folder, and injects `coding-rules.md`,
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.11+
 - Enough disk for GGUFs (~7GB backup set, or ~26GB full USB set)
 - Enough RAM to load **one** GGUF at a time (file size × 1.2, plus a 2GB reserve)
 - Hugging Face account + **Read** token (needed for gated Llama/Gemma)
 - Optional: GPU via `N_GPU_LAYERS` (`auto` = detect CUDA wheel + dedicated VRAM vs this GGUF, working agents only; `0` = CPU)
 
-Install Python deps:
+Install with the setup script for your platform. It checks the Python version, creates `.venv`, installs both requirement files, copies `.env.example` to `.env` if you have no `.env` yet, and prints what to edit. It does **not** download models.
 
 ```powershell
-cd "d:\Documents\Github Repositories\id10t"
+.\install.ps1
+```
+
+```bash
+./install.sh
+```
+
+Or do it by hand:
+
+```powershell
 python -m pip install -r requirements.txt
 python -m pip install -r requirements-inference.txt
 ```
@@ -78,7 +87,7 @@ python main.py --no-model "How do I fix this issue on my electric scooter?"
 python -m pytest
 ```
 
-`--no-model` and `pytest` use **stubs**. They will not print a real 3B chat reply. `pytest` also prints each test’s captured call/result (`-s` is on by default); most of those 73 tests are gates (path deny, SSRF, mail policy), not conversations.
+`--no-model` and `pytest` use **stubs**. They will not print a real 3B chat reply. `pytest` also prints each test’s captured call/result (`-s` is on by default); most of those 136 tests are gates (path deny, SSRF, mail policy), not conversations.
 
 Run for real (loads the router GGUF, then workers as needed):
 
@@ -118,6 +127,7 @@ Copy `.env.example` to `.env`. **Never put secrets in `.env.example`.** `.env` i
 | `ID10T_WORKSPACE` | **Input** root agents may **read** (`input/` by default). |
 | `ID10T_OUTPUTS` | **Output** root for **writes** (`outputs/` by default). |
 | `ID10T_HF_DOWNLOAD` | `1` to allow resolve/update to download from Hugging Face into `BACKUP_MODELS_DIR`. Default `0`. |
+| `ID10T_VERIFY_MODEL_HASH` | `1` to sha256 every GGUF on load and pin the digest in `models.json`. Default `0`, because re-hashing multi-GB weights on every load is slow; downloads are hashed either way, and loads always check the recorded file size. |
 | `N_GPU_LAYERS` | llama.cpp GPU offload. `auto` (default) uses GPU only if driver, device, GPU wheel, and dedicated VRAM beat this GGUF, and only for the working agents — the router always stays on CPU. `0` = CPU everywhere. A positive integer forces that many layers for every role, router included. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_LOGIN_HINT` | Gmail + Calendar OAuth (browser Allow). |
 | `MS_CLIENT_ID` / `MS_TENANT` / `MS_LOGIN_HINT` | Microsoft Graph mail + calendar OAuth. |
@@ -213,7 +223,7 @@ Do **not** use Write, Inference, CI/CD, or Full access tokens for this project.
 
 ## Tools agents can see
 
-Agents never import `executor.py`, `logger.py`, `models.py`, `google.py`, or `microsoft.py`. The runtime injects `agent_id`; models must not pass their own id.
+Agents never import `executor.py`, `logger.py`, `models.py`, `google_backend.py`, or `microsoft.py`. The runtime injects `agent_id`; models must not pass their own id.
 
 The worker system prompt tells them to **answer directly** unless the user asked for a file, a live URL, mail/calendar, or sandbox code. The factory also **removes tools they should not have**:
 
@@ -238,7 +248,7 @@ A model that still calls a hidden tool gets `unknown_tool` and can finish with `
 **Web** (`web_scrape.py`): `get_url`, `post_url`, `resetSession` (only if `web_ops` ≠ `0`).
 
 - http/https only. Loopback, private, and link-local IPs are rejected (SSRF).
-- No captcha solving, no search APIs (v2).
+- No captcha solving, no search APIs, no contacts, no places lookups — see [`docs/v2-scope.md`](docs/v2-scope.md).
 
 **Mail / calendar** (`mailAndCalendar.py`): list/search/open mail, send/reply (no delete), calendars, events, free/busy.
 
@@ -284,7 +294,7 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `file_tools.py` | Public file API |
 | `web_scrape.py` | HTTP GET/POST |
 | `mailAndCalendar.py` | Agent-facing mail/calendar door |
-| `google.py` / `microsoft.py` | Private OAuth backends |
+| `google_backend.py` / `microsoft.py` | Private OAuth backends (the Google one **cannot** be named `google.py`: it would shadow Google's own `google` package) |
 | `models.py` | Resolve / RAM check / load / generate / pin refresh |
 | `gpu-check.py` | Factory-only GPU decision per role (driver, device, wheel, dedicated VRAM) |
 | `models.json` | Role → repo/file/revision |
@@ -293,6 +303,8 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `store.py` | Private run registry |
 | `coding-rules.md` | Injected on every large run |
 | `CHANGELOG.md` | Hand-written release history, newest first (never updated automatically) |
+| `install.ps1` / `install.sh` | Setup only: venv, dependencies, `.env`. No models, no secrets |
+| `docs/` | The design specs the runtime was built from, plus `v2-scope.md` for planned work |
 | `downloader-scripts/` | HF GGUF fetchers (not imported by the runtime) |
 
 ## Mail and calendar (optional)
@@ -311,11 +323,27 @@ If `mail_cal` is `off`, connect is skipped.
 python -m pytest
 ```
 
-Pytest uses a temp tree (no real GGUF load, no browser OAuth). It covers routing defaults, vote selection, tool gating, logs, file gates, SSRF, mail policy, sandbox execute/fetch, the large-run keep folder and ship lock, the GPU decision per role, and small/medium/large teardown.
+Pytest uses a temp tree (no real GGUF load, no browser OAuth, and a throwaway copy of `models.json` so pin writes never touch the tracked manifest). It covers routing defaults, vote selection, tool gating, page windows, the createdIndex write gate, per-type appends, path escapes, the binary log format and its hard-fail policy, SSRF including redirect hops, mail policy, sandbox bind/lock/execute/fetch, the large-run keep folder and ship lock, model pins, the GPU decision per role, CLI error text, and small/medium/large teardown.
 
-Those 73 tests are **not** a live chat log. Session tests inject `stub_generate` (they echo `intent`). Other tests print the tool call and JSON result. For a real model answer, use `python main.py "..."` or the `.bat` scripts above.
+Those 136 tests are **not** a live chat log. Session tests inject `stub_generate` (they echo `intent`). Other tests print the tool call and JSON result. For a real model answer, use `python main.py "..."` or the `.bat` scripts above.
 
 Live bats live under `tests/` (gitignored with the rest of that folder). They call `main.py` with unbuffered output.
+
+### Live scenario suite
+
+`pytest` proves the parts work alone. `tests/live/` proves the factory does a real job: real prompts, real GGUFs, real files, real refusals. It is not collected by pytest, because a large scenario can run over an hour.
+
+```powershell
+python tests\live\runner.py --list        # 22 scenarios and a time budget
+python tests\live\runner.py --matrix      # feature -> scenario coverage map
+python tests\live\runner.py --dry-run     # stage fixtures, report blockers, load nothing
+python tests\live\runner.py --tier small
+python tests\live\runner.py --id large_receipt_pipeline
+```
+
+Every check is graded either `contract` (a runtime guarantee — a failure is a bug) or `quality` (what the local model produced — a failure on the 3B set is a limitation, not a bug). The runner exits non-zero only on `contract` failures unless you pass `--strict`, and each run writes `outputs/live/<timestamp>/report.md`.
+
+Scenarios cover the three tiers end to end, including a resume retargeted to a job description, a cover letter written from a live portfolio URL, and a Swedish-receipt-to-CSV pipeline built by the coding committee. `tests/live/README.md` explains the prerequisites, the mail/calendar opt-in, and why the receipts task is shaped around the sandbox's no-network, no-pip limits. Start with `tests\run_live_smoke.bat`, which uses stub replies and finishes in seconds.
 
 ## License
 

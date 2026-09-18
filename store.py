@@ -57,6 +57,7 @@ class Run:
     oauth: dict[str, Any] = field(default_factory=dict)
     exclusive_lock: threading.Lock = field(default_factory=threading.Lock)
     exclusive_holder: str | None = None
+    notices: list[str] = field(default_factory=list)
     sandbox_results: dict[str, Any] = field(default_factory=dict)
     sandbox_proc: Any = None
     generate_fn: GenerateFn | None = None

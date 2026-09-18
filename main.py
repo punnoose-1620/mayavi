@@ -25,12 +25,33 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     generate_fn = stub_generate if args.no_model else None
     fields = _route_fields(prompt, args.no_model)
-    result = executor.run_session(prompt, fields, generate_fn=generate_fn, provider=args.provider)
+    if fields.get("level") == "large" and not args.json:
+        print("working (large) — sequential models, this can take a while…", flush=True)
+    try:
+        result = executor.run_session(prompt, fields, generate_fn=generate_fn, provider=args.provider)
+    except Exception as exc:
+        print(_failure_text(exc), file=sys.stderr, flush=True)
+        return 1
     if args.json:
         print(json.dumps(result, indent=2, default=str))
     else:
         _print_run(prompt, result)
     return 0 if result.get("ok") else 1
+
+
+FAILURE_TEXT = {
+    "sandbox_leak": "Could not delete this run's sandbox. Remove it under sandboxes/ before the next run.",
+    "log_write_failed": "The audit log could not be written, so this run was stopped. Check state/logs/.",
+}
+
+
+def _failure_text(exc: BaseException) -> str:
+    """Operators get a sentence, not a traceback."""
+    key = str(exc).strip()
+    known = FAILURE_TEXT.get(key)
+    if known:
+        return known
+    return f"Run stopped: {type(exc).__name__}: {key or 'no detail'}"
 
 
 def _print_run(prompt: str, result: dict[str, Any]) -> None:
@@ -49,18 +70,49 @@ def _print_run(prompt: str, result: dict[str, Any]) -> None:
         f"run_id={result.get('run_id')}",
         flush=True,
     )
+    for notice in result.get("notices") or []:
+        print(NOTICE_TEXT.get(str(notice).split(":", 1)[0], str(notice)), flush=True)
+
+
+NOTICE_TEXT = {
+    "mail_connect_failed": "Mail/calendar consent did not complete, so this run had no inbox access.",
+}
+
+GENERATE_TEXT = {
+    "busy": "Another inference call holds the model lock; routing with the heuristic instead.",
+    "ram_dropped": "Free RAM fell below the reserve mid-route; routing with the heuristic instead.",
+}
+
+ROUTER_FALLBACK_TEXT = {
+    "low_ram": "Not enough free RAM for the router model; routing with the heuristic instead.",
+    "not_found": "Router GGUF not found; routing with the heuristic instead. See README > Models to download it.",
+    "llama_cpp_missing": "llama-cpp-python is not installed; routing with the heuristic instead.",
+}
 
 
 def _route_fields(prompt: str, no_model: bool) -> dict[str, Any]:
     if no_model:
         return router.heuristic_route(prompt)
+    ram = models.checkRam("router")
+    if not ram.get("ok"):
+        print(ROUTER_FALLBACK_TEXT["low_ram"], file=sys.stderr, flush=True)
+        return router.heuristic_route(prompt)
     loaded = models.loadModel("router")
     if not loaded.get("ok"):
+        reason = str(loaded.get("error") or "")
+        print(
+            ROUTER_FALLBACK_TEXT.get(reason, f"Router model unavailable ({reason or 'unknown'}); routing with the heuristic instead."),
+            file=sys.stderr,
+            flush=True,
+        )
         return router.heuristic_route(prompt)
     try:
         out = models.generate("router", messages=[{"role": "system", "content": router.ROUTER_SYSTEM}, {"role": "user", "content": prompt}], max_tokens=128)
-        text = out.get("text") or ""
-        return router.parse_router_output(text)
+        if not out.get("ok"):
+            reason = str(out.get("error") or "unknown")
+            print(GENERATE_TEXT.get(reason, f"Router did not answer ({reason}); routing with the heuristic instead."), file=sys.stderr, flush=True)
+            return router.heuristic_route(prompt)
+        return router.parse_router_output(out.get("text") or "")
     finally:
         models.unloadModel()
 

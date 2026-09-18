@@ -20,6 +20,7 @@ import paging
 import store
 
 ALLOWED_KINDS = {"draft", "critique", "debug", "vote", "rules"}
+FETCH_METHODS = {"GET", "POST"}
 
 
 def viewSessionDetails(agent_id: str | None = None) -> dict[str, Any]:
@@ -164,11 +165,6 @@ def executeScriptInSandbox(path: str, timeout: int | None = None, agent_id: str 
             "running": running,
             "path": str(target),
         }
-        sendMessageToBlackboard(
-            _debug_body(run.sandbox_results),
-            "debug",
-            agent_id=agent_id,
-        )
         run.sandbox_executed = True
         return _done(
             "executeScriptInSandbox",
@@ -178,8 +174,17 @@ def executeScriptInSandbox(path: str, timeout: int | None = None, agent_id: str 
             summary=f"exit={code} running={running}",
         )
     except Exception as exc:
+        run.sandbox_results = {
+            "exit_code": None,
+            "stdout": "",
+            "stderr": type(exc).__name__,
+            "running": False,
+            "path": str(target),
+        }
         return _done("executeScriptInSandbox", run, agent_id, {"ok": False, "error": type(exc).__name__})
     finally:
+        # The committee must see every run, including one that never started.
+        sendMessageToBlackboard(_debug_body(run.sandbox_results), "debug", agent_id=agent_id)
         _unlock(run, agent_id)
 
 
@@ -190,6 +195,9 @@ def sandbox_fetch(url: str, method: str = "GET", body: str | None = None, start:
         return _done("sandbox_fetch", run, agent_id, denied)
     if run.agents[agent_id].role != "executor":
         return _done("sandbox_fetch", run, agent_id, {"ok": False, "error": "role_denied"})
+    verb = str(method or "GET").strip().upper()
+    if verb not in FETCH_METHODS:
+        return _done("sandbox_fetch", run, agent_id, {"ok": False, "error": "method_denied"})
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or parsed.hostname not in {"127.0.0.1", "localhost"}:
         return _done("sandbox_fetch", run, agent_id, {"ok": False, "error": "not_loopback"})
@@ -200,7 +208,7 @@ def sandbox_fetch(url: str, method: str = "GET", body: str | None = None, start:
     port = parsed.port or (443 if parsed.scheme == "https" else 80)
     try:
         resp = requests.request(
-            method.upper(),
+            verb,
             url,
             data=body,
             timeout=config.FETCH_TIMEOUT,
@@ -276,6 +284,8 @@ def _sandbox_ready(run: Any, agent_id: str | None, *, write: bool) -> dict[str, 
         return {"ok": False, "error": "no_sandbox"}
     if agent_id not in run.agents:
         return {"ok": False, "error": "no_agent"}
+    if not run.agents[agent_id].sandbox_bound:
+        return {"ok": False, "error": "not_bound"}
     if write and run.agents[agent_id].role != "builder":
         return {"ok": False, "error": "role_denied"}
     return None
