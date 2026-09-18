@@ -169,6 +169,7 @@ def executeScriptInSandbox(path: str, timeout: int | None = None, agent_id: str 
             "debug",
             agent_id=agent_id,
         )
+        run.sandbox_executed = True
         return _done(
             "executeScriptInSandbox",
             run,
@@ -241,6 +242,8 @@ def getResultsFromSandbox(start: int = 1, end: int = 1, agent_id: str | None = N
     denied = _sandbox_ready(run, agent_id, write=False)
     if denied:
         return _done("getResultsFromSandbox", run, agent_id, denied)
+    if not run.sandbox_executed:
+        return _done("getResultsFromSandbox", run, agent_id, {"ok": False, "error": "not_run"})
     blob = run.sandbox_results or {}
     stdout = blob.get("stdout") or ""
     stderr = blob.get("stderr") or ""
@@ -279,6 +282,7 @@ def _sandbox_ready(run: Any, agent_id: str | None, *, write: bool) -> dict[str, 
 
 
 def _inside(root: Path, rel: str) -> Path | None:
+    rel = _sandbox_rel(rel)
     if not rel or ".." in Path(rel).parts:
         return None
     target = (root / rel).resolve()
@@ -287,6 +291,23 @@ def _inside(root: Path, rel: str) -> Path | None:
     except ValueError:
         return None
     return target
+
+
+def _sandbox_rel(rel: str) -> str:
+    text = str(rel or "").strip().replace("\\", "/")
+    if not text:
+        return ""
+    raw = Path(text)
+    if raw.is_absolute() or (raw.parts and ":" in raw.parts[0]):
+        text = raw.name
+        raw = Path(text)
+    skip = {"outputs", "output", "sandbox", "sandboxes"}
+    parts = [part for part in raw.parts if part.lower() not in skip]
+    name = "/".join(parts)
+    suffix = Path(name).suffix.lower()
+    if name and suffix not in config.SANDBOX_EXTENSIONS and suffix == "":
+        name = f"{name}.py"
+    return name
 
 
 def _lock(run: Any, agent_id: str) -> dict[str, Any] | None:

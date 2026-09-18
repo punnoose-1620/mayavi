@@ -190,8 +190,10 @@ def unloadModel() -> dict[str, Any]:
     )
 
 
-def generate(role: str, prompt: str | None = None, messages: list[dict[str, str]] | None = None, **kwargs: Any) -> dict[str, Any]:
+def generate(role: str, prompt: str | None = None, messages: list[dict[str, str]] | None = None, agent_name: str | None = None, **kwargs: Any) -> dict[str, Any]:
     run_id, agent = _ctx()
+    if agent_name:
+        agent = agent_name
     if _LLM is None or _LOADED_ROLE != role:
         return logger.finish(
             event="tool",

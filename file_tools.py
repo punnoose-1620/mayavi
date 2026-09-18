@@ -85,9 +85,11 @@ def read_file(
     if target is None or not _allowed_file(target):
         return _done("read_file", run, agent_id, {"ok": False, "error": "path_denied"})
     if not target.is_file():
+        target = _read_with_suffix(directory, name, file_path) or target
+    if not target.is_file():
         return _done("read_file", run, agent_id, {"ok": False, "error": "not_found"})
     try:
-        payload = _read_dispatch(target, start, end)
+        payload = _read_dispatch(target, _as_page(start, 1), _as_page(end, 1))
     except Exception as exc:
         return _done("read_file", run, agent_id, {"ok": False, "error": type(exc).__name__})
     payload["ok"] = True
@@ -106,9 +108,11 @@ def write_doc(
     run, agent_id = _run_agent(agent_id)
     if not verifyType(type) or type == "pdf":
         return _done("write_doc", run, agent_id, {"ok": False, "error": "type_denied"})
-    dest = _join_write(directory, name, type)
+    dest = _keep_dest(run, _join_write(directory, name, type))
     if dest is None:
         return _done("write_doc", run, agent_id, {"ok": False, "error": "path_denied"})
+    if type == "txt" and _placeholder_text(content) and not structure:
+        return _done("write_doc", run, agent_id, {"ok": False, "error": "empty_content"})
     gate = _write_gate(dest)
     if not gate["ok"]:
         return _done("write_doc", run, agent_id, gate)
@@ -131,7 +135,7 @@ def write_pdf(
     agent_id: str | None = None,
 ) -> dict[str, Any]:
     run, agent_id = _run_agent(agent_id)
-    dest = _join_write(directory, name, "pdf")
+    dest = _keep_dest(run, _join_write(directory, name, "pdf"))
     if dest is None:
         return _done("write_pdf", run, agent_id, {"ok": False, "error": "path_denied"})
     gate = _write_gate(dest)
@@ -154,7 +158,7 @@ def write_json(
     agent_id: str | None = None,
 ) -> dict[str, Any]:
     run, agent_id = _run_agent(agent_id)
-    dest = _join_write(directory, name, "json")
+    dest = _keep_dest(run, _join_write(directory, name, "json"))
     if dest is None:
         return _done("write_json", run, agent_id, {"ok": False, "error": "path_denied"})
     gate = _write_gate(dest)
@@ -162,6 +166,9 @@ def write_json(
         return _done("write_json", run, agent_id, gate)
     try:
         parsed = json.loads(content) if isinstance(content, str) else content
+        mismatch = _json_shape_mismatch(dest, parsed)
+        if mismatch:
+            return _done("write_json", run, agent_id, {"ok": False, "error": mismatch})
         raw = json.dumps(parsed, indent=2)
         if not paging.char_chunk_ok(raw):
             return _done("write_json", run, agent_id, {"ok": False, "error": "chunk_too_large"})
@@ -182,7 +189,7 @@ def append_file(
     agent_id: str | None = None,
 ) -> dict[str, Any]:
     run, agent_id = _run_agent(agent_id)
-    dest = _join_write(directory, name, type)
+    dest = _keep_dest(run, _join_write(directory, name, type))
     if dest is None:
         return _done("append_file", run, agent_id, {"ok": False, "error": "path_denied"})
     index = _load_index()
@@ -221,19 +228,46 @@ def append_file(
 
 def mkdir(directory: str | None = None, name: str = "", agent_id: str | None = None) -> dict[str, Any]:
     run, agent_id = _run_agent(agent_id)
+    directory, name = _mkdir_parts(directory, name)
     parent = _verify_write_dir(directory)
     if parent is None:
         return _done("mkdir", run, agent_id, {"ok": False, "error": "path_denied"})
     if Path(name).name != name or not name or name in {".", ".."}:
         return _done("mkdir", run, agent_id, {"ok": False, "error": "bad_name"})
     target = (parent / name).resolve()
-    if not _is_under(target, parent) or not _is_under(target, config.OUTPUTS) or _blocked(target):
+    target = _keep_dest(run, target)
+    if target is None or not _writable(target) or _blocked(target):
         return _done("mkdir", run, agent_id, {"ok": False, "error": "path_denied"})
+    if run is None or getattr(run, "keep_path", None) is None or getattr(run, "level", None) != "large":
+        if not _is_under(target, parent):
+            return _done("mkdir", run, agent_id, {"ok": False, "error": "path_denied"})
     try:
         target.mkdir(parents=False, exist_ok=True)
     except Exception as exc:
         return _done("mkdir", run, agent_id, {"ok": False, "error": type(exc).__name__})
     return _done("mkdir", run, agent_id, {"ok": True, "path": str(target)})
+
+
+def keep_copy(dest: Path, data: bytes, agent_id: str | None = None) -> dict[str, Any]:
+    run, agent_id = _run_agent(agent_id)
+    target = Path(dest).resolve()
+    keep = None if run is None else getattr(run, "keep_path", None)
+    if keep is not None:
+        root = Path(keep).resolve()
+        if target != root and not _is_under(target, root):
+            return _done("keep_copy", run, agent_id, {"ok": False, "error": "path_denied"})
+    if not _writable(target) or _blocked(target):
+        return _done("keep_copy", run, agent_id, {"ok": False, "error": "path_denied"})
+    gate = _write_gate(target)
+    if not gate["ok"]:
+        return _done("keep_copy", run, agent_id, gate)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_write(target, data)
+        _index_write(target, agent_id, run, "keep_copy", gate.get("stale", False))
+    except Exception as exc:
+        return _done("keep_copy", run, agent_id, {"ok": False, "error": type(exc).__name__})
+    return _done("keep_copy", run, agent_id, {"ok": True, "path": str(target)})
 
 
 def verifyPath(directory: str | Path) -> Path | None:
@@ -290,7 +324,35 @@ def _join_or_path(directory: str | None, name: str | None, file_path: str | None
         return resolved if _is_under(resolved, parent) else None
     if directory is None or name is None:
         return None
-    return _join_write(directory, name, Path(name).suffix.lstrip(".") or "txt", add_ext=False)
+    return _join_read(directory, name)
+
+
+def _join_read(directory: str, name: str) -> Path | None:
+    if Path(name).name != name or not name:
+        return None
+    raw = Path(directory)
+    if ".." in raw.parts:
+        return None
+    candidates: list[Path] = []
+    if raw.is_absolute():
+        candidates.append((raw / name).resolve())
+    else:
+        parts = list(raw.parts)
+        for root in config.ALLOWED_PATHS:
+            rest = parts[1:] if parts and parts[0].lower() == root.name.lower() else parts
+            base = root.joinpath(*rest) if rest else root
+            candidates.append((base / name).resolve())
+    seen: set[Path] = set()
+    for dest in candidates:
+        if dest in seen:
+            continue
+        seen.add(dest)
+        parent = verifyPath(dest.parent)
+        if parent is None:
+            continue
+        if _is_under(dest, parent) and not _blocked(dest):
+            return dest
+    return None
 
 
 def _join_write(directory: str | None, name: str, doc_type: str, add_ext: bool = True) -> Path | None:
@@ -304,24 +366,45 @@ def _join_write(directory: str | None, name: str, doc_type: str, add_ext: bool =
         dest = (parent / f"{stem}{_dot(doc_type)}").resolve()
     else:
         dest = (parent / name).resolve()
-    if not _is_under(dest, parent) or not _is_under(dest, config.OUTPUTS) or _blocked(dest):
+    if not _is_under(dest, parent) or not _writable(dest) or _blocked(dest):
         return None
     return dest
 
 
+def _keep_dest(run: Any, dest: Path | None) -> Path | None:
+    if dest is None:
+        return None
+    keep = None if run is None else getattr(run, "keep_path", None)
+    if run is None or getattr(run, "level", None) != "large" or keep is None:
+        return dest
+    keep_root = Path(keep).resolve()
+    resolved = dest.resolve()
+    try:
+        resolved.relative_to(keep_root)
+        return resolved
+    except ValueError:
+        remapped = (keep_root / dest.name).resolve()
+        if not _writable(remapped) or _blocked(remapped):
+            return None
+        return remapped
+
+
 def _verify_write_dir(directory: str | None) -> Path | None:
-    root = config.OUTPUTS.resolve()
+    roots = [p.resolve() for p in config.WRITE_PATHS] or [config.OUTPUTS.resolve()]
+    default = roots[0]
     if not directory:
-        return verifyPath(root)
+        resolved = verifyPath(default)
+        return resolved if resolved is not None and _writable(resolved) else None
     raw = Path(directory)
     if ".." in raw.parts:
         return None
     if not raw.is_absolute():
-        raw = root / raw
+        parts = list(raw.parts)
+        if parts and parts[0].lower() == default.name.lower():
+            parts = parts[1:]
+        raw = default.joinpath(*parts) if parts else default
     resolved = verifyPath(raw)
-    if resolved is None:
-        return None
-    if not _is_under(resolved, root):
+    if resolved is None or not _writable(resolved):
         return None
     return resolved
 
@@ -331,9 +414,90 @@ def _dot(doc_type: str) -> str:
     return t.lower()
 
 
+def _as_page(value: Any, default: int) -> int:
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return default
+    return n if n > 0 else default
+
+
+def _placeholder_text(content: Any) -> bool:
+    text = str(content or "").strip()
+    if not text:
+        return True
+    lowered = text.lower()
+    if lowered in {"...", "…", "n/a", "failed", "none", "null", "placeholder"}:
+        return True
+    if lowered.startswith("[") and "from" in lowered and "]" in lowered:
+        return True
+    return False
+
+
+def _json_shape_mismatch(dest: Path, parsed: Any) -> str | None:
+    if not dest.is_file():
+        return None
+    try:
+        existing = json.loads(dest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if isinstance(existing, dict) and isinstance(parsed, list):
+        return "json_shape"
+    if isinstance(existing, list) and isinstance(parsed, dict):
+        return "json_shape"
+    return None
+
+
+def _mkdir_parts(directory: str | None, name: str) -> tuple[str | None, str]:
+    if str(name or "").strip():
+        return directory, name
+    raw = Path(str(directory or "").strip())
+    if not directory or ".." in raw.parts or raw.is_absolute() or len(raw.parts) != 1:
+        return directory, name
+    if raw.name.lower() in {"outputs", "output"}:
+        return directory, name
+    return None, raw.name
+
+
+def _read_with_suffix(directory: str | None, name: str | None, file_path: str | None) -> Path | None:
+    if file_path or not name or "." in Path(name).name:
+        return None
+    for ext in (".txt", ".json", ".pdf", ".csv", ".docx", ".doc"):
+        alt = _join_or_path(directory, f"{name}{ext}", None)
+        if alt is not None and alt.is_file() and _allowed_file(alt):
+            return alt
+    return None
+
+
 def _allowed_file(path: Path) -> bool:
     parent = verifyPath(path.parent)
     return parent is not None and _is_under(path.resolve(), parent) and not _blocked(path)
+
+
+def _write_locked(path: Path) -> bool:
+    resolved = path.resolve()
+    for raw in config.INPUT_PATHS:
+        try:
+            root = raw.resolve()
+        except OSError:
+            root = raw
+        if resolved == root or _is_under(resolved, root):
+            return True
+    return False
+
+
+def _writable(path: Path) -> bool:
+    if _write_locked(path):
+        return False
+    resolved = path.resolve()
+    for raw in config.WRITE_PATHS:
+        try:
+            root = raw.resolve()
+        except OSError:
+            root = raw
+        if resolved == root or _is_under(resolved, root):
+            return True
+    return False
 
 
 def _blocked(path: Path) -> bool:
@@ -361,10 +525,7 @@ def _is_under(child: Path, parent: Path) -> bool:
 
 
 def _is_open_root(path: Path) -> bool:
-    return any(
-        path == root or _is_under(path, root)
-        for root in (config.WORKSPACE, config.OUTPUTS)
-    )
+    return any(path == root or _is_under(path, root) for root in config.ALLOWED_PATHS)
 
 
 def _is_repo_block(blocked: Path) -> bool:

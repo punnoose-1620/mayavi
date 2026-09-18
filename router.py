@@ -123,6 +123,45 @@ def normalize_fields(fields: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def lift_ops_from_prompt(prompt: str, fields: dict[str, Any]) -> dict[str, Any]:
+    """Keep live 1.5B routing from dropping file tools or inflating code-exec."""
+    text = prompt.lower()
+    out = dict(fields)
+    write_marks = (
+        "write_doc",
+        "write_pdf",
+        "write_json",
+        "append_file",
+        "save that",
+        "save this",
+        "create a new text",
+        "create that file",
+        "create that pdf",
+        "create that json",
+        ".txt",
+        ".pdf",
+        ".csv",
+        ".docx",
+        ".json",
+    )
+    if any(mark in text for mark in write_marks) and str(out.get("file_ops", "0")) == "0":
+        out["file_ops"] = "1"
+    if "three" in text and ("resume" in text or "files" in text):
+        out["file_ops"] = "3+"
+    if "https://example.com" in text and "https://example.org" in text:
+        out["web_ops"] = "2+"
+    if "https://" in text or "http://" in text or "get_url" in text:
+        if str(out.get("web_ops", "0")) == "0":
+            out["web_ops"] = "1"
+    if str(out.get("needs_code_exec", "no")).lower() == "yes":
+        if "sandbox" not in text and "run python" not in text and "execute" not in text and "matrix" not in text:
+            if any(mark in text for mark in ("write_json", "write_doc", "write_pdf", "append_file")):
+                out["needs_code_exec"] = "no"
+    if "not legal" in text or "low stakes" in text or "casual personal" in text:
+        out["stakes"] = "low"
+    return out
+
+
 def heuristic_route(prompt: str) -> dict[str, Any]:
     text = prompt.lower()
     stakes = "low"

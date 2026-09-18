@@ -55,6 +55,8 @@ MS_CLIENT_ID = os.environ.get("MS_CLIENT_ID")
 MS_TENANT = os.environ.get("MS_TENANT", "common")
 MS_LOGIN_HINT = os.environ.get("MS_LOGIN_HINT")
 
+INPUT_PATHS: list[Path] = []
+WRITE_PATHS: list[Path] = []
 ALLOWED_PATHS: list[Path] = []
 BLOCKED_PATHS: list[Path] = []
 
@@ -66,8 +68,10 @@ def _ensure_dirs() -> None:
 
 def refresh_paths() -> None:
     """Rebuild allowed/blocked lists from current dirs."""
-    global ALLOWED_PATHS, BLOCKED_PATHS
-    ALLOWED_PATHS = [WORKSPACE.resolve(), OUTPUTS.resolve()]
+    global INPUT_PATHS, WRITE_PATHS, ALLOWED_PATHS, BLOCKED_PATHS
+    INPUT_PATHS = [WORKSPACE.resolve()]
+    WRITE_PATHS = [OUTPUTS.resolve()]
+    ALLOWED_PATHS = list(dict.fromkeys(INPUT_PATHS + WRITE_PATHS))
     blocked: list[Path] = [
         REPO_ROOT.resolve(),
         DATA_DIR.resolve(),
