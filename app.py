@@ -24,6 +24,7 @@ UI_FILE = config.REPO_ROOT / "ui" / "index.html"
 NO_MODEL = False
 _BUSY = threading.Lock()
 _SESSION_LOCK = threading.Lock()
+_ACTIVE: dict[str, Any] | None = None
 
 SKIP_TOOLS = {
     "sendMessageToBlackboard",
@@ -81,6 +82,7 @@ def rotate_ui_session() -> None:
     if session.is_file():
         previous.unlink(missing_ok=True)
         session.replace(previous)
+    clear_active()
 
 
 def read_history() -> list[dict[str, Any]]:
@@ -99,6 +101,41 @@ def read_history() -> list[dict[str, Any]]:
         if isinstance(blob, dict):
             turns.append(blob)
     return turns
+
+
+def read_active() -> dict[str, Any] | None:
+    if _ACTIVE is None:
+        return None
+    return dict(_ACTIVE)
+
+
+def set_active(prompt: str, thread_id: str | None, progress: str = "Working…") -> None:
+    global _ACTIVE
+    _ACTIVE = {"prompt": prompt, "thread_id": thread_id, "progress": progress}
+    _write_active()
+
+
+def update_active_progress(text: str) -> None:
+    if _ACTIVE is None:
+        return
+    _ACTIVE["progress"] = text
+    _write_active()
+
+
+def clear_active() -> None:
+    global _ACTIVE
+    _ACTIVE = None
+    path = config.UI_SESSION_DIR / "active.json"
+    path.unlink(missing_ok=True)
+
+
+def _write_active() -> None:
+    if _ACTIVE is None:
+        return
+    config.UI_SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    path = config.UI_SESSION_DIR / "active.json"
+    with _SESSION_LOCK:
+        path.write_text(json.dumps(_ACTIVE, ensure_ascii=False), encoding="utf-8")
 
 
 def append_turn(turn: dict[str, Any]) -> None:
@@ -167,7 +204,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"ok": True, "threads": blackboard.list_threads()})
             return
         if path == "/history":
-            self._send_json(200, {"ok": True, "turns": read_history()})
+            self._send_json(200, {"ok": True, "turns": read_history(), "active": read_active()})
             return
         self._send_json(404, {"ok": False, "error": "not_found"})
 
@@ -206,52 +243,57 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "close")
         self.end_headers()
+        set_active(prompt, thread_id, "Working…")
         self._sse("progress", {"text": "Working…"})
 
         def on_log(record: dict[str, Any]) -> None:
             line = progress_line(record)
             if line:
+                update_active_progress(line)
                 self._sse("progress", {"text": line})
 
         logger.add_listener(on_log)
         try:
-            result = run_turn(prompt, thread_id)
-        except Exception as exc:
-            self._sse("error", {"text": main._failure_text(exc)})
-            self._sse("done", {"ok": False})
-            return
+            try:
+                result = run_turn(prompt, thread_id)
+            except Exception as exc:
+                text = main._failure_text(exc)
+                update_active_progress(text)
+                self._sse("error", {"text": text})
+                self._sse("done", {"ok": False})
+                return
+            turn = {
+                "id": result.get("run_id"),
+                "time": datetime.now(timezone.utc).isoformat(),
+                "prompt": prompt,
+                "answer": result.get("answer") or "",
+                "thread_id": result.get("thread_id"),
+                "level": result.get("level"),
+                "run_id": result.get("run_id"),
+                "stakes": result.get("stakes"),
+                "notices": list(result.get("notices") or []),
+            }
+            if result.get("ok"):
+                append_turn(turn)
+            notices = [
+                main.NOTICE_TEXT.get(str(item).split(":", 1)[0], str(item))
+                for item in turn["notices"]
+            ]
+            self._sse(
+                "answer",
+                {
+                    "text": turn["answer"],
+                    "level": turn["level"],
+                    "run_id": turn["run_id"],
+                    "thread_id": turn["thread_id"],
+                    "stakes": turn["stakes"],
+                    "notices": notices,
+                },
+            )
+            self._sse("done", {"ok": bool(result.get("ok")), "thread_id": turn["thread_id"]})
         finally:
             logger.remove_listener(on_log)
-
-        turn = {
-            "id": result.get("run_id"),
-            "time": datetime.now(timezone.utc).isoformat(),
-            "prompt": prompt,
-            "answer": result.get("answer") or "",
-            "thread_id": result.get("thread_id"),
-            "level": result.get("level"),
-            "run_id": result.get("run_id"),
-            "stakes": result.get("stakes"),
-            "notices": list(result.get("notices") or []),
-        }
-        if result.get("ok"):
-            append_turn(turn)
-        notices = [
-            main.NOTICE_TEXT.get(str(item).split(":", 1)[0], str(item))
-            for item in turn["notices"]
-        ]
-        self._sse(
-            "answer",
-            {
-                "text": turn["answer"],
-                "level": turn["level"],
-                "run_id": turn["run_id"],
-                "thread_id": turn["thread_id"],
-                "stakes": turn["stakes"],
-                "notices": notices,
-            },
-        )
-        self._sse("done", {"ok": bool(result.get("ok")), "thread_id": turn["thread_id"]})
+            clear_active()
 
     def _send_index(self) -> None:
         if not UI_FILE.is_file():

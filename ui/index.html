@@ -113,6 +113,8 @@
     const sendEl = document.getElementById("send");
     const threadEl = document.getElementById("thread");
 
+    let progressEl = null;
+
     function add(cls, text) {
       if (!text) return;
       const el = document.createElement("div");
@@ -123,17 +125,75 @@
       return el;
     }
 
+    function setProgress(text) {
+      if (!text) return;
+      text = text+'....';
+      if (!progressEl || !progressEl.isConnected) {
+        progressEl = add("progress", text);
+        return;
+      }
+      progressEl.textContent = text;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearProgress() {
+      if (progressEl && progressEl.isConnected) progressEl.remove();
+      progressEl = null;
+    }
+
+    function paintTurn(turn) {
+      add("msg you", turn.prompt || "");
+      add("msg bot", turn.answer || "(empty)");
+      const bits = [];
+      if (turn.level) bits.push("level=" + turn.level);
+      if (turn.run_id) bits.push("run_id=" + turn.run_id);
+      if (turn.thread_id) bits.push("thread_id=" + turn.thread_id);
+      if (bits.length) add("meta", bits.join("  "));
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function watchActive(seenCount) {
+      sendEl.disabled = true;
+      while (true) {
+        await sleep(1000);
+        let data;
+        try {
+          const res = await fetch("/history");
+          data = await res.json();
+        } catch {
+          continue;
+        }
+        if (data.active) {
+          setProgress(data.active.progress || "Working…");
+          continue;
+        }
+        const turns = data.turns || [];
+        if (turns.length > seenCount) {
+          for (const turn of turns.slice(seenCount)) paintTurn(turn);
+          if (turns[turns.length - 1].thread_id) {
+            await loadThreads(turns[turns.length - 1].thread_id);
+          }
+        }
+        clearProgress();
+        sendEl.disabled = false;
+        promptEl.focus();
+        return;
+      }
+    }
+
     async function loadHistory() {
       const res = await fetch("/history");
       const data = await res.json();
-      for (const turn of data.turns || []) {
-        add("msg you", turn.prompt || "");
-        add("msg bot", turn.answer || "(empty)");
-        const bits = [];
-        if (turn.level) bits.push("level=" + turn.level);
-        if (turn.run_id) bits.push("run_id=" + turn.run_id);
-        if (turn.thread_id) bits.push("thread_id=" + turn.thread_id);
-        if (bits.length) add("meta", bits.join("  "));
+      const turns = data.turns || [];
+      for (const turn of turns) paintTurn(turn);
+      if (data.active && data.active.prompt) {
+        add("msg you", data.active.prompt);
+        setProgress(data.active.progress || "Working…");
+        if (data.active.thread_id) await loadThreads(data.active.thread_id);
+        watchActive(turns.length);
       }
     }
 
@@ -170,12 +230,12 @@
           body: JSON.stringify({ prompt, thread_id: threadEl.value || null }),
         });
         if (res.status === 409) {
-          add("progress", "Busy — wait for the current turn to finish.");
+          setProgress("Busy — wait for the current turn to finish.");
           return;
         }
         if (!res.ok || !res.body) {
           const err = await res.json().catch(() => ({ error: res.statusText }));
-          add("progress", err.error || "Request failed");
+          setProgress(err.error || "Request failed");
           return;
         }
         const reader = res.body.getReader();
@@ -198,9 +258,10 @@
             if (!data) continue;
             let payload = {};
             try { payload = JSON.parse(data); } catch { payload = { text: data }; }
-            if (ev === "progress") add("progress", payload.text || "");
-            else if (ev === "error") add("progress", payload.text || "Run stopped");
+            if (ev === "progress") setProgress(payload.text || "");
+            else if (ev === "error") setProgress(payload.text || "Run stopped");
             else if (ev === "answer") {
+              clearProgress();
               add("msg bot", payload.text || "(empty)");
               const bits = [];
               if (payload.level) bits.push("level=" + payload.level);
@@ -213,7 +274,7 @@
           }
         }
       } catch (err) {
-        add("progress", String(err && err.message ? err.message : err));
+        setProgress(String(err && err.message ? err.message : err));
       } finally {
         sendEl.disabled = false;
         promptEl.focus();
