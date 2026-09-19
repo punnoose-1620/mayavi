@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>id10t</title>
+  <style>
+    :root {
+      --bg: #141414;
+      --panel: #1c1c1c;
+      --line: #2e2e2e;
+      --text: #ececec;
+      --muted: #9a9a9a;
+      --you: #2a3340;
+      --bot: #222222;
+      --progress: #6e6e6e;
+      --accent: #c8a45a;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.45 system-ui, Segoe UI, sans-serif;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    #log {
+      flex: 1;
+      overflow: auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 12px;
+    }
+    .msg { margin: 0 0 10px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
+    .you { background: var(--you); }
+    .bot { background: var(--bot); border-left: 3px solid var(--accent); }
+    .progress { color: var(--progress); font-size: 13px; margin: 0 0 4px; padding: 0 10px; }
+    .meta { color: var(--muted); font-size: 12px; margin: 4px 10px 12px; }
+    #composer {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    #prompt {
+      flex: 1;
+      resize: vertical;
+      min-height: 48px;
+      max-height: 160px;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--line);
+      padding: 10px;
+      font: inherit;
+    }
+    #send {
+      min-width: 88px;
+      background: var(--accent);
+      color: #1a1a1a;
+      border: 0;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #send:disabled { opacity: 0.45; cursor: wait; }
+    #notebook-row {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    #thread {
+      flex: 1;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--line);
+      padding: 6px;
+      font: inherit;
+    }
+  </style>
+</head>
+<body>
+  <h1>id10t</h1>
+  <div id="log" aria-live="polite"></div>
+  <div id="composer">
+    <textarea id="prompt" placeholder="Ask something" rows="2"></textarea>
+    <button id="send" type="button">Send</button>
+  </div>
+  <div id="notebook-row">
+    <label for="thread">Notebook</label>
+    <select id="thread">
+      <option value="">No notebook</option>
+    </select>
+  </div>
+  <script>
+    const logEl = document.getElementById("log");
+    const promptEl = document.getElementById("prompt");
+    const sendEl = document.getElementById("send");
+    const threadEl = document.getElementById("thread");
+
+    function add(cls, text) {
+      if (!text) return;
+      const el = document.createElement("div");
+      el.className = cls;
+      el.textContent = text;
+      logEl.appendChild(el);
+      logEl.scrollTop = logEl.scrollHeight;
+      return el;
+    }
+
+    async function loadHistory() {
+      const res = await fetch("/history");
+      const data = await res.json();
+      for (const turn of data.turns || []) {
+        add("msg you", turn.prompt || "");
+        add("msg bot", turn.answer || "(empty)");
+        const bits = [];
+        if (turn.level) bits.push("level=" + turn.level);
+        if (turn.run_id) bits.push("run_id=" + turn.run_id);
+        if (turn.thread_id) bits.push("thread_id=" + turn.thread_id);
+        if (bits.length) add("meta", bits.join("  "));
+      }
+    }
+
+    async function loadThreads(selectId) {
+      const res = await fetch("/threads");
+      const data = await res.json();
+      const current = selectId || threadEl.value;
+      threadEl.innerHTML = "";
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "No notebook";
+      threadEl.appendChild(none);
+      for (const row of data.threads || []) {
+        const opt = document.createElement("option");
+        opt.value = row.id;
+        opt.textContent = row.title || row.id;
+        threadEl.appendChild(opt);
+      }
+      if (current && [...threadEl.options].some((o) => o.value === current)) {
+        threadEl.value = current;
+      }
+    }
+
+    async function send() {
+      const prompt = promptEl.value.trim();
+      if (!prompt || sendEl.disabled) return;
+      sendEl.disabled = true;
+      add("msg you", prompt);
+      promptEl.value = "";
+      try {
+        const res = await fetch("/turns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, thread_id: threadEl.value || null }),
+        });
+        if (res.status === 409) {
+          add("progress", "Busy — wait for the current turn to finish.");
+          return;
+        }
+        if (!res.ok || !res.body) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          add("progress", err.error || "Request failed");
+          return;
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        let event = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const parts = buf.split("\n\n");
+          buf = parts.pop() || "";
+          for (const block of parts) {
+            let ev = event;
+            let data = "";
+            for (const line of block.split("\n")) {
+              if (line.startsWith("event:")) ev = line.slice(6).trim();
+              if (line.startsWith("data:")) data += line.slice(5).trim();
+            }
+            if (!data) continue;
+            let payload = {};
+            try { payload = JSON.parse(data); } catch { payload = { text: data }; }
+            if (ev === "progress") add("progress", payload.text || "");
+            else if (ev === "error") add("progress", payload.text || "Run stopped");
+            else if (ev === "answer") {
+              add("msg bot", payload.text || "(empty)");
+              const bits = [];
+              if (payload.level) bits.push("level=" + payload.level);
+              if (payload.run_id) bits.push("run_id=" + payload.run_id);
+              if (payload.thread_id) bits.push("thread_id=" + payload.thread_id);
+              for (const notice of payload.notices || []) bits.push(notice);
+              if (bits.length) add("meta", bits.join("  "));
+              if (payload.thread_id) await loadThreads(payload.thread_id);
+            }
+          }
+        }
+      } catch (err) {
+        add("progress", String(err && err.message ? err.message : err));
+      } finally {
+        sendEl.disabled = false;
+        promptEl.focus();
+      }
+    }
+
+    sendEl.addEventListener("click", send);
+    promptEl.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && !ev.shiftKey) {
+        ev.preventDefault();
+        send();
+      }
+    });
+
+    loadHistory().catch((err) => add("progress", String(err)));
+    loadThreads().catch((err) => add("progress", String(err)));
+  </script>
+</body>
+</html>
