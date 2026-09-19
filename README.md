@@ -86,7 +86,7 @@ python main.py --no-model "How do I fix this issue on my electric scooter?"
 python -m pytest
 ```
 
-`--no-model` and `pytest` use **stubs**. They will not print a real 3B chat reply. `pytest` also prints each test’s captured call/result (`-s` is on by default); most of those 153 tests are gates (path deny, SSRF, mail policy), not conversations.
+`--no-model` and `pytest` use **stubs**. They will not print a real 3B chat reply. `pytest` also prints each test’s captured call/result (`-s` is on by default); most of those 156 tests are gates (path deny, SSRF, mail policy), not conversations.
 
 Run for real (loads the router GGUF, then workers as needed):
 

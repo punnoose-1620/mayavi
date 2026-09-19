@@ -582,6 +582,9 @@ def _usable_answer(text: str | None) -> bool:
 
 
 def _is_tool_dump(text: str) -> bool:
+    body = str(text or "").lstrip()
+    if body.startswith('{"tool"') or body.startswith('{ "tool"'):
+        return True
     blobs = _extract_json_objects(text)
     if not blobs:
         return False
@@ -765,6 +768,8 @@ def _dispatch_tool(run: Run, agent: Agent, name: str, args: dict[str, Any]) -> d
     fn = tools.get(name)
     if fn is None:
         error = _unknown_tool_error(run, agent, name)
+        if error == "role_denied" and name == "executeScriptInSandbox":
+            _pin_execute_role_hint(run)
         return logger.finish(
             event="tool",
             tool=str(name or "unknown"),
@@ -880,15 +885,7 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
     need_tools = _ops_needed(run.file_ops) or _ops_needed(run.web_ops) or run.mail_cal != "off" or run.level == "large"
     if need_tools:
         if run.level == "large" and not run.ship_unlocked:
-            prefer = (
-                "The user needs tools. Do not answer with final until you have called the needed tool and seen its result.\n"
-                "Emit exactly one JSON object per reply. If you need several tools, call one, wait for the tool result, then call the next.\n"
-                'Builders: {"tool": "sandbox_write", "args": {"path": "mul.py", "content": "print(3*7)"}}\n'
-                'Executor: {"tool": "executeScriptInSandbox", "args": {"path": "mul.py"}} then getResultsFromSandbox.\n'
-                'After a successful execute, vote {"tool": "sendMessageToBlackboard", "args": {"kind": "vote", "body": "ship"}} '
-                'or body reject. Durable write_doc stays locked until a successful execute and a majority ship vote. '
-                "The factory then copies sandbox files into the keep folder.\n"
-            )
+            prefer = _large_tool_prefer(agent)
         else:
             prefer = (
                 "The user needs tools. Do not answer with final until you have called the needed tool and seen its result.\n"
@@ -914,10 +911,61 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
         "If they asked to read a document and read_file is listed, call read_file before you answer. Do not invent the contents.\n"
         "If the tool list is empty, answer with final. Do not invent tools.\n"
         "On medium/large, post drafts/critiques/votes with sendMessageToBlackboard. "
+        "Allowed kinds: draft, critique, debug, vote. "
         "The script also records your final as a draft (builders/drafter) or vote (executor/checkers). "
         "Blackboard rules and debug messages are not the user answer.\n"
         "Do not pass agent_id. Do not request tokens or passwords.\n"
     )
+
+
+EXECUTE_ROLE_HINT = (
+    "Only the executor may run scripts. Builders write the .py; "
+    "the executor calls executeScriptInSandbox then getResultsFromSandbox."
+)
+
+
+def _large_tool_prefer(agent: Agent) -> str:
+    head = (
+        "The user needs tools. Do not answer with final until you have called the needed tool and seen its result.\n"
+        "Emit exactly one JSON object per reply. If you need several tools, call one, wait for the tool result, then call the next.\n"
+    )
+    tail = (
+        'After a successful execute, vote {"tool": "sendMessageToBlackboard", "args": {"kind": "vote", "body": "ship"}} '
+        "or body reject. Durable write_doc stays locked until a successful execute and a majority ship vote. "
+        "The factory then copies sandbox files into the keep folder.\n"
+    )
+    if agent.role == "builder":
+        return (
+            head
+            + 'Write stdlib-only Python with sandbox_write (no numpy, no pip). Never call executeScriptInSandbox.\n'
+            + '{"tool": "sandbox_write", "args": {"path": "mul.py", "content": "print(3*7)"}}\n'
+            + 'Then post {"tool": "sendMessageToBlackboard", "args": {"kind": "draft", "body": "wrote mul.py"}}\n'
+            + tail
+        )
+    if agent.role == "executor":
+        return (
+            head
+            + "After openSandbox, run the builder .py. Do not sandbox_write.\n"
+            + '{"tool": "executeScriptInSandbox", "args": {"path": "mul.py"}} then getResultsFromSandbox.\n'
+            + tail
+        )
+    return (
+        head
+        + 'Builders: {"tool": "sandbox_write", "args": {"path": "mul.py", "content": "print(3*7)"}}\n'
+        + 'Executor: {"tool": "executeScriptInSandbox", "args": {"path": "mul.py"}} then getResultsFromSandbox.\n'
+        + tail
+    )
+
+
+def _pin_execute_role_hint(run: Run) -> None:
+    if run.blackboard is None:
+        return
+    if any(m.get("kind") == "debug" and EXECUTE_ROLE_HINT in str(m.get("body") or "") for m in run.blackboard.messages):
+        return
+    who = run.router_agent or next(iter(run.agents), None)
+    if not who:
+        return
+    blackboard.send_message(EXECUTE_ROLE_HINT, "debug", agent_id=who, factory=True)
 
 
 def _coding_rules_text() -> str:
