@@ -62,8 +62,7 @@ Install with the setup script for your platform. It checks the Python version, c
 Or do it by hand:
 
 ```powershell
-python -m pip install -r requirements.txt
-python -m pip install -r requirements-inference.txt
+python -m pip install -r requirements.txt -r requirements-inference.txt
 ```
 
 ## Quick start
@@ -313,7 +312,7 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `store.py` | Private run registry |
 | `coding-rules.md` | Injected on every large run |
 | `CHANGELOG.md` | Hand-written release history, newest first (never updated automatically) |
-| `install.ps1` / `install.sh` | Setup only: venv, dependencies, `.env`. No models, no secrets |
+| `install.ps1` / `install.sh` | Setup only: venv, both requirement files, `.env`. No models, no secrets |
 | `docs/` | The design specs the runtime was built from, plus `v2-scope.md` for planned work |
 | `downloader-scripts/` | HF GGUF fetchers (not imported by the runtime) |
 

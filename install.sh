@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Setup only: venv, dependencies, .env. No models, no committee logic, no secrets.
+# Setup only: venv, both requirement files, .env. No models, no committee logic, no secrets.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -40,14 +40,9 @@ if [ ! -x "$venv_py" ]; then
     exit 1
 fi
 
-echo "Installing requirements.txt"
+echo "Installing requirements.txt and requirements-inference.txt"
 "$venv_py" -m pip install --upgrade pip
-"$venv_py" -m pip install -r requirements.txt
-
-echo "Installing requirements-inference.txt (llama-cpp-python)"
-if ! "$venv_py" -m pip install -r requirements-inference.txt; then
-    echo "WARNING: the inference wheel did not install. The factory still runs with --no-model." >&2
-fi
+"$venv_py" -m pip install -r requirements.txt -r requirements-inference.txt
 
 if [ ! -f .env ]; then
     cp .env.example .env

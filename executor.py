@@ -500,6 +500,16 @@ def _run_agent_loop(run: Run, agent: Agent) -> dict[str, Any]:
     return {"ok": True, "agent_name": agent.agent_name, "final": bool(final)}
 
 
+def _model_unavailable_text(error: str) -> str:
+    if error == "ram":
+        return "Not enough free RAM to load the worker GGUF. Close other apps and try again."
+    if error == "llama_cpp_missing":
+        return "llama-cpp-python is not installed in this Python environment. Re-run install.ps1."
+    if error == "not_found":
+        return "Local model is not available. Download GGUF files and set MODELS_DIR or BACKUP_MODELS_DIR."
+    return f"Local model could not be loaded ({error})."
+
+
 def _fallback_final(agent: Agent) -> str:
     for msg in reversed(agent.history):
         if msg.get("role") != "tool":
@@ -521,9 +531,9 @@ def _generate(run: Run, agent: Agent, history: list[dict[str, str]]) -> str:
         return run.generate_fn(run, agent, history)
     loaded = models.loadModel(agent.model_role)
     if not loaded.get("ok"):
-        return json.dumps(
-            {"final": "Local model is not available. Download GGUF files and set MODELS_DIR or BACKUP_MODELS_DIR."}
-        )
+        err = str(loaded.get("error") or "unavailable")
+        run.notices.append(f"model_unavailable:{err}")
+        return json.dumps({"final": _model_unavailable_text(err)})
     try:
         messages = _prepare_messages(history)
         out = models.generate(agent.model_role, messages=messages, agent_name=agent.agent_name)

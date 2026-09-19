@@ -1,4 +1,4 @@
-# Setup only: venv, dependencies, .env. No models, no committee logic, no secrets.
+# Setup only: venv, both requirement files, .env. No models, no committee logic, no secrets.
 $ErrorActionPreference = "Stop"
 $repo = $PSScriptRoot
 Set-Location $repo
@@ -47,14 +47,12 @@ if (-not (Test-Path $py)) {
     exit 1
 }
 
-Write-Host "Installing requirements.txt"
+Write-Host "Installing requirements.txt and requirements-inference.txt"
 & $py -m pip install --upgrade pip
-& $py -m pip install -r (Join-Path $repo "requirements.txt")
-
-Write-Host "Installing requirements-inference.txt (llama-cpp-python)"
-& $py -m pip install -r (Join-Path $repo "requirements-inference.txt")
+& $py -m pip install -r (Join-Path $repo "requirements.txt") -r (Join-Path $repo "requirements-inference.txt")
 if ($LASTEXITCODE -ne 0) {
-    Write-Warning "The inference wheel did not install. The factory still runs with --no-model; see README > Requirements."
+    Write-Error "Dependency install failed (runtime or llama-cpp-python). See requirements.txt and requirements-inference.txt."
+    exit 1
 }
 
 $envFile = Join-Path $repo ".env"

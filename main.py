@@ -86,6 +86,7 @@ def _print_run(prompt: str, result: dict[str, Any]) -> None:
 NOTICE_TEXT = {
     "mail_connect_failed": "Mail/calendar consent did not complete, so this run had no inbox access.",
     "thread_not_found": "That thread id was not found under state/threads/, so this run did not attach a notebook.",
+    "model_unavailable": "The worker GGUF did not load; the answer names the reason.",
 }
 
 GENERATE_TEXT = {
