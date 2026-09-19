@@ -18,6 +18,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-model", action="store_true", help="Heuristic route + stub reply (no GGUF load)")
     parser.add_argument("--provider", choices=["google", "microsoft"], default=None)
     parser.add_argument("--json", action="store_true", help="Print the full run record as JSON")
+    parser.add_argument(
+        "--thread",
+        default=None,
+        metavar="thr_id",
+        help="Attach a durable thread (state/threads). Raises a mapped-small run to medium.",
+    )
     args = parser.parse_args(argv)
     prompt = " ".join(args.prompt).strip()
     if not prompt:
@@ -28,7 +34,9 @@ def main(argv: list[str] | None = None) -> int:
     if fields.get("level") == "large" and not args.json:
         print("working (large) — sequential models, this can take a while…", flush=True)
     try:
-        result = executor.run_session(prompt, fields, generate_fn=generate_fn, provider=args.provider)
+        result = executor.run_session(
+            prompt, fields, generate_fn=generate_fn, provider=args.provider, thread_id=args.thread
+        )
     except Exception as exc:
         print(_failure_text(exc), file=sys.stderr, flush=True)
         return 1
@@ -67,7 +75,8 @@ def _print_run(prompt: str, result: dict[str, Any]) -> None:
     print(
         f"ok={result.get('ok')} level={result.get('level')} "
         f"stakes={result.get('stakes')} mail_cal={result.get('mail_cal')} "
-        f"run_id={result.get('run_id')}",
+        f"run_id={result.get('run_id')}"
+        + (f" thread_id={result.get('thread_id')}" if result.get("thread_id") else ""),
         flush=True,
     )
     for notice in result.get("notices") or []:
@@ -76,6 +85,7 @@ def _print_run(prompt: str, result: dict[str, Any]) -> None:
 
 NOTICE_TEXT = {
     "mail_connect_failed": "Mail/calendar consent did not complete, so this run had no inbox access.",
+    "thread_not_found": "That thread id was not found under state/threads/, so this run did not attach a notebook.",
 }
 
 GENERATE_TEXT = {

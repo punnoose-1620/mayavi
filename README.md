@@ -36,7 +36,7 @@ If the router is **unsure**, fields default **cheap**: `stakes=low`, `needs_code
 | Tier | Agents | Blackboard | Sandbox | Typical use |
 | --- | --- | --- | --- | --- |
 | Small | 1 drafter | no | no | cheap Q&A, light file/web |
-| Medium | drafter + 2 checkers | yes | no | more file/web work, review |
+| Medium | drafter + 2 checkers | yes + durable thread | no | more file/web work, review |
 | Large | 1 executor + builders | yes | **always** | high stakes and/or custom code |
 
 Large always creates a sandbox and a keep folder, and injects `coding-rules.md`, even when the user task is not “write a program.” If the USB model library is present, large uses four unique builders. If not, it uses the thinner backup pair (Llama 3.2 3B + Qwen 3B).
@@ -87,14 +87,18 @@ python main.py --no-model "How do I fix this issue on my electric scooter?"
 python -m pytest
 ```
 
-`--no-model` and `pytest` use **stubs**. They will not print a real 3B chat reply. `pytest` also prints each test’s captured call/result (`-s` is on by default); most of those 136 tests are gates (path deny, SSRF, mail policy), not conversations.
+`--no-model` and `pytest` use **stubs**. They will not print a real 3B chat reply. `pytest` also prints each test’s captured call/result (`-s` is on by default); most of those 153 tests are gates (path deny, SSRF, mail policy), not conversations.
 
 Run for real (loads the router GGUF, then workers as needed):
 
 ```powershell
 python main.py "hi"
 python main.py "Summarize the files in the input folder"
+python main.py --thread thr_abc123def4 "tweak the third bullet"
+python app.py
 ```
+
+`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `POST /turns`). The dropdown lists durable medium notebooks only. The page hydrates from `state/ui-session/session.jsonl`; starting the server renames that file to `previous.jsonl` so a crash copy survives one restart. `python app.py --no-model` uses the same stubs as the CLI.
 
 Double-clickable live checks (open a cmd window, show Prompt / Response / Meta, pause):
 
@@ -257,9 +261,11 @@ A model that still calls a hidden tool gets `unknown_tool` and can finish with `
 - Outbound bodies are scanned for tokens/JWTs; matches are denied without echoing the secret.
 - OAuth is browser **Allow**, not mailbox password. Tokens stay on blocked paths.
 
-**Committee** (`runtime.py`, medium/large): `viewSessionDetails`, blackboard send/view.
+**Committee** (`blackboard.py`, used by `runtime.py` / `executor.py`, medium/large): `viewSessionDetails`, blackboard send/view.
 
-Allowed blackboard kinds: `draft`, `critique`, `debug`, `vote`, `rules`. Only the factory may post `rules` (coding-rules pin on large). `select_vote` uses `vote`, then `draft`, then worker `final` text. It never returns `rules` or `debug`.
+Allowed blackboard kinds: `draft`, `critique`, `debug`, `vote`, `rules`, `memory`. Only the factory may post `rules` (coding-rules pin on large) and `memory` (a context card from a durable thread). `select_vote` uses `vote`, then `draft`, then worker `final` text. It never returns `rules`, `debug`, or `memory`.
+
+Medium runs also write a **thread** under `state/threads/` (`thr_…`, title from `intent`). Pass `--thread thr_…` on the next command to attach it: a mapped-small prompt is raised to medium; a large run is seeded with that card and distills changes back. Small without `--thread` never creates or reads a thread. The live committee board is still unique per run and is dropped at teardown.
 
 **Sandbox** (`runtime.py`, large only): `openSandbox`, `sandbox_read`, `sandbox_write` (builders), `executeScriptInSandbox` / `sandbox_fetch` (executor), `getResultsFromSandbox`.
 
@@ -278,6 +284,7 @@ The factory makes `outputs/<run_id>/` at the start of the run and keeps every wr
 ## Logging
 
 `logger.py` writes one binary file per local calendar day under `state/logs/` (`YYYY-MM-DD.id10t.log`).
+The chat UI keeps a separate prompt/answer tape in `state/ui-session/` (not the audit log).
 
 Every exported function logs once on return (`ok` or `fail`): factory, tools, and the route mapping step. Spawn records bind `agent_name` → GGUF filename. Summaries are short; bodies and tokens are never stored.
 
@@ -288,9 +295,12 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | File | Role |
 | --- | --- |
 | `main.py` | CLI |
+| `app.py` | Loopback chat UI (`127.0.0.1:8765`) |
+| `ui/index.html` | Chat page served by `app.py` |
 | `router.py` | Router prompt, parse, `mapRoute`, heuristic fallback |
-| `executor.py` | Factory: agents, threads, sandbox, blackboard, session, OAuth connect, run lifecycle |
-| `runtime.py` | Agent committee + sandbox tools |
+| `executor.py` | Factory: agents, worker threads, sandbox, session, OAuth connect, run lifecycle |
+| `blackboard.py` | Live committee board + durable `state/threads/` notes |
+| `runtime.py` | Agent committee + sandbox tools (blackboard send/view are wrappers)
 | `file_tools.py` | Public file API |
 | `web_scrape.py` | HTTP GET/POST |
 | `mailAndCalendar.py` | Agent-facing mail/calendar door |

@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable
 
+import blackboard
 import config
 import google_backend
 import logger
@@ -16,7 +17,7 @@ import models
 import runtime
 import store
 import web_scrape
-from store import Agent, Blackboard, Run
+from store import Agent, Run
 
 import file_tools
 
@@ -153,33 +154,11 @@ def deleteSandbox(run_id: str) -> dict[str, Any]:
 
 
 def createBlackBoard(run_id: str) -> dict[str, Any]:
-    run = store.get_run(run_id)
-    if run is None:
-        return _factory("createBlackBoard", None, "script", {"ok": False, "error": "no_run"})
-    run.blackboard = Blackboard(
-        run_id=run_id,
-        max_len=config.BLACKBOARD_MAX_LEN,
-        max_count=config.BLACKBOARD_MAX_COUNT,
-    )
-    return _factory("createBlackBoard", run, run.router_agent or "script", {"ok": True})
+    return blackboard.create_board(run_id)
 
 
 def setBlackBoardRules(run_id: str, *, pin_coding_rules: bool = False) -> dict[str, Any]:
-    run = store.get_run(run_id)
-    if run is None or run.blackboard is None:
-        return _factory("setBlackBoardRules", None, "script", {"ok": False, "error": "no_blackboard"})
-    if run.blackboard.frozen:
-        return _factory("setBlackBoardRules", run, run.router_agent or "script", {"ok": False, "error": "frozen"})
-    run.blackboard.frozen = True
-    run.rules_frozen = True
-    if pin_coding_rules:
-        runtime.sendMessageToBlackboard(
-            "Coding rules are in force for this run. Full text is in session details via viewSessionDetails. Agents cannot overwrite rules.",
-            "rules",
-            agent_id=run.router_agent or "script",
-            factory=True,
-        )
-    return _factory("setBlackBoardRules", run, run.router_agent or "script", {"ok": True})
+    return blackboard.set_rules(run_id, pin_coding_rules=pin_coding_rules)
 
 
 def setSessionDetails(run_id: str) -> dict[str, Any]:
@@ -210,6 +189,8 @@ def setSessionDetails(run_id: str) -> dict[str, Any]:
         "stakes": run.stakes,
         "intent": run.intent,
         "user_prompt": run.user_prompt,
+        "thread_id": run.thread_id,
+        "thread_card": blackboard.context_card(run.thread) if run.thread else "",
     }
     dest = config.SESSION_DIR / f"{run.run_id}.json"
     dest.write_text(json.dumps(details, indent=2), encoding="utf-8")
@@ -249,10 +230,7 @@ def connectToMicrosoft() -> dict[str, Any]:
 
 
 def viewBlackBoard(run_id: str) -> dict[str, Any]:
-    run = store.get_run(run_id)
-    if run is None or run.blackboard is None:
-        return _factory("viewBlackBoard", run, "script", {"ok": False, "error": "no_blackboard"})
-    return _factory("viewBlackBoard", run, run.router_agent or "script", {"ok": True, "messages": run.blackboard.messages})
+    return blackboard.view_board(run_id)
 
 
 def run_session(
@@ -261,6 +239,7 @@ def run_session(
     *,
     generate_fn: Callable[..., str] | None = None,
     provider: str | None = None,
+    thread_id: str | None = None,
 ) -> dict[str, Any]:
     """Map router fields to a tier, spawn the factory, return one user-facing answer."""
     from router import lift_ops_from_prompt, mapRoute
@@ -287,6 +266,7 @@ def run_session(
     run.web_ops = mapped["web_ops"]
     run.needs_code_exec = mapped["needs_code_exec"]
     run.intent = mapped["intent"]
+    blackboard.bind_thread(run, thread_id)
     answer = None
     try:
         if run.level == "small":
@@ -295,6 +275,7 @@ def run_session(
             answer = _run_medium(run)
         else:
             answer = _run_large(run)
+        blackboard.distill(run, answer)
     finally:
         _teardown(run)
         if run.level == "large":
@@ -307,6 +288,7 @@ def run_session(
         "mail_cal": run.mail_cal,
         "intent": run.intent,
         "answer": answer,
+        "thread_id": run.thread_id,
         "notices": list(run.notices),
     }
 
@@ -320,9 +302,9 @@ def select_vote(run: Run) -> str:
         return "saved"
     if run.blackboard is not None:
         votes = [
-            m["body"]
-            for m in run.blackboard.messages
-            if m.get("kind") == "vote" and _usable_answer(m.get("body")) and _vote_side(m.get("body")) is None
+            body
+            for body in blackboard.protocol_bodies(run, "vote")
+            if _usable_answer(body) and blackboard.vote_side(body) is None
         ]
         if votes:
             counts: dict[str, int] = {}
@@ -330,9 +312,9 @@ def select_vote(run: Run) -> str:
                 counts[body] = counts.get(body, 0) + 1
             return max(counts.items(), key=lambda kv: kv[1])[0]
         drafts = [
-            m["body"]
-            for m in run.blackboard.messages
-            if m.get("kind") == "draft" and _usable_answer(m.get("body")) and _vote_side(m.get("body")) is None
+            body
+            for body in blackboard.protocol_bodies(run, "draft")
+            if _usable_answer(body) and blackboard.vote_side(body) is None
         ]
         if drafts:
             return drafts[-1]
@@ -398,6 +380,7 @@ def _run_medium(run: Run) -> str:
     c2 = createAgent(run.run_id, "checker", "builder_llama", parent_agent=run.router_agent)["agent_name"]
     createBlackBoard(run.run_id)
     setBlackBoardRules(run.run_id)
+    blackboard.pin_context_card(run)
     if run.mail_cal != "off":
         _connect_mail(run)
     setSessionDetails(run.run_id)
@@ -420,6 +403,7 @@ def _run_large(run: Run) -> str:
     ]
     createBlackBoard(run.run_id)
     setBlackBoardRules(run.run_id, pin_coding_rules=True)
+    blackboard.pin_context_card(run)
     if run.mail_cal != "off":
         _connect_mail(run)
     setSessionDetails(run.run_id)
@@ -937,34 +921,8 @@ def _writers_open(run: Run) -> bool:
     return run.level != "large" or run.ship_unlocked
 
 
-def _vote_side(body: str | None) -> str | None:
-    text = str(body or "").strip().lower()
-    if not text:
-        return None
-    token = text.split()[0].strip(".,:;!")
-    if token in {"ship", "accept", "approve"}:
-        return "ship"
-    if token in {"reject", "deny"}:
-        return "reject"
-    return None
-
-
 def _committee_agents(run: Run) -> list[Agent]:
     return [a for a in run.agents.values() if a.role in {"builder", "executor"}]
-
-
-def _last_ship_votes(run: Run) -> dict[str, str]:
-    last: dict[str, str] = {}
-    if run.blackboard is None:
-        return last
-    for msg in run.blackboard.messages:
-        if msg.get("kind") != "vote":
-            continue
-        side = _vote_side(msg.get("body"))
-        agent_id = msg.get("agent_id")
-        if side and agent_id:
-            last[str(agent_id)] = side
-    return last
 
 
 def _ship_ready(run: Run) -> bool:
@@ -973,7 +931,7 @@ def _ship_ready(run: Run) -> bool:
     voters = _committee_agents(run)
     if not voters:
         return False
-    last = _last_ship_votes(run)
+    last = blackboard.last_ship_votes(run)
     ships = sum(1 for agent in voters if last.get(agent.agent_name) == "ship")
     rejects = sum(1 for agent in voters if last.get(agent.agent_name) == "reject")
     need = (len(voters) + 1) // 2

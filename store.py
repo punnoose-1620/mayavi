@@ -66,6 +66,8 @@ class Run:
     session_frozen: bool = False
     used_model_root: str | None = None
     secondary_provider: str | None = None
+    thread_id: str | None = None
+    thread: dict[str, Any] | None = None
 
 
 _RUNS: dict[str, Run] = {}

@@ -8,7 +8,7 @@ import threading
 import warnings
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import config
 
@@ -17,6 +17,20 @@ FORMAT_VERSION = 1
 _HEADER = MAGIC + struct.pack(">H", FORMAT_VERSION)
 _LOCK = threading.Lock()
 _MAX_SUMMARY = 240
+_LISTENERS: list[Callable[[dict[str, Any]], None]] = []
+
+
+def add_listener(fn: Callable[[dict[str, Any]], None]) -> None:
+    """Private UI/inspector hook. Agents never call this."""
+    if fn not in _LISTENERS:
+        _LISTENERS.append(fn)
+
+
+def remove_listener(fn: Callable[[dict[str, Any]], None]) -> None:
+    try:
+        _LISTENERS.remove(fn)
+    except ValueError:
+        return
 
 
 class LogResult:
@@ -148,6 +162,14 @@ def read_records(path: Path | None = None) -> list[dict[str, Any]]:
     return records
 
 
+def _notify(record: dict[str, Any]) -> None:
+    for fn in list(_LISTENERS):
+        try:
+            fn(record)
+        except Exception:
+            continue
+
+
 def _path_for(day: datetime | None = None) -> Path:
     when = day or datetime.now().astimezone()
     return config.LOG_DIR / f"{when.date().isoformat()}.id10t.log"
@@ -193,6 +215,7 @@ def _append(record: dict[str, Any], *, level: str | None, stakes: str | None, ma
             with path.open("ab") as fh:
                 fh.write(struct.pack(">I", len(payload)))
                 fh.write(payload)
+        _notify(record)
         return LogResult(True, False)
     except Exception as exc:
         hard = _hard_fail(level, stakes, mail_cal)

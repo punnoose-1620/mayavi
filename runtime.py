@@ -7,19 +7,18 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import requests
 
+import blackboard
 import config
 import logger
 import paging
 import store
 
-ALLOWED_KINDS = {"draft", "critique", "debug", "vote", "rules"}
 FETCH_METHODS = {"GET", "POST"}
 
 
@@ -37,37 +36,11 @@ def viewSessionDetails(agent_id: str | None = None) -> dict[str, Any]:
 
 
 def sendMessageToBlackboard(body: str, kind: str, agent_id: str | None = None, factory: bool = False) -> dict[str, Any]:
-    run, agent_id = _need(agent_id)
-    if run is None or run.blackboard is None:
-        return _done("sendMessageToBlackboard", run, agent_id, {"ok": False, "error": "no_blackboard"})
-    board = run.blackboard
-    if kind not in ALLOWED_KINDS:
-        return _done("sendMessageToBlackboard", run, agent_id, {"ok": False, "error": "unknown_kind"})
-    if kind == "rules" and not factory:
-        return _done("sendMessageToBlackboard", run, agent_id, {"ok": False, "error": "rules_locked"})
-    if len(body) > board.max_len:
-        return _done("sendMessageToBlackboard", run, agent_id, {"ok": False, "error": "too_long"})
-    if len(board.messages) >= board.max_count:
-        return _done("sendMessageToBlackboard", run, agent_id, {"ok": False, "error": "cap"})
-    role = run.agents[agent_id].role if agent_id in run.agents else "factory"
-    msg = {
-        "agent_id": agent_id,
-        "role": role,
-        "kind": kind,
-        "body": body,
-        "time": datetime.now(timezone.utc).isoformat(),
-    }
-    board.messages.append(msg)
-    return _done("sendMessageToBlackboard", run, agent_id, {"ok": True, "count": len(board.messages)})
+    return blackboard.send_message(body, kind, agent_id=agent_id, factory=factory)
 
 
 def viewBlackboardMessages(n: int = 20, agent_id: str | None = None) -> dict[str, Any]:
-    run, agent_id = _need(agent_id)
-    if run is None or run.blackboard is None:
-        return _done("viewBlackboardMessages", run, agent_id, {"ok": False, "error": "no_blackboard"})
-    n = max(1, min(int(n), 50))
-    items = run.blackboard.messages[-n:]
-    return _done("viewBlackboardMessages", run, agent_id, {"ok": True, "messages": items})
+    return blackboard.view_messages(n=n, agent_id=agent_id)
 
 
 def openSandbox(agent_id: str | None = None) -> dict[str, Any]:

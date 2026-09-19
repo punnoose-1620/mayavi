@@ -25,6 +25,8 @@ DATA_DIR = _env_path("ID10T_DATA_DIR", REPO_ROOT / "state")
 LOG_DIR = DATA_DIR / "logs"
 SESSION_DIR = DATA_DIR / "sessions"
 TOKEN_DIR = DATA_DIR / "tokens"
+THREADS_DIR = DATA_DIR / "threads"
+UI_SESSION_DIR = DATA_DIR / "ui-session"
 CREATED_INDEX = DATA_DIR / "createdIndex.json"
 SANDBOX_ROOT = _env_path("ID10T_SANDBOX_ROOT", REPO_ROOT / "sandboxes")
 WORKSPACE = _env_path("ID10T_WORKSPACE", REPO_ROOT / "input")
@@ -65,7 +67,7 @@ BLOCKED_PATHS: list[Path] = []
 
 
 def _ensure_dirs() -> None:
-    for path in (DATA_DIR, LOG_DIR, SESSION_DIR, TOKEN_DIR, SANDBOX_ROOT, WORKSPACE, OUTPUTS):
+    for path in (DATA_DIR, LOG_DIR, SESSION_DIR, TOKEN_DIR, THREADS_DIR, UI_SESSION_DIR, SANDBOX_ROOT, WORKSPACE, OUTPUTS):
         path.mkdir(parents=True, exist_ok=True)
 
 
@@ -109,7 +111,7 @@ def _unpinned_manifest() -> str:
 
 def use_temp(root: Path, *, allow_hf: bool = False) -> None:
     """Point all mutable state at a temp tree (tests)."""
-    global DATA_DIR, LOG_DIR, SESSION_DIR, TOKEN_DIR, CREATED_INDEX
+    global DATA_DIR, LOG_DIR, SESSION_DIR, TOKEN_DIR, THREADS_DIR, UI_SESSION_DIR, CREATED_INDEX
     global SANDBOX_ROOT, WORKSPACE, OUTPUTS, ALLOW_HF_DOWNLOAD
     global MODELS_DIR, BACKUP_MODELS_DIR, MODELS_JSON
     root = Path(root).resolve()
@@ -117,6 +119,8 @@ def use_temp(root: Path, *, allow_hf: bool = False) -> None:
     LOG_DIR = DATA_DIR / "logs"
     SESSION_DIR = DATA_DIR / "sessions"
     TOKEN_DIR = DATA_DIR / "tokens"
+    THREADS_DIR = DATA_DIR / "threads"
+    UI_SESSION_DIR = DATA_DIR / "ui-session"
     CREATED_INDEX = DATA_DIR / "createdIndex.json"
     SANDBOX_ROOT = root / "sandboxes"
     WORKSPACE = root / "input"
