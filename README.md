@@ -98,7 +98,7 @@ python main.py --thread thr_abc123def4 "tweak the third bullet"
 python app.py
 ```
 
-`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `POST /turns`). The dropdown lists durable medium notebooks only. The page hydrates from `state/ui-session/session.jsonl`; starting the server renames that file to `previous.jsonl` so a crash copy survives one restart. `python app.py --no-model` uses the same stubs as the CLI.
+`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `POST /turns`). Double-click `run-id10t.bat` to start it on port **9001** and open the browser. The dropdown lists durable medium notebooks only. The page hydrates from `state/ui-session/session.jsonl`; starting the server renames that file to `previous.jsonl` so a crash copy survives one restart. `python app.py --no-model` uses the same stubs as the CLI.
 
 Double-clickable live checks (open a cmd window, show Prompt / Response / Meta, pause):
 
