@@ -15,7 +15,7 @@ Release history lives in [`CHANGELOG.md`](CHANGELOG.md), newest version **first*
 2. The script maps those fields to `small` | `medium` | `large`.
 3. A **factory** (`executor.py`) creates agents, optional blackboard, optional sandbox, and (if requested) mail/calendar OAuth. File and web tools are **gated** from the router counts: `file_ops=0` hides writers/readers; `web_ops=0` hides scrape tools.
 4. Workers prefer a direct `{"final": "..."}`. They only get a tool if the router counted that family and the user asked for a file, URL, mail, or sandbox code.
-5. The CLI prints **one** user-facing answer (Prompt / Response / Meta). Tokens are not streamed. On medium/large, that answer comes from blackboard `vote` then `draft`. Factory `rules`, sandbox `debug`, and bare `ship` / `reject` ballots are never the answer; a shipped large run answers `saved`, with the artifacts in `outputs/<run_id>/`. If the model only emits `final`, the script copies it onto the board.
+5. The CLI prints **one** user-facing answer (Prompt / Response / Meta). Tokens are not streamed. On medium/large, that answer comes from blackboard `vote` then `draft`. Factory `rules`, sandbox `debug`, and bare `ship` / `reject` ballots are never the answer. After a large run ships, the answer is a summary of the keep folder (not `saved`); artifacts land in `outputs/<YYYY-MM-DD>_<intent-slug>/`. If the model only emits `final`, the script copies it onto the board.
 6. A daily binary **audit log** records who spawned and which exported functions ran. It does not store transcripts, file bodies, mail bodies, or tokens.
 
 ## Tiers
@@ -31,7 +31,7 @@ The router never outputs `small` / `medium` / `large`. Mapping is:
 
 `mail_cal` does not pick the tier. Coding tasks force `mail_cal` to `off`.
 
-If the router is **unsure**, fields default **cheap**: `stakes=low`, `needs_code_exec=no`, `file_ops=0`, `web_ops=0` → **small**. High stakes only when the prompt is clearly legal/official/medical/financial (or similar). Greetings, chat, how-to, and summaries are low. A write counts toward `file_ops` only if the user asked to create or save a file. Missing or garbage router JSON uses those same cheap defaults (it does **not** round up to large).
+If the router is **unsure**, fields default **cheap**: `stakes=low`, `needs_code_exec=no`, `file_ops=0`, `web_ops=0` → **small**. High stakes only when the prompt is clearly legal/official/medical/financial (or similar). Greetings, chat, how-to, and summaries are low. A write counts toward `file_ops` only if the user asked to create or save a file. Summarizing or reading code already under `outputs/` is a file read (`file_ops` at least 1, `needs_code_exec=no`), not a new sandbox build. Missing or garbage router JSON uses those same cheap defaults (it does **not** round up to large).
 
 | Tier | Agents | Blackboard | Sandbox | Typical use |
 | --- | --- | --- | --- | --- |
@@ -42,6 +42,8 @@ If the router is **unsure**, fields default **cheap**: `stakes=low`, `needs_code
 Large always creates a sandbox and a keep folder, and injects `coding-rules.md`, even when the user task is not “write a program.” If the USB model library is present, large uses four unique builders. If not, it uses the thinner backup pair (Llama 3.2 3B + Qwen 3B).
 
 ## Requirements
+
+Machine-by-machine floors (Ubuntu vs Windows, headless vs desktop, named NVIDIA and Ryzen SKUs) are in [`Hardware Requirements.md`](Hardware%20Requirements.md).
 
 - Python 3.11+
 - Enough disk for GGUFs (~7GB backup set, or ~26GB full USB set)
@@ -97,7 +99,7 @@ python main.py --thread thr_abc123def4 "tweak the third bullet"
 python app.py
 ```
 
-`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `POST /turns`). Double-click `run-id10t.bat` to start it on port **9001** and open the browser. The dropdown lists durable medium notebooks only. The page hydrates from `state/ui-session/session.jsonl`; starting the server renames that file to `previous.jsonl` so a crash copy survives one restart. `python app.py --no-model` uses the same stubs as the CLI.
+`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `POST /turns`). Double-click `run-id10t.bat` to start it on port **9001** and open the browser. The dropdown lists durable notebooks (`thr_…`) from medium and large runs. The page hydrates from `state/ui-session/session.jsonl`; starting the server renames that file to `previous.jsonl` so a crash copy survives one restart. `python app.py --no-model` uses the same stubs as the CLI.
 
 Double-clickable live checks (open a cmd window, show Prompt / Response / Meta, pause):
 
@@ -145,7 +147,7 @@ Relative paths in `.env` are resolved from the **repo root**, not the current wo
 | --- | --- |
 | `input/` | Allowed **read** root. Put source documents here. |
 | `outputs/` | Allowed **write** root. `write_doc` / `write_pdf` / `write_json` / `append_file` / `mkdir` only write here. |
-| `outputs/<run_id>/` | Keep folder for one large run. Writers stay locked until the committee ships; approved sandbox files land here. |
+| `outputs/<YYYY-MM-DD>_<intent>/` | Keep folder for one large run. Writers stay locked until the committee ships; approved sandbox files land here. |
 | `models/` | GGUF files. On `BLOCKED_PATHS` (agents cannot `read_file` weights). |
 | `state/` | Logs, OAuth token files, session JSON, `createdIndex.json`. Blocked. |
 | `sandboxes/` | Per-`run_id` jail. Blocked from file tools; runtime sandbox APIs only. |
@@ -264,7 +266,7 @@ A model that still calls a hidden tool gets `unknown_tool` and can finish with `
 
 Allowed blackboard kinds: `draft`, `critique`, `debug`, `vote`, `rules`, `memory`. Only the factory may post `rules` (coding-rules pin on large) and `memory` (a context card from a durable thread). `select_vote` uses `vote`, then `draft`, then worker `final` text. It never returns `rules`, `debug`, or `memory`.
 
-Medium runs also write a **thread** under `state/threads/` (`thr_…`, title from `intent`). Pass `--thread thr_…` on the next command to attach it: a mapped-small prompt is raised to medium; a large run is seeded with that card and distills changes back. Small without `--thread` never creates or reads a thread. The live committee board is still unique per run and is dropped at teardown.
+Medium and large runs also write a **thread** under `state/threads/` (`thr_…`, title from `intent`). Pass `--thread thr_…` on the next command to attach it: a mapped-small prompt is raised to medium; a thread that already shipped artifacts also unlocks `read_file` / `search_dir` so follow-ups can inspect the keep folder. Small without `--thread` never creates or reads a thread. The live committee board is still unique per run and is dropped at teardown.
 
 **Sandbox** (`runtime.py`, large only): `openSandbox`, `sandbox_read`, `sandbox_write` (builders), `executeScriptInSandbox` / `sandbox_fetch` (executor), `getResultsFromSandbox`.
 
@@ -272,7 +274,7 @@ Sandbox v1: `.py` / `.html` / `.css` / `.js` only. Execute is `python <file.py>`
 
 ### Keep vs wipe on a large run
 
-The factory makes `outputs/<run_id>/` at the start of the run and keeps every writer (`write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir`) shut. Builders can only use `sandbox_write`; the executor runs the script and reads the results. Once a script has run and the committee votes **ship** by majority, the factory unlocks the writers, copies the sandbox's `.py` / `.html` / `.css` / `.js` files plus captured stdout (`result.txt`) into the keep folder, and remaps any later write into that same folder. Without a ship, the sandbox is wiped at teardown and nothing durable survives — a failed build cannot pass itself off as finished work.
+The factory makes `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of the run and keeps every writer (`write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir`) shut. Builders can only use `sandbox_write`; the executor runs the script and reads the results. Once a script has run and the committee votes **ship** by majority, the factory unlocks the writers, copies the sandbox's `.py` / `.html` / `.css` / `.js` files plus captured stdout (`result.txt`) into the keep folder, remaps any later write into that same folder, and answers with a summary of those files. Without a ship, the sandbox is wiped at teardown and nothing durable survives — a failed build cannot pass itself off as finished work.
 
 ## Path policy
 
@@ -311,6 +313,7 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `config.py` | Paths, env, allowed/blocked lists |
 | `store.py` | Private run registry |
 | `coding-rules.md` | Injected on every large run |
+| `Hardware Requirements.md` | Ubuntu/Windows, headless vs desktop, named NVIDIA and Ryzen SKUs |
 | `CHANGELOG.md` | Hand-written release history, newest first (never updated automatically) |
 | `install.ps1` / `install.sh` | Setup only: venv, both requirement files, `.env`. No models, no secrets |
 | `docs/` | The design specs the runtime was built from, plus `v2-scope.md` for planned work |
