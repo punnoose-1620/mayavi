@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import uuid
+from datetime import date
 from pathlib import Path
 from typing import Any, Callable
 
@@ -132,7 +134,7 @@ def createKeepDir(run_id: str) -> dict[str, Any]:
     run = store.get_run(run_id)
     if run is None:
         return _factory("createKeepDir", None, "script", {"ok": False, "error": "no_run"})
-    path = (config.OUTPUTS / run_id).resolve()
+    path = _keep_dir(run)
     path.mkdir(parents=True, exist_ok=True)
     run.keep_path = path
     return _factory("createKeepDir", run, run.router_agent or "script", {"ok": True, "path": str(path)})
@@ -267,6 +269,9 @@ def run_session(
     run.needs_code_exec = mapped["needs_code_exec"]
     run.intent = mapped["intent"]
     blackboard.bind_thread(run, thread_id)
+    if blackboard.shipped_keep_paths(run.thread):
+        if not _ops_needed(run.file_ops):
+            run.file_ops = "1"
     answer = None
     try:
         if run.level == "small":
@@ -299,12 +304,17 @@ ANSWER_KINDS = {"vote", "draft"}
 def select_vote(run: Run) -> str:
     """Pick the user-facing answer. Never return factory rules or sandbox debug."""
     if run.level == "large" and run.ship_unlocked:
-        return "saved"
+        latest = _latest_final(run)
+        if latest and not _pointer_answer(latest):
+            return latest
+        summary = _keep_summary(run)
+        if summary:
+            return summary
     if run.blackboard is not None:
         votes = [
             body
             for body in blackboard.protocol_bodies(run, "vote")
-            if _usable_answer(body) and blackboard.vote_side(body) is None
+            if _usable_answer(body) and blackboard.vote_side(body) is None and not _pointer_answer(body)
         ]
         if votes:
             counts: dict[str, int] = {}
@@ -314,11 +324,18 @@ def select_vote(run: Run) -> str:
         drafts = [
             body
             for body in blackboard.protocol_bodies(run, "draft")
-            if _usable_answer(body) and blackboard.vote_side(body) is None
+            if _usable_answer(body) and blackboard.vote_side(body) is None and not _pointer_answer(body)
         ]
         if drafts:
             return drafts[-1]
-    return _latest_final(run)
+    latest = _latest_final(run)
+    if latest and not _pointer_answer(latest):
+        return latest
+    if run.level == "large" and run.ship_unlocked:
+        summary = _keep_summary(run)
+        if summary:
+            return summary
+    return latest
 
 
 def _latest_final(run: Run) -> str:
@@ -414,6 +431,10 @@ def _run_large(run: Run) -> str:
         endThread(name)
         deleteThread(name)
     _refresh_ship_lock(run)
+    if run.ship_unlocked:
+        if not _ops_needed(run.file_ops):
+            run.file_ops = "1"
+        _run_ship_summary(run, exec_name)
     return select_vote(run)
 
 
@@ -452,6 +473,13 @@ def _run_agent_loop(run: Run, agent: Agent) -> dict[str, Any]:
     tools = _tools_for(run, agent)
     system = _system_prompt(run, agent, tools)
     user = run.user_prompt
+    if run.summarize_keep and run.keep_path is not None:
+        user = (
+            f"The build shipped to {run.keep_path}. "
+            "Use search_dir and read_file on that folder, then emit a final summary: "
+            "what was completed, architecture, a short description of each file, and the save path. "
+            "Do not vote. Do not execute. Do not write files."
+        )
     agent.history.append({"role": "system", "content": system})
     agent.history.append({"role": "user", "content": user})
     max_steps = 8
@@ -556,6 +584,10 @@ def _prepare_messages(history: list[dict[str, str]]) -> list[dict[str, str]]:
     return msgs[:2] + msgs[-10:]
 
 
+def _pointer_answer(text: str | None) -> bool:
+    return str(text or "").strip().lower() in {"saved", "shipped", "ship", "reject"}
+
+
 def _usable_answer(text: str | None) -> bool:
     body = str(text or "").strip()
     if not body:
@@ -578,7 +610,17 @@ def _usable_answer(text: str | None) -> bool:
         "…",
     }:
         return False
-    return not _is_tool_dump(body)
+    return not _is_tool_dump(body) and not _is_sandbox_dump(body)
+
+
+def _is_sandbox_dump(text: str | None) -> bool:
+    body = str(text or "")
+    lowered = body.lower()
+    if body.lstrip().startswith("exit_code=") or "\n-- stdout --\n" in body or "\n-- stderr --\n" in body:
+        return True
+    if "can't open file" in lowered and "sandboxes" in lowered:
+        return True
+    return False
 
 
 def _is_tool_dump(text: str) -> bool:
@@ -671,7 +713,7 @@ def _tools_for(run: Run, agent: Agent) -> dict[str, Callable[..., Any]]:
                 "read_file": lambda **kw: file_tools.read_file(agent_id=aid, **kw),
             }
         )
-        if _writers_open(run):
+        if _writers_open(run) and not run.summarize_keep:
             tools.update(
                 {
                     "write_doc": lambda **kw: file_tools.write_doc(agent_id=aid, **kw),
@@ -705,7 +747,7 @@ def _tools_for(run: Run, agent: Agent) -> dict[str, Callable[..., Any]]:
                 ),
             }
         )
-    if run.level == "large":
+    if run.level == "large" and not run.summarize_keep:
         tools["openSandbox"] = lambda **kw: runtime.openSandbox(agent_id=aid)
         tools["sandbox_read"] = lambda **kw: runtime.sandbox_read(
             path=str(kw.get("path") or kw.get("file") or ""),
@@ -884,7 +926,13 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
     names = ", ".join(sorted(tools))
     need_tools = _ops_needed(run.file_ops) or _ops_needed(run.web_ops) or run.mail_cal != "off" or run.level == "large"
     if need_tools:
-        if run.level == "large" and not run.ship_unlocked:
+        if run.summarize_keep:
+            prefer = (
+                "The build already shipped. Do not execute and do not write. "
+                "Call search_dir / read_file on the keep folder, then emit "
+                '{"final": "summary of what shipped, architecture, each file, and the save path"}.\n'
+            )
+        elif run.level == "large" and not run.ship_unlocked:
             prefer = _large_tool_prefer(agent)
         else:
             prefer = (
@@ -895,10 +943,17 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
                 'or {"tool": "get_url", "args": {"url": "https://example.com/"}}\n'
                 "After reads or fetches succeed, copy facts from the tool result into write content. "
                 "Do not write empty content, '...', or placeholders. Then emit "
-                '{"final": "saved"}. Do not use a tool named name.\n'
+                '{"final": "a short user-facing summary"}. Do not use a tool named name.\n'
             )
     else:
         prefer = 'Prefer a direct reply: {"final": "answer for the user"}. Do not call tools.\n'
+    shipped = blackboard.shipped_keep_paths(run.thread)
+    if shipped and not run.summarize_keep:
+        prefer += (
+            f"This notebook's last shipped build is in {shipped[-1]}. "
+            "If they ask about that work, search_dir and read_file that folder before answering. "
+            "Do not invent the file contents.\n"
+        )
     return (
         f"You are agent {agent.agent_name} with role {agent.role} on a {run.level} run.\n"
         f"User intent: {run.intent}\n"
@@ -922,6 +977,55 @@ EXECUTE_ROLE_HINT = (
     "Only the executor may run scripts. Builders write the .py; "
     "the executor calls executeScriptInSandbox then getResultsFromSandbox."
 )
+
+
+def _run_ship_summary(run: Run, exec_name: str) -> None:
+    """One extra executor pass after copy-out so the user answer is a summary, not 'saved'."""
+    if exec_name not in run.agents:
+        return
+    run.summarize_keep = True
+    try:
+        createThread(exec_name)
+        startThread(exec_name)
+        endThread(exec_name)
+        deleteThread(exec_name)
+    finally:
+        run.summarize_keep = False
+
+
+def _keep_dir(run: Run) -> Path:
+    slug = _keep_slug(run.intent or run.user_prompt or run.run_id)
+    name = f"{date.today().isoformat()}_{slug}"
+    dest = (config.OUTPUTS / name).resolve()
+    if dest.exists():
+        dest = (config.OUTPUTS / f"{name}_{run.run_id[-8:]}").resolve()
+    return dest
+
+
+def _keep_slug(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", str(text or "").lower()).strip("-")[:40]
+    return slug or "build"
+
+
+def _keep_summary(run: Run) -> str:
+    keep = run.keep_path
+    if keep is None or not keep.is_dir():
+        return ""
+    files = [p.relative_to(keep).as_posix() for p in sorted(keep.rglob("*")) if p.is_file()]
+    if not files:
+        return ""
+    lines = [
+        f"Shipped to {keep}.",
+        "Files:",
+        *[f"- {name}" for name in files[:24]],
+    ]
+    result_txt = keep / "result.txt"
+    if result_txt.is_file():
+        snippet = result_txt.read_text(encoding="utf-8", errors="replace").strip()[:400]
+        if snippet:
+            lines.append("Run output:")
+            lines.append(snippet)
+    return "\n".join(lines)
 
 
 def _large_tool_prefer(agent: Agent) -> str:
@@ -1005,6 +1109,7 @@ def _refresh_ship_lock(run: Run) -> None:
 
 
 def _copy_sandbox_out(run: Run) -> None:
+    runtime.collect_sandbox_output(run)
     keep = run.keep_path
     root = run.sandbox_path
     if keep is None or root is None or not root.is_dir():

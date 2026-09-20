@@ -53,6 +53,7 @@ class Run:
     keep_path: Path | None = None
     sandbox_executed: bool = False
     ship_unlocked: bool = False
+    summarize_keep: bool = False
     session_path: Path | None = None
     oauth: dict[str, Any] = field(default_factory=dict)
     exclusive_lock: threading.Lock = field(default_factory=threading.Lock)

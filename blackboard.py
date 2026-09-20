@@ -132,7 +132,7 @@ def bind_thread(run: Run, thread_id: str | None) -> None:
             run.thread = loaded
             if run.level == "small":
                 run.level = "medium"
-    if run.level == "medium" and not run.thread_id:
+    if run.level in {"medium", "large"} and not run.thread_id:
         created = create_thread(title=_title(run.intent or run.user_prompt), goal=run.intent, prompt=run.user_prompt)
         run.thread_id = created["id"]
         run.thread = created
@@ -165,6 +165,12 @@ def distill(run: Run, answer: str | None) -> None:
         else:
             artifacts = _uniq(artifacts + [f"keep:{note}"])
     thread["artifacts"] = artifacts[-8:]
+    if run.ship_unlocked and run.keep_path is not None and run.keep_path.is_dir():
+        sources = list(thread.get("sources") or [])
+        for path in sorted(run.keep_path.rglob("*")):
+            if path.is_file():
+                sources = _uniq(sources + [path.name])
+        thread["sources"] = sources[-12:]
     open_items = list(thread.get("open") or [])
     if run.level == "large" and not run.ship_unlocked:
         open_items = _uniq(open_items + ["committee did not ship"])
@@ -177,6 +183,16 @@ def distill(run: Run, answer: str | None) -> None:
     thread["decisions"] = decisions[-8:]
     save_thread(thread)
     run.thread = thread
+
+
+def shipped_keep_paths(thread: dict[str, Any] | None) -> list[str]:
+    """Keep folders recorded on a durable thread after a ship."""
+    out: list[str] = []
+    for item in (thread or {}).get("artifacts") or []:
+        text = str(item)
+        if text.startswith("shipped:"):
+            out.append(text[8:])
+    return out
 
 
 def context_card(thread: dict[str, Any]) -> str:
@@ -244,7 +260,7 @@ def create_thread(
 
 
 def list_threads() -> list[dict[str, Any]]:
-    """Durable medium notebooks only. Live committee boards are not listed."""
+    """Durable notebooks (medium and large). Live committee boards are not listed."""
     if not config.THREADS_DIR.is_dir():
         return []
     rows: list[dict[str, Any]] = []

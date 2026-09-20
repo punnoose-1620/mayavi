@@ -31,7 +31,7 @@ GET (optional POST) only to the sandbox loopback address and the port the execut
 
 ## Keep vs wipe
 
-The factory creates `outputs/<run_id>/` at the start of every large run. That folder is the keep tree.
+The factory creates `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of every large run. That folder is the keep tree.
 
 The sandbox is a separate jail (`sandboxes/<run_id>/`) and is destroyed at teardown. On large runs, `write_doc` / `write_json` / `write_pdf` / `append_file` / `mkdir` stay locked until the executor has a successful `executeScriptInSandbox` **and** a majority of builders plus the executor have voted `ship` (not `reject`) on the blackboard. Then the factory copies allowed sandbox files (`.py`, `.html`, `.css`, `.js`) and stdout (`result.txt`) into the keep folder. After unlock, durable writes are forced into that same folder. Nothing in the jail enters createdIndex until that copy.
 

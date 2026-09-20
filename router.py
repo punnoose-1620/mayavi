@@ -27,7 +27,7 @@ file_ops is how many file tool calls the job needs (read, discovery, or write). 
 
 web_ops is how many web scrape tool calls the job needs. v1 calls are get_url / post_url (agent-built URLs). Dedicated search APIs are v2. Count web only if they asked to fetch, scrape, or look up a live URL. Casual "how do I" questions are 0.
 
-needs_code_exec is yes only if the job cannot finish without writing and running custom code in the closed sandbox. Using the provided PDF/doc writer is not code execution. If unsure, mark no.
+needs_code_exec is yes only if the job cannot finish without writing and running new custom code in the closed sandbox. Using the provided PDF/doc writer is not code execution. Reading, summarizing, or explaining code that was already saved under outputs/ is a file read: file_ops at least 1, needs_code_exec no. Do not mark yes because they mentioned tests, matrices, or an earlier build. If unsure, mark no.
 
 mail_cal is off unless the user clearly needs inbox or calendar. Default off when needs_code_exec is yes. Use read for list/open/search/free-busy only. Use write only for send, reply, create, update, or cancel events. Coding tasks must not get schedule access.
 
@@ -127,6 +127,10 @@ def lift_ops_from_prompt(prompt: str, fields: dict[str, Any]) -> dict[str, Any]:
     """Keep live 1.5B routing from dropping file tools or inflating code-exec."""
     text = prompt.lower()
     out = dict(fields)
+    if _read_existing_work(text):
+        out["needs_code_exec"] = "no"
+        if str(out.get("file_ops", "0")).strip() in {"", "0", "no", "off"}:
+            out["file_ops"] = "1"
     write_marks = (
         "write_doc",
         "write_pdf",
@@ -160,6 +164,53 @@ def lift_ops_from_prompt(prompt: str, fields: dict[str, Any]) -> dict[str, Any]:
     if "not legal" in text or "low stakes" in text or "casual personal" in text:
         out["stakes"] = "low"
     return out
+
+
+def _read_existing_work(text: str) -> bool:
+    """True when they want a summary/read of code already on disk, not a new sandbox build."""
+    saved = any(
+        mark in text
+        for mark in (
+            "outputs",
+            "saved",
+            "keep folder",
+            "code that was built",
+            "code that was saved",
+            "code created",
+            "created code",
+            "the code",
+            "files you",
+            "what you saved",
+            "already saved",
+        )
+    )
+    wants_read = any(
+        mark in text
+        for mark in (
+            "summar",
+            "read it",
+            "read the",
+            "explain",
+            "how it works",
+            "how they work",
+            "what did you",
+            "tell me about",
+            "review the code",
+        )
+    )
+    wants_build = any(
+        mark in text
+        for mark in (
+            "write a program",
+            "write and run",
+            "build a",
+            "create a program",
+            "in the sandbox",
+            "run python",
+            "implement",
+        )
+    )
+    return saved and wants_read and not wants_build
 
 
 def heuristic_route(prompt: str) -> dict[str, Any]:
@@ -198,6 +249,10 @@ def heuristic_route(prompt: str) -> dict[str, Any]:
     )
     if any(mark in text for mark in ("file", "folder", "pdf", "document", "docx", "csv", "xlsx") + write_marks):
         file_ops = "3+" if any(mark in text for mark in ("folder", "all files", "documents in")) else "1"
+    if _read_existing_work(text):
+        needs = "no"
+        if file_ops == "0":
+            file_ops = "1"
     web_ops = "0"
     if any(mark in text for mark in ("http://", "https://", "website", "scrape", "url", "google", "look up", "search the web")):
         web_ops = "2+" if "several" in text or "multiple" in text else "1"

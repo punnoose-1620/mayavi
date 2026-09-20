@@ -109,7 +109,7 @@ def executeScriptInSandbox(path: str, timeout: int | None = None, agent_id: str 
         env = _sandbox_env(run.sandbox_path)
         (run.sandbox_path / ".tmp").mkdir(exist_ok=True)
         proc = subprocess.Popen(
-            [sys.executable, str(target)],
+            [sys.executable, "-u", str(target)],
             cwd=str(run.sandbox_path),
             env=env,
             stdout=subprocess.PIPE,
@@ -117,7 +117,7 @@ def executeScriptInSandbox(path: str, timeout: int | None = None, agent_id: str 
             text=True,
         )
         limit = timeout or config.EXECUTE_TIMEOUT
-        startup = min(0.5, limit)
+        startup = min(3.0, float(limit))
         try:
             stdout, stderr = proc.communicate(timeout=startup)
             running = False
@@ -307,6 +307,27 @@ def _unlock(run: Any, agent_id: str) -> None:
             run.exclusive_lock.release()
         except RuntimeError:
             pass
+
+
+def collect_sandbox_output(run: Any, wait: float = 2.0) -> None:
+    """If a short script is about to exit, catch its stdout before copy-out.
+
+    Leave long-running servers alone: a timeout here must not kill the process.
+    """
+    proc = getattr(run, "sandbox_proc", None)
+    if proc is None:
+        return
+    try:
+        stdout, stderr = proc.communicate(timeout=wait)
+    except subprocess.TimeoutExpired:
+        return
+    blob = dict(getattr(run, "sandbox_results", None) or {})
+    blob["stdout"] = str(blob.get("stdout") or "") + str(stdout or "")
+    blob["stderr"] = str(blob.get("stderr") or "") + str(stderr or "")
+    blob["exit_code"] = proc.returncode
+    blob["running"] = False
+    run.sandbox_results = blob
+    run.sandbox_proc = None
 
 
 def _kill_sandbox_proc(run: Any) -> None:
