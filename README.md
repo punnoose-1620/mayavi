@@ -15,7 +15,7 @@ Release history lives in [`CHANGELOG.md`](CHANGELOG.md), newest version **first*
 2. The script maps those fields to `small` | `medium` | `large`.
 3. A **factory** (`executor.py`) creates agents, optional blackboard, optional sandbox, and (if requested) mail/calendar OAuth. File and web tools are **gated** from the router counts: `file_ops=0` hides writers/readers; `web_ops=0` hides scrape tools.
 4. Workers prefer a direct `{"final": "..."}`. They only get a tool if the router counted that family and the user asked for a file, URL, mail, or sandbox code.
-5. The CLI prints **one** user-facing answer (Prompt / Response / Meta). Tokens are not streamed. On medium/large, that answer comes from blackboard `vote` then `draft`. Factory `rules`, sandbox `debug`, and bare `ship` / `reject` ballots are never the answer. After a large run ships, the answer is a summary of the keep folder (not `saved`); artifacts land in `outputs/<YYYY-MM-DD>_<intent-slug>/`. If the model only emits `final`, the script copies it onto the board.
+5. The CLI prints **one** user-facing answer (Prompt / Response / Meta). Tokens are not streamed. On medium/large, that answer comes from blackboard `vote` then `draft`. Factory `rules`, sandbox `debug`, and bare `ship` / `reject` / `saved` / `shipped` pointers are never the answer. After a large run ships, the answer is a summary of the keep folder; artifacts land in `outputs/<YYYY-MM-DD>_<intent-slug>/`. If they do not ship, the factory says so (and lists jail files / stdout when it has them) instead of the word `saved`. If the model only emits `final`, the script copies it onto the board.
 6. A daily binary **audit log** records who spawned and which exported functions ran. It does not store transcripts, file bodies, mail bodies, or tokens.
 
 ## Tiers
@@ -147,7 +147,7 @@ Relative paths in `.env` are resolved from the **repo root**, not the current wo
 | --- | --- |
 | `input/` | Allowed **read** root. Put source documents here. |
 | `outputs/` | Allowed **write** root. `write_doc` / `write_pdf` / `write_json` / `append_file` / `mkdir` only write here. |
-| `outputs/<YYYY-MM-DD>_<intent>/` | Keep folder for one large run. Writers stay locked until the committee ships; approved sandbox files land here. |
+| `outputs/<YYYY-MM-DD>_<intent>/` | Keep folder for one large run. After ship: sandbox files, `result.txt`, and factory `SUMMARY.md`. |
 | `models/` | GGUF files. On `BLOCKED_PATHS` (agents cannot `read_file` weights). |
 | `state/` | Logs, OAuth token files, session JSON, `createdIndex.json`. Blocked. |
 | `sandboxes/` | Per-`run_id` jail. Blocked from file tools; runtime sandbox APIs only. |
@@ -264,7 +264,7 @@ A model that still calls a hidden tool gets `unknown_tool` and can finish with `
 
 **Committee** (`blackboard.py`, used by `runtime.py` / `executor.py`, medium/large): `viewSessionDetails`, blackboard send/view.
 
-Allowed blackboard kinds: `draft`, `critique`, `debug`, `vote`, `rules`, `memory`. Only the factory may post `rules` (coding-rules pin on large) and `memory` (a context card from a durable thread). `select_vote` uses `vote`, then `draft`, then worker `final` text. It never returns `rules`, `debug`, or `memory`.
+Allowed blackboard kinds: `draft`, `critique`, `debug`, `vote`, `rules`, `memory`. Only the factory may post `rules` (coding-rules pin on large) and `memory` (a context card from a durable thread). `select_vote` uses `vote`, then `draft`, then worker `final` text. It never returns `rules`, `debug`, `memory`, or pointer words (`saved` / `shipped` / `ship` / `reject`).
 
 Medium and large runs also write a **thread** under `state/threads/` (`thr_…`, title from `intent`). Pass `--thread thr_…` on the next command to attach it: a mapped-small prompt is raised to medium; a thread that already shipped artifacts also unlocks `read_file` / `search_dir` so follow-ups can inspect the keep folder. Small without `--thread` never creates or reads a thread. The live committee board is still unique per run and is dropped at teardown.
 
@@ -274,7 +274,7 @@ Sandbox v1: `.py` / `.html` / `.css` / `.js` only. Execute is `python <file.py>`
 
 ### Keep vs wipe on a large run
 
-The factory makes `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of the run and keeps every writer (`write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir`) shut. Builders can only use `sandbox_write`; the executor runs the script and reads the results. Once a script has run and the committee votes **ship** by majority, the factory unlocks the writers, copies the sandbox's `.py` / `.html` / `.css` / `.js` files plus captured stdout (`result.txt`) into the keep folder, remaps any later write into that same folder, and answers with a summary of those files. Without a ship, the sandbox is wiped at teardown and nothing durable survives — a failed build cannot pass itself off as finished work.
+The factory makes `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of the run and keeps every writer (`write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir`) shut. Builders can only use `sandbox_write`; the executor runs the script and reads the results. Once a script has run and the committee votes **ship** by majority, the factory unlocks the writers, copies the sandbox's `.py` / `.html` / `.css` / `.js` files plus captured stdout (`result.txt`) into the keep folder, writes `SUMMARY.md` there, remaps any later write into that same folder, and answers with a summary of those files. The UI links **view complete summary** to `GET /keep?dir=<keep-folder>&file=SUMMARY.md` (outputs only). `write_doc` may use type `md` the same way as `txt`. Without a ship, the sandbox is wiped at teardown and nothing durable survives — the user answer is a factory note that they did not ship (plus any jail file names and captured stdout), never the pointer word `saved`.
 
 ## Path policy
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import threading
@@ -10,7 +11,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import blackboard
 import config
@@ -22,6 +23,8 @@ HOST = "127.0.0.1"
 PORT = 8765
 UI_FILE = config.REPO_ROOT / "ui" / "index.html"
 NO_MODEL = False
+KEEP_SUMMARY_FILE = "SUMMARY.md"
+_KEEP_DIR_OK = re.compile(r"^[A-Za-z0-9._-]+$")
 _BUSY = threading.Lock()
 _SESSION_LOCK = threading.Lock()
 _ACTIVE: dict[str, Any] | None = None
@@ -146,6 +149,23 @@ def append_turn(turn: dict[str, Any]) -> None:
             fh.write(json.dumps(turn, ensure_ascii=False) + "\n")
 
 
+def resolve_keep_summary(dir_name: str | None, file_name: str | None) -> Path | None:
+    """Map /keep query args to outputs/<dir>/SUMMARY.md. Nothing else."""
+    folder = unquote(str(dir_name or "")).strip()
+    name = unquote(str(file_name or "")).strip()
+    if name != KEEP_SUMMARY_FILE or not _KEEP_DIR_OK.fullmatch(folder):
+        return None
+    root = config.OUTPUTS.resolve()
+    target = (root / folder / name).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return None
+    if not target.is_file():
+        return None
+    return target
+
+
 def progress_line(record: dict[str, Any]) -> str | None:
     """One operator sentence from an audit record. Never a transcript."""
     event = record.get("event")
@@ -205,6 +225,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/history":
             self._send_json(200, {"ok": True, "turns": read_history(), "active": read_active()})
+            return
+        if path == "/keep":
+            self._send_keep()
             return
         self._send_json(404, {"ok": False, "error": "not_found"})
 
@@ -268,6 +291,7 @@ class Handler(BaseHTTPRequestHandler):
                 "prompt": prompt,
                 "answer": result.get("answer") or "",
                 "thread_id": result.get("thread_id"),
+                "summary_url": result.get("summary_url"),
                 "level": result.get("level"),
                 "run_id": result.get("run_id"),
                 "stakes": result.get("stakes"),
@@ -286,6 +310,7 @@ class Handler(BaseHTTPRequestHandler):
                     "level": turn["level"],
                     "run_id": turn["run_id"],
                     "thread_id": turn["thread_id"],
+                    "summary_url": turn["summary_url"],
                     "stakes": turn["stakes"],
                     "notices": notices,
                 },
@@ -294,6 +319,28 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             logger.remove_listener(on_log)
             clear_active()
+
+    def _send_keep(self) -> None:
+        qs = parse_qs(urlparse(self.path).query)
+        folder = (qs.get("dir") or [""])[0]
+        name = (qs.get("file") or [""])[0]
+        target = resolve_keep_summary(folder, name)
+        if target is None:
+            self._send_json(404, {"ok": False, "error": "not_found"})
+            return
+        body = target.read_text(encoding="utf-8", errors="replace")
+        page = (
+            "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+            f"<title>{html.escape(target.name)}</title></head><body>"
+            f"<pre style=\"white-space:pre-wrap;font:14px/1.45 system-ui,sans-serif\">{html.escape(body)}</pre>"
+            "</body></html>"
+        ).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(page)))
+        self.end_headers()
+        self.wfile.write(page)
 
     def _send_index(self) -> None:
         if not UI_FILE.is_file():

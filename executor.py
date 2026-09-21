@@ -9,6 +9,7 @@ import uuid
 from datetime import date
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlencode
 
 import blackboard
 import config
@@ -280,6 +281,7 @@ def run_session(
             answer = _run_medium(run)
         else:
             answer = _run_large(run)
+        answer = _user_answer(run, answer)
         blackboard.distill(run, answer)
     finally:
         _teardown(run)
@@ -294,6 +296,7 @@ def run_session(
         "intent": run.intent,
         "answer": answer,
         "thread_id": run.thread_id,
+        "summary_url": keep_summary_url(run),
         "notices": list(run.notices),
     }
 
@@ -302,7 +305,7 @@ ANSWER_KINDS = {"vote", "draft"}
 
 
 def select_vote(run: Run) -> str:
-    """Pick the user-facing answer. Never return factory rules or sandbox debug."""
+    """Pick the user-facing answer. Never return factory rules, sandbox debug, or pointer words."""
     if run.level == "large" and run.ship_unlocked:
         latest = _latest_final(run)
         if latest and not _pointer_answer(latest):
@@ -331,11 +334,9 @@ def select_vote(run: Run) -> str:
     latest = _latest_final(run)
     if latest and not _pointer_answer(latest):
         return latest
-    if run.level == "large" and run.ship_unlocked:
-        summary = _keep_summary(run)
-        if summary:
-            return summary
-    return latest
+    if run.level == "large":
+        return _large_fallback_answer(run)
+    return latest if latest and not _pointer_answer(latest) else ""
 
 
 def _latest_final(run: Run) -> str:
@@ -584,8 +585,20 @@ def _prepare_messages(history: list[dict[str, str]]) -> list[dict[str, str]]:
     return msgs[:2] + msgs[-10:]
 
 
+_POINTER_WORDS = {"saved", "shipped", "ship", "reject", "final", "draft", "vote", "ok", "done"}
+
+
 def _pointer_answer(text: str | None) -> bool:
-    return str(text or "").strip().lower() in {"saved", "shipped", "ship", "reject"}
+    body = re.sub(r"[.!?,;:]+$", "", str(text or "").strip().lower()).strip()
+    return body in _POINTER_WORDS
+
+
+def _user_answer(run: Run, answer: str | None) -> str:
+    """Last gate before the UI/CLI see a reply. Pointer words never leave a large run."""
+    text = str(answer or "").strip()
+    if run.level == "large" and (not text or _pointer_answer(text)):
+        return _large_fallback_answer(run)
+    return text
 
 
 def _usable_answer(text: str | None) -> bool:
@@ -1011,7 +1024,11 @@ def _keep_summary(run: Run) -> str:
     keep = run.keep_path
     if keep is None or not keep.is_dir():
         return ""
-    files = [p.relative_to(keep).as_posix() for p in sorted(keep.rglob("*")) if p.is_file()]
+    files = [
+        p.relative_to(keep).as_posix()
+        for p in sorted(keep.rglob("*"))
+        if p.is_file() and p.name != "SUMMARY.md"
+    ]
     if not files:
         return ""
     lines = [
@@ -1025,6 +1042,44 @@ def _keep_summary(run: Run) -> str:
         if snippet:
             lines.append("Run output:")
             lines.append(snippet)
+    return "\n".join(lines)
+
+
+def keep_summary_url(run: Run) -> str | None:
+    keep = run.keep_path
+    if keep is None or not (keep / "SUMMARY.md").is_file():
+        return None
+    return "/keep?" + urlencode({"dir": keep.name, "file": "SUMMARY.md"})
+
+
+def _large_fallback_answer(run: Run) -> str:
+    summary = _keep_summary(run)
+    if summary:
+        return summary
+    if run.ship_unlocked and run.keep_path is not None:
+        return f"Shipped to {run.keep_path}."
+    return _unshipped_summary(run)
+
+
+def _unshipped_summary(run: Run) -> str:
+    if run.sandbox_executed:
+        lines = ["The committee ran the sandbox but did not vote ship. Nothing was copied to the keep folder."]
+    else:
+        lines = ["The committee did not ship. Nothing was copied to the keep folder."]
+    root = run.sandbox_path
+    if root is not None and root.is_dir():
+        files = [
+            p.relative_to(root).as_posix()
+            for p in sorted(root.rglob("*"))
+            if p.is_file() and not p.name.startswith(".") and p.suffix.lower() != ".tmp"
+        ]
+        if files:
+            lines.append("Files in the jail:")
+            lines.extend(f"- {name}" for name in files[:24])
+    stdout = str((run.sandbox_results or {}).get("stdout") or "").strip()
+    if stdout:
+        lines.append("Run output:")
+        lines.append(stdout[:400])
     return "\n".join(lines)
 
 
@@ -1130,6 +1185,9 @@ def _copy_sandbox_out(run: Run) -> None:
     stdout = str((run.sandbox_results or {}).get("stdout") or "")
     if stdout.strip():
         file_tools.keep_copy(keep / "result.txt", stdout.encode("utf-8"), agent_id=agent_id)
+    summary = _keep_summary(run)
+    if summary:
+        file_tools.keep_copy(keep / "SUMMARY.md", summary.encode("utf-8"), agent_id=agent_id)
 
 
 def _agent(agent_name: str) -> tuple[Run | None, Agent | None, dict[str, Any] | None]:

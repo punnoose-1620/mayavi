@@ -111,7 +111,7 @@ def write_doc(
     dest = _keep_dest(run, _join_write(directory, name, type))
     if dest is None:
         return _done("write_doc", run, agent_id, {"ok": False, "error": "path_denied"})
-    if type == "txt" and _placeholder_text(content) and not structure:
+    if type in {"txt", "md"} and _placeholder_text(content) and not structure:
         return _done("write_doc", run, agent_id, {"ok": False, "error": "empty_content"})
     gate = _write_gate(dest)
     if not gate["ok"]:
@@ -462,7 +462,7 @@ def _mkdir_parts(directory: str | None, name: str) -> tuple[str | None, str]:
 def _read_with_suffix(directory: str | None, name: str | None, file_path: str | None) -> Path | None:
     if file_path or not name or "." in Path(name).name:
         return None
-    for ext in (".txt", ".json", ".pdf", ".csv", ".docx", ".doc"):
+    for ext in (".txt", ".md", ".json", ".pdf", ".csv", ".docx", ".doc"):
         alt = _join_or_path(directory, f"{name}{ext}", None)
         if alt is not None and alt.is_file() and _allowed_file(alt):
             return alt
@@ -681,7 +681,7 @@ def _read_doc(path: Path) -> str:
 
 
 def _render_doc(doc_type: str, content: str, structure: dict[str, Any]) -> bytes:
-    if doc_type == "txt":
+    if doc_type in {"txt", "md"}:
         return content.encode("utf-8")
     if doc_type == "csv":
         rows = structure.get("rows") or _as_rows(content)

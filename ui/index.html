@@ -48,8 +48,31 @@
     .msg { margin: 0 0 10px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
     .you { background: var(--you); }
     .bot { background: var(--bot); border-left: 3px solid var(--accent); }
-    .progress { color: var(--progress); font-size: 13px; margin: 0 0 4px; padding: 0 10px; }
+    .progress {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--progress);
+      font-size: 13px;
+      margin: 0 0 4px;
+      padding: 0 10px;
+    }
+    .spinner {
+      width: 12px;
+      height: 12px;
+      flex: 0 0 12px;
+      margin-top: 3px;
+      border: 2px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
     .meta { color: var(--muted); font-size: 12px; margin: 4px 10px 12px; }
+    .summary-link { color: var(--muted); font-size: 13px; margin: 0 10px 12px; }
+    .summary-link a { color: var(--accent); }
     #composer {
       display: flex;
       gap: 8px;
@@ -129,10 +152,23 @@
       if (!text) return;
       text = text+'....';
       if (!progressEl || !progressEl.isConnected) {
-        progressEl = add("progress", text);
+        progressEl = document.createElement("div");
+        progressEl.className = "progress";
+        const spin = document.createElement("span");
+        spin.className = "spinner";
+        spin.setAttribute("aria-hidden", "true");
+        const label = document.createElement("span");
+        label.className = "progress-text";
+        label.textContent = text;
+        progressEl.appendChild(spin);
+        progressEl.appendChild(label);
+        logEl.appendChild(progressEl);
+        logEl.scrollTop = logEl.scrollHeight;
         return;
       }
-      progressEl.textContent = text;
+      const label = progressEl.querySelector(".progress-text");
+      if (label) label.textContent = text;
+      else progressEl.textContent = text;
       logEl.scrollTop = logEl.scrollHeight;
     }
 
@@ -143,12 +179,28 @@
 
     function paintTurn(turn) {
       add("msg you", turn.prompt || "");
-      add("msg bot", turn.answer || "(empty)");
+      addBot(turn.answer || "(empty)", turn.summary_url);
       const bits = [];
       if (turn.level) bits.push("level=" + turn.level);
       if (turn.run_id) bits.push("run_id=" + turn.run_id);
       if (turn.thread_id) bits.push("thread_id=" + turn.thread_id);
       if (bits.length) add("meta", bits.join("  "));
+    }
+
+    function addBot(text, summaryUrl) {
+      add("msg bot", text || "(empty)");
+      if (!summaryUrl) return;
+      const row = document.createElement("div");
+      row.className = "summary-link";
+      row.appendChild(document.createTextNode("......... "));
+      const link = document.createElement("a");
+      link.href = summaryUrl;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = "view complete summary";
+      row.appendChild(link);
+      logEl.appendChild(row);
+      logEl.scrollTop = logEl.scrollHeight;
     }
 
     function sleep(ms) {
@@ -262,7 +314,7 @@
             else if (ev === "error") setProgress(payload.text || "Run stopped");
             else if (ev === "answer") {
               clearProgress();
-              add("msg bot", payload.text || "(empty)");
+              addBot(payload.text || "(empty)", payload.summary_url);
               const bits = [];
               if (payload.level) bits.push("level=" + payload.level);
               if (payload.run_id) bits.push("run_id=" + payload.run_id);

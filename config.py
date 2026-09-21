@@ -40,7 +40,7 @@ VERIFY_MODEL_HASH = os.environ.get("ID10T_VERIFY_MODEL_HASH", "").strip() in {"1
 CODING_RULES_PATH = REPO_ROOT / "coding-rules.md"
 MODELS_JSON = REPO_ROOT / "models.json"
 
-ALLOWED_DOC_TYPES = ("xlsx", "csv", "doc", "docx", "txt")
+ALLOWED_DOC_TYPES = ("xlsx", "csv", "doc", "docx", "txt", "md")
 SANDBOX_EXTENSIONS = (".py", ".html", ".css", ".js")
 CHAR_PAGE = 4000
 ROW_PAGE = 50
