@@ -1,4 +1,4 @@
-"""Private Gmail + Google Calendar backend. Not in the agent schema."""
+"""Private Gmail, Calendar, and Custom Search backend. Not in the agent schema."""
 
 from __future__ import annotations
 
@@ -8,8 +8,12 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any
 
+import requests
+
 import config
 import logger
+
+CSE_ENDPOINT = "https://www.googleapis.com/customsearch/v1"
 
 try:
     from google.auth.transport.requests import Request
@@ -169,6 +173,75 @@ def findFreeBusy(handle: dict[str, Any], time_min: str, time_max: str, items: li
     }
     resp = service.freebusy().query(body=body).execute()
     return {"ok": True, "calendars": resp.get("calendars") or {}}
+
+
+def searchWeb(query: str, *, num: int = 10, start: int = 1) -> dict[str, Any]:
+    """Custom Search JSON API. Never log the API key or the request URL."""
+    key = (config.GOOGLE_CLOUD_API_KEY or "").strip()
+    cx = (config.GOOGLE_CSE_ID or "").strip()
+    q = str(query or "").strip()[:200]
+    if not key or not cx:
+        return {"ok": False, "error": "not_configured"}
+    if not q:
+        return {"ok": False, "error": "empty_query"}
+    try:
+        count = max(1, min(int(num or 10), 10))
+        index = max(1, int(start or 1))
+    except (TypeError, ValueError):
+        count, index = 10, 1
+    try:
+        resp = requests.get(
+            CSE_ENDPOINT,
+            params={"key": key, "cx": cx, "q": q, "num": count, "start": index},
+            timeout=20,
+        )
+    except Exception as exc:
+        return {"ok": False, "error": type(exc).__name__}
+    if resp.status_code == 429:
+        return {"ok": False, "error": "quota"}
+    if resp.status_code >= 400:
+        return {"ok": False, "error": _cse_error_code(resp)}
+    try:
+        blob = resp.json()
+    except ValueError:
+        return {"ok": False, "error": "bad_json"}
+    if not isinstance(blob, dict):
+        return {"ok": False, "error": "bad_json"}
+    items: list[dict[str, str]] = []
+    for row in blob.get("items") or []:
+        if not isinstance(row, dict):
+            continue
+        url = str(row.get("link") or "").strip()
+        if not url:
+            continue
+        items.append(
+            {
+                "title": str(row.get("title") or "")[:200],
+                "url": url,
+                "snippet": str(row.get("snippet") or "")[:400],
+            }
+        )
+    return {"ok": True, "items": items}
+
+
+def _cse_error_code(resp: Any) -> str:
+    """Short Google reason only. Never the request URL or API key."""
+    try:
+        blob = resp.json()
+        err = blob.get("error") if isinstance(blob, dict) else None
+        if isinstance(err, dict):
+            rows = err.get("errors") or []
+            if rows and isinstance(rows[0], dict):
+                reason = str(rows[0].get("reason") or "").strip()
+                if reason and reason.replace("_", "").isalnum():
+                    return reason
+            status = str(err.get("status") or "").strip()
+            if status and status.replace("_", "").isalnum():
+                return status
+    except Exception:
+        pass
+    code = getattr(resp, "status_code", None)
+    return f"http_{code}" if code else "http_error"
 
 
 def _log_connect(result: dict[str, Any]) -> dict[str, Any]:

@@ -1,8 +1,9 @@
-"""Generic HTTP client for agents. No search APIs in v1."""
+"""Generic HTTP client plus web search. Agents never import search.py or google_backend."""
 
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
 from html.parser import HTMLParser
 from typing import Any
@@ -10,8 +11,8 @@ from urllib.parse import urlparse
 
 import requests
 
-import config
 import logger
+import search
 import paging
 import store
 
@@ -52,6 +53,34 @@ class _TextExtractor(HTMLParser):
 
 def get_url(url: str, start: int = 1, end: int = 1, agent_id: str | None = None) -> dict[str, Any]:
     return _request("GET", url, start=start, end=end, agent_id=agent_id)
+
+
+def search_web(
+    query: str,
+    max_n: int = 10,
+    start: int = 1,
+    end: int = 1,
+    agent_id: str | None = None,
+) -> dict[str, Any]:
+    run, agent_id = _run_agent(agent_id)
+    q = str(query or "").strip()
+    if not q:
+        return _search_done(run, agent_id, {"ok": False, "error": "empty_query"}, q)
+    try:
+        count = max(1, min(int(max_n or 10), 10))
+    except (TypeError, ValueError):
+        count = 10
+    raw = search.webSearch(q, num=count, start=1)
+    if not raw.get("ok"):
+        return _search_done(run, agent_id, {"ok": False, "error": raw.get("error") or "fail"}, q)
+    items = list(raw.get("items") or [])
+    chunk, s, e, total = paging.slice_rows(items, start, end)
+    return _search_done(
+        run,
+        agent_id,
+        {"ok": True, "items": chunk, "start": s, "end": e, "total_pages": total},
+        q,
+    )
 
 
 def post_url(
@@ -176,6 +205,24 @@ def _done(
     return logger.finish(
         event="tool",
         tool=tool,
+        run_id=None if run is None else run.run_id,
+        agent_name=agent_id,
+        result=result,
+        level=None if run is None else run.level,
+        stakes=None if run is None else run.stakes,
+        mail_cal=None if run is None else run.mail_cal,
+        summary=summary,
+    )
+
+
+def _search_done(run: Any, agent_id: str | None, result: dict[str, Any], query: str) -> dict[str, Any]:
+    q = re.sub(r"\s+", " ", query).strip()[:80]
+    hits = len(result.get("items") or [])
+    err = result.get("error") or ""
+    summary = f"q={q} hits={hits}" if result.get("ok") else f"q={q} error={err}"
+    return logger.finish(
+        event="tool",
+        tool="search_web",
         run_id=None if run is None else run.run_id,
         agent_name=agent_id,
         result=result,

@@ -25,7 +25,7 @@ Output only these fields. Do not output small, medium, or large. Do not invent t
 
 file_ops is how many file tool calls the job needs (read, discovery, or write). Count a write only if the user asked to create, save, edit, or build a file (doc, pdf, csv, json, and similar). A folder discovery sweep that stays under the safety cap counts as one file op, not one op per file inside it. Do not count write_doc for a greeting or a spoken answer.
 
-web_ops is how many web scrape tool calls the job needs. v1 calls are get_url / post_url (agent-built URLs). Dedicated search APIs are v2. Count web only if they asked to fetch, scrape, or look up a live URL. Casual "how do I" questions are 0.
+web_ops is how many web tool calls the job needs. v1 calls are search_web, get_url, and post_url. Count web if they asked to search the web, google something, look up a live fact, or fetch/scrape a URL. Search then one page fetch is 1. Several pages is 2+. Casual "how do I" questions that the model can answer from training are 0. Do not count web because the word search appears in a file-search or code-search request.
 
 needs_code_exec is yes only if the job cannot finish without writing and running new custom code in the closed sandbox. Using the provided PDF/doc writer is not code execution. Reading, summarizing, or explaining code that was already saved under outputs/ is a file read: file_ops at least 1, needs_code_exec no. Do not mark yes because they mentioned tests, matrices, or an earlier build. If unsure, mark no.
 
@@ -155,6 +155,9 @@ def lift_ops_from_prompt(prompt: str, fields: dict[str, Any]) -> dict[str, Any]:
     if "https://example.com" in text and "https://example.org" in text:
         out["web_ops"] = "2+"
     if "https://" in text or "http://" in text or "get_url" in text:
+        if str(out.get("web_ops", "0")) == "0":
+            out["web_ops"] = "1"
+    if any(mark in text for mark in ("search the web", "google ", "look up")):
         if str(out.get("web_ops", "0")) == "0":
             out["web_ops"] = "1"
     if str(out.get("needs_code_exec", "no")).lower() == "yes":

@@ -540,6 +540,7 @@ def _model_unavailable_text(error: str) -> str:
 
 
 def _fallback_final(agent: Agent) -> str:
+    last_error = ""
     for msg in reversed(agent.history):
         if msg.get("role") != "tool":
             continue
@@ -547,12 +548,31 @@ def _fallback_final(agent: Agent) -> str:
             blob = json.loads(msg.get("content") or "")
         except json.JSONDecodeError:
             continue
-        if not isinstance(blob, dict) or not blob.get("ok"):
+        if not isinstance(blob, dict):
             continue
-        text = blob.get("text")
-        if text and _usable_answer(str(text)):
-            return str(text).strip()
+        if blob.get("ok"):
+            text = blob.get("text")
+            if text and _usable_answer(str(text)):
+                return str(text).strip()
+            continue
+        err = str(blob.get("error") or "").strip()
+        if err and not last_error:
+            last_error = err
+    if last_error:
+        return _tool_error_text(last_error)
     return ""
+
+
+def _tool_error_text(err: str) -> str:
+    if err in {"http_401", "http_403", "forbidden", "accessNotConfigured", "ipRefererBlocked", "ipBlocked"}:
+        return "Web search was denied. Check SERPAPI_API_KEY or SCRAPERAPI_API_KEY, then try again."
+    if err == "not_configured":
+        return "Web search is not configured. Set SERPAPI_API_KEY or SCRAPERAPI_API_KEY."
+    if err == "quota":
+        return "Web search quota was exceeded. Try again later."
+    if err == "empty_query":
+        return "Search needed a query."
+    return f"The last tool failed ({err})."
 
 
 def _generate(run: Run, agent: Agent, history: list[dict[str, str]]) -> str:
@@ -598,6 +618,8 @@ def _user_answer(run: Run, answer: str | None) -> str:
     text = str(answer or "").strip()
     if run.level == "large" and (not text or _pointer_answer(text)):
         return _large_fallback_answer(run)
+    if not text:
+        return "The run finished without a usable answer."
     return text
 
 
@@ -640,11 +662,17 @@ def _is_tool_dump(text: str) -> bool:
     body = str(text or "").lstrip()
     if body.startswith('{"tool"') or body.startswith('{ "tool"'):
         return True
+    if body.startswith('{"final"') or body.startswith('{ "final"'):
+        return True
     blobs = _extract_json_objects(text)
     if not blobs:
         return False
     first = blobs[0]
-    return isinstance(first, dict) and bool(first.get("tool")) and not first.get("final")
+    if not isinstance(first, dict):
+        return False
+    if first.get("tool") and not first.get("final"):
+        return True
+    return "final" in first and not str(first.get("final") or "").strip()
 
 
 def _parse_all_model_output(raw: str) -> list[dict[str, Any]]:
@@ -740,6 +768,7 @@ def _tools_for(run: Run, agent: Agent) -> dict[str, Callable[..., Any]]:
     if _ops_needed(run.web_ops):
         tools.update(
             {
+                "search_web": lambda **kw: web_scrape.search_web(agent_id=aid, **kw),
                 "get_url": lambda **kw: web_scrape.get_url(agent_id=aid, **kw),
                 "post_url": lambda **kw: web_scrape.post_url(agent_id=aid, **kw),
                 "resetSession": lambda **kw: web_scrape.resetSession(agent_id=aid, **kw),
@@ -872,6 +901,8 @@ _ARG_ALIASES = {
     "path": ("path", "file"),
     "file_path": ("file_path",),
     "url": ("url",),
+    "query": ("query", "q", "search"),
+    "max_n": ("max_n", "num"),
     "n": ("n", "count"),
     "kind": ("kind",),
     "start": ("start",),
@@ -891,6 +922,7 @@ _TOOL_PARAMS = {
     "append_file": {"directory", "name", "type", "content"},
     "mkdir": {"directory", "name"},
     "get_url": {"url", "start", "end"},
+    "search_web": {"query", "max_n", "start", "end"},
     "post_url": {"url", "body", "content_type", "start", "end"},
     "resetSession": set(),
     "viewSessionDetails": set(),
@@ -919,13 +951,24 @@ def _tool_args(name: str, args: dict[str, Any]) -> dict[str, Any]:
     if allowed is None:
         return {k: v for k, v in canon.items() if v is not None}
     out = {k: v for k, v in canon.items() if k in allowed}
-    if name in {"read_file", "sandbox_read", "getResultsFromSandbox", "sandbox_fetch", "viewBlackboardMessages"}:
+    if name in {
+        "read_file",
+        "sandbox_read",
+        "getResultsFromSandbox",
+        "sandbox_fetch",
+        "viewBlackboardMessages",
+        "search_web",
+        "get_url",
+        "post_url",
+    }:
         if "start" in out:
             out["start"] = _as_int(out["start"], 1)
         if "end" in out:
             out["end"] = _as_int(out["end"], 1)
         if "n" in out:
             out["n"] = _as_int(out["n"], 20)
+        if "max_n" in out:
+            out["max_n"] = _as_int(out["max_n"], 10)
     return out
 
 
@@ -953,7 +996,9 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
                 "Emit exactly one JSON object per reply. If you need several tools, call one, wait for the tool result, then call the next.\n"
                 'Tool call: {"tool": "read_file", "args": {"directory": "inputs", "name": "file.pdf"}}\n'
                 'or {"tool": "write_doc", "args": {"directory": "t01_txt", "name": "hello", "type": "txt", "content": "hello"}}\n'
+                'or {"tool": "search_web", "args": {"query": "python 3.13 release"}}\n'
                 'or {"tool": "get_url", "args": {"url": "https://example.com/"}}\n'
+                "After a search, copy a result URL into get_url. Do not fetch google.com/search.\n"
                 "After reads or fetches succeed, copy facts from the tool result into write content. "
                 "Do not write empty content, '...', or placeholders. Then emit "
                 '{"final": "a short user-facing summary"}. Do not use a tool named name.\n'

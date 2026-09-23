@@ -135,6 +135,8 @@ Copy `.env.example` to `.env`. **Never put secrets in `.env.example`.** `.env` i
 | `ID10T_VERIFY_MODEL_HASH` | `1` to sha256 every GGUF on load and pin the digest in `models.json`. Default `0`, because re-hashing multi-GB weights on every load is slow; downloads are hashed either way, and loads always check the recorded file size. |
 | `N_GPU_LAYERS` | llama.cpp GPU offload. `auto` (default) uses GPU only if driver, device, GPU wheel, and dedicated VRAM beat this GGUF, and only for the working agents — the router always stays on CPU. `0` = CPU everywhere. A positive integer forces that many layers for every role, router included. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_LOGIN_HINT` | Gmail + Calendar OAuth (browser Allow). |
+| `SERPAPI_API_KEY` / `SCRAPERAPI_API_KEY` | Web search (`search_web`). SerpAPI first, ScraperAPI if Serp is missing or fails. Keys never logged. |
+| `GOOGLE_CLOUD_API_KEY` / `GOOGLE_CSE_ID` | Unused Custom Search JSON leftovers (closed to new projects). |
 | `MS_CLIENT_ID` / `MS_TENANT` / `MS_LOGIN_HINT` | Microsoft Graph mail + calendar OAuth. |
 | `ID10T_DATA_DIR` | Private state (logs, tokens, createdIndex). Default `state/`. |
 | `ID10T_SANDBOX_ROOT` | Large-run jails. Default `sandboxes/`. |
@@ -235,7 +237,7 @@ The worker system prompt tells them to **answer directly** unless the user asked
 | Router field | Tools exposed |
 | --- | --- |
 | `file_ops` is `0` | No `search_dir` / `read_file` / `write_doc` / `write_pdf` / `write_json` / `append_file` / `mkdir` |
-| `web_ops` is `0` | No `get_url` / `post_url` / `resetSession` |
+| `web_ops` is `0` | No `search_web` / `get_url` / `post_url` / `resetSession` |
 | `mail_cal` is `off` | No mail/calendar tools |
 | not `large` | No sandbox tools |
 | `large` before the ship vote | No writers; the sandbox is the only place to build |
@@ -250,10 +252,11 @@ A model that still calls a hidden tool gets `unknown_tool` and can finish with `
 - Created files are tracked in `state/createdIndex.json` (agents cannot read that index).
 - Reads/writes are paged (max 5 pages per call).
 
-**Web** (`web_scrape.py`): `get_url`, `post_url`, `resetSession` (only if `web_ops` ≠ `0`).
+**Web** (`web_scrape.py`, backends in `search.py`): `search_web`, `get_url`, `post_url`, `resetSession` (only if `web_ops` ≠ `0`).
 
-- http/https only. Loopback, private, and link-local IPs are rejected (SSRF).
-- No captcha solving, no search APIs, no contacts, no places lookups — see [`docs/v2-scope.md`](docs/v2-scope.md).
+- `search_web` calls `search.webSearch` with `SERPAPI_API_KEY` (first) then `SCRAPERAPI_API_KEY`, and returns `{title, url, snippet}` rows. Then `get_url` fetches a chosen URL. Do not scrape `google.com/search`.
+- http/https only on fetches. Loopback, private, and link-local IPs are rejected (SSRF).
+- No captcha solving, no contacts, no places lookups — see [`docs/v2-scope.md`](docs/v2-scope.md). The public tool name stays `search_web`.
 
 **Mail / calendar** (`mailAndCalendar.py`): list/search/open mail, send/reply (no delete), calendars, events, free/busy.
 
@@ -303,9 +306,10 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `blackboard.py` | Live committee board + durable `state/threads/` notes |
 | `runtime.py` | Agent committee + sandbox tools (blackboard send/view are wrappers)
 | `file_tools.py` | Public file API |
-| `web_scrape.py` | HTTP GET/POST |
+| `web_scrape.py` | HTTP GET/POST + `search_web` |
+| `search.py` | Private SerpAPI / ScraperAPI backend for `search_web` |
 | `mailAndCalendar.py` | Agent-facing mail/calendar door |
-| `google_backend.py` / `microsoft.py` | Private OAuth backends (the Google one **cannot** be named `google.py`: it would shadow Google's own `google` package) |
+| `google_backend.py` / `microsoft.py` | Private OAuth backends (the Google file **cannot** be named `google.py`: it would shadow Google's own `google` package) |
 | `models.py` | Resolve / RAM check / load / generate / pin refresh |
 | `gpu-check.py` | Factory-only GPU decision per role (driver, device, wheel, dedicated VRAM) |
 | `models.json` | Role → repo/file/revision |

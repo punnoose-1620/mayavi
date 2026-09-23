@@ -57,6 +57,7 @@ TOOL_PHRASES = {
     "append_file": "Appending",
     "mkdir": "Making folder",
     "get_url": "Fetching",
+    "search_web": "Searching",
     "post_url": "Posting to",
     "sandbox_read": "Reading sandbox",
     "sandbox_write": "Writing sandbox",
