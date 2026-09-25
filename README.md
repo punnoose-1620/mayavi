@@ -4,7 +4,7 @@ Backup of the **standalone USB chat** (`chat\` on the stick). This git branch is
 
 It is **not** the id10t committee. The stick does not need a Python venv.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for what landed in each version. Features below are what **1.0.2** can do.
+See [`CHANGELOG.md`](CHANGELOG.md) for what landed in each version. Features below are what **1.0.4** can do.
 
 ## Features
 
@@ -16,7 +16,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for what landed in each version. Features bel
 - Logs older than 30 days are deleted by the `YYYY-MM-DD_` prefix in the filename.
 - `notes.md` is included (first 4000 characters). The model cannot write it; you confirm in **Notes…**.
 - **Save PDF** / **Print** build the transcript in memory. Nothing is written unless you pick a save path or the OS print spooler needs a temp file.
-- Host `setup.bat` / `setup.sh`: require **Python 3.11+**. Compatible interpreters only seed a **private host venv** (`%LOCALAPPDATA%\usb-chat\venv` or `~/.local/share/usb-chat/venv`); packages are upgraded in place. System Python is never replaced. If the PC has no 3.11+ (or only 2.7 / 3.9), a dialog names the version we need and the version we found. `chat.bat` / `chat.sh` boot that venv.
+- Host `setup.bat` / `setup.sh`: require **Python 3.11+**. Compatible interpreters only seed a **private host venv** (`%LOCALAPPDATA%\usb-chat\venv` or `~/.local/share/usb-chat/venv`); `llama-cpp-python` is installed from the official **CPU wheel** index (no local C++ compile). System Python is never replaced. If the PC has no 3.11+ (or only 2.7 / 3.9), a dialog names the version we need and the version we found. `chat.bat` / `chat.sh` boot that venv.
 - Windows first; same scripts on Ubuntu.
 - No committee, search, mail, or factory.
 
