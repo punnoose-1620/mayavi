@@ -2,6 +2,14 @@
 
 Newest first. Hand-written. Update when a set of files is copied onto the USB, not on every save.
 
+## 1.0.2 — 2026-09-26
+
+Setup leaves the system interpreter alone. Python 3.11+ builds or updates a host-only venv; older or missing Python shows a dialog (need 3.11+, found YY). Chat launchers start that venv.
+
+## 1.0.1 — 2026-09-26
+
+Backup layout matches the USB `chat\` folder: scripts sit next to this README. Dropped the nested `chat\` directory and the factory `.env.example`.
+
 ## 1.0.0 — 2026-09-26
 
 First USB-only backup of the standalone chat.
