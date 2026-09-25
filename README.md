@@ -39,14 +39,14 @@ If the router is **unsure**, fields default **cheap**: `stakes=low`, `needs_code
 | Medium | drafter + 2 checkers | yes + durable thread | no | more file/web work, review |
 | Large | 1 executor + builders | yes | **always** | high stakes and/or custom code |
 
-Large always creates a sandbox and a keep folder, and injects `coding-rules.md`, even when the user task is not “write a program.” If the USB model library is present, large uses four unique builders. If not, it uses the thinner backup pair (Llama 3.2 3B + Qwen 3B).
+Large always creates a sandbox and a keep folder, and injects `coding-rules.md`, even when the user task is not “write a program.” If the USB library is present, the factory picks builders from `models.json` `use` tags (coding large: 14B coder plus up to three other `code` models). If not, it uses the thinner backup pair (Llama 3.2 3B + Qwen 3B).
 
 ## Requirements
 
 Machine-by-machine floors (Ubuntu vs Windows, headless vs desktop, named NVIDIA and Ryzen SKUs) are in [`Hardware Requirements.md`](Hardware%20Requirements.md).
 
 - Python 3.11+
-- Enough disk for GGUFs (~7GB backup set, or ~26GB full USB set)
+- Enough disk for GGUFs (~7GB backup set, or ~40GB full USB set on a 64GB stick)
 - Enough RAM to load **one** GGUF at a time (file size × 1.2, plus a 2GB reserve)
 - Hugging Face account + **Read** token (needed for gated Llama/Gemma)
 - Optional: GPU via `N_GPU_LAYERS` (`auto` = detect CUDA wheel + dedicated VRAM vs this GGUF, working agents only; `0` = CPU)
@@ -90,6 +90,13 @@ python -m pytest
 
 `--no-model` and `pytest` use **stubs**. They will not print a real 3B chat reply. `pytest` also prints each test’s captured call/result (`-s` is on by default); most of those 157 tests are gates (path deny, SSRF, mail policy), not conversations.
 
+The USB GGUF stick can also run a **standalone chat** (one model, no committee) from [`usb-chat/`](usb-chat/README.md):
+
+```powershell
+.\usb-chat\setup.bat
+.\usb-chat\chat.bat
+```
+
 Run for real (loads the router GGUF, then workers as needed):
 
 ```powershell
@@ -127,7 +134,7 @@ Copy `.env.example` to `.env`. **Never put secrets in `.env.example`.** `.env` i
 | Variable | Purpose |
 | --- | --- |
 | `HF_TOKEN` | Hugging Face **Read** token. Required for gated Llama/Gemma downloads. Never logged. |
-| `MODELS_DIR` | Primary/USB GGUF library (7B–9B set). Optional until the USB set exists. |
+| `MODELS_DIR` | Primary/USB GGUF library (14B coder + planners). Optional until the USB set exists. If that folder has `models.json`, the factory uses it. |
 | `BACKUP_MODELS_DIR` | Small SSD copies (3B set). Point this at `models` for the local backup download. |
 | `ID10T_WORKSPACE` | **Input** root agents may **read** (`input/` by default). |
 | `ID10T_OUTPUTS` | **Output** root for **writes** (`outputs/` by default). |
@@ -195,20 +202,23 @@ All planned weights are **Q4_K_M GGUF**. Manifest: `models.json`. Only **one** m
 
 Gated for this set: **Llama 3.2 3B** only. Qwen files are public.
 
-### Full / USB set (~26GB, 32GB stick)
+### Full / USB set (~40GB, 64GB stick)
 
-`downloader-scripts/download_models_usb.py`
+`downloader-scripts/download_models_usb.py` writes `models.json` on the stick when it finishes. The factory reads that file when `MODELS_DIR` points at the USB. Roles have a closed `use` list (`route`, `code`, `plan`, `language`). Coding large runs use the 14B coder plus up to three other `code` builders. Medium planning uses the `plan` models. Language prompts (translate / resume / rewrite) use `language`. Leave the leftover space for later image weights.
 
-| Role | Model | Approx |
-| --- | --- | --- |
-| router | Qwen2.5 1.5B Instruct | 1.1GB |
-| executor | Qwen2.5 Coder **7B** Instruct | 4.7GB |
-| builder_llama | Llama **3.1 8B** Instruct | 4.9GB |
-| builder_qwen | Qwen2.5 **7B** Instruct | 4.7GB |
-| builder_mistral | Mistral 7B Instruct v0.3 | 4.4GB |
-| builder_gemma | Gemma 2 **9B** Instruct | 5.8GB |
+| Role | Model | Use | Approx |
+| --- | --- | --- | --- |
+| router | Qwen2.5 1.5B Instruct | route | 1.1GB |
+| router (backup) | Llama 3.2 **3B** Instruct | route | 2.0GB |
+| executor | Qwen2.5 Coder **14B** Instruct | code | 9.0GB |
+| builder_coder | Qwen2.5 Coder **7B** Instruct | code | 4.7GB |
+| builder_deepseek | DeepSeek Coder **6.7B** Instruct | code | 4.1GB |
+| builder_yi | Yi-Coder **9B** Chat | code | 5.3GB |
+| builder_qwen | Qwen3 **14B** Instruct | plan, language | 9.0GB |
+| builder_llama | Llama **3.1 8B** Instruct | plan, language | 4.9GB |
+| builder_gemma | Gemma 2 **9B** Instruct | plan, language | 5.8GB |
 
-Gated for this set: **Llama 3.1 8B** and **Gemma 2 9B**.
+Gated for this set: **Llama 3.2 3B**, **Llama 3.1 8B**, and **Gemma 2 9B**.
 
 After a **large** teardown only, `checkAndUpdateModels` can refresh pins from Hugging Face. It is skipped unless `ID10T_HF_DOWNLOAD=1`.
 
@@ -225,6 +235,8 @@ USB set, additionally:
 
 - [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)
 - [google/gemma-2-9b-it](https://huggingface.co/google/gemma-2-9b-it)
+
+The USB downloader also fetches Llama 3.2 3B as the second router. Accept that license if you did not already for the backup set.
 
 Do **not** use Write, Inference, CI/CD, or Full access tokens for this project.
 
@@ -322,6 +334,7 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `install.ps1` / `install.sh` | Setup only: venv, both requirement files, `.env`. No models, no secrets |
 | `docs/` | The design specs the runtime was built from, plus `v2-scope.md` for planned work |
 | `downloader-scripts/` | HF GGUF fetchers (not imported by the runtime) |
+| `usb-chat/` | Standalone USB GGUF chat (not the committee). Copy onto the stick; see [`usb-chat/README.md`](usb-chat/README.md) |
 
 ## Mail and calendar (optional)
 

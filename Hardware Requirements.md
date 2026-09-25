@@ -19,10 +19,10 @@ The runtime loads **one** GGUF at a time. It does not keep the committee in RAM 
 | Set | Disk for GGUFs | Heaviest worker | File | Free RAM to pass `checkRam` | Dedicated NVIDIA VRAM for `auto` |
 | --- | --- | --- | --- | --- | --- |
 | Backup / laptop | ~7 GB | Qwen / Llama **3B** | ~2.0 GB | **~4.4 GB** | **4 GB** card (usable ~3 GB) |
-| USB / committee | ~26 GB | Qwen / Llama **7B–8B** | ~4.7–4.9 GB | **~7.6–7.9 GB** | **8 GB** card |
-| USB Gemma builder | (in the 26 GB) | Gemma 2 **9B** | ~5.8 GB | **~9.0 GB** | **12 GB** comfortable; 8 GB is tight |
+| USB / committee | ~40 GB | Coder / Qwen3 **14B** | ~9 GB | **~12.8 GB** | **16 GB** card |
+| USB Gemma builder | (in the 40 GB) | Gemma 2 **9B** | ~5.8 GB | **~9.0 GB** | **12 GB** comfortable; 8 GB is tight |
 
-Also budget ~1 GB for `.venv` and room under `outputs/` / `state/`. Practical free disk: **20 GB** (backup) or **32 GB** (USB set on a 32 GB stick plus a little OS space).
+Also budget ~1 GB for `.venv` and room under `outputs/` / `state/`. Practical free disk: **20 GB** (backup) or **48 GB** (USB set on a 64 GB stick plus leftover space for image weights).
 
 ## Installed-RAM targets
 

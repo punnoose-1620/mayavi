@@ -27,6 +27,18 @@ import file_tools
 BUILDER_ROLES = ("builder_llama", "builder_qwen", "builder_mistral", "builder_gemma")
 BACKUP_BUILDERS = ("builder_llama", "builder_qwen")
 WRITE_TOOL_NAMES = {"write_doc", "write_file", "write_pdf", "write_json", "append_file", "mkdir"}
+_LANGUAGE_MARKS = (
+    "translate",
+    "rephrase",
+    "rewrite",
+    "resume",
+    "cover letter",
+    "proofread",
+    "grammar",
+    "paraphrase",
+    "into swedish",
+    "into english",
+)
 
 
 def mint_run_id() -> str:
@@ -378,8 +390,56 @@ def _promote_final_to_board(run: Run, agent: Agent, text: str) -> None:
     runtime.sendMessageToBlackboard(body, kind, agent_id=agent.agent_name)
 
 
+def _work_kind(run: Run) -> str:
+    if str(run.needs_code_exec or "").lower() == "yes":
+        return "code"
+    text = f"{run.user_prompt or ''} {run.intent or ''}".lower()
+    if any(mark in text for mark in _LANGUAGE_MARKS):
+        return "language"
+    return "plan"
+
+
+def _committee_roles(run: Run) -> tuple[str, list[str]]:
+    kind = _work_kind(run)
+    extra = 0
+    if run.level == "medium":
+        extra = 2
+    elif run.level == "large":
+        extra = 3 if kind == "code" else 2
+    return _lead_and_support(kind, extra)
+
+
+def _lead_and_support(kind: str, extra: int) -> tuple[str, list[str]]:
+    roles = models.roles_for_use(kind)
+    if not roles:
+        return "executor", list(BACKUP_BUILDERS)[: max(0, extra)]
+    lead = roles[0]
+    support: list[str] = []
+    for name in roles[1:]:
+        if name != lead and name not in support:
+            support.append(name)
+        if len(support) >= extra:
+            return lead, support
+    for other in ("plan", "language", "code"):
+        if other == kind:
+            continue
+        for name in models.roles_for_use(other):
+            if name != lead and name not in support:
+                support.append(name)
+            if len(support) >= extra:
+                return lead, support
+    if extra and len(support) < extra:
+        for name in BACKUP_BUILDERS:
+            if name != lead and name not in support:
+                support.append(name)
+            if len(support) >= extra:
+                break
+    return lead, support[: max(0, extra)]
+
+
 def _run_small(run: Run) -> str:
-    created = createAgent(run.run_id, "drafter", "executor", parent_agent=run.router_agent)
+    lead, _support = _committee_roles(run)
+    created = createAgent(run.run_id, "drafter", lead, parent_agent=run.router_agent)
     drafter = created["agent_name"]
     if run.mail_cal != "off":
         _connect_mail(run)
@@ -393,9 +453,12 @@ def _run_small(run: Run) -> str:
 
 
 def _run_medium(run: Run) -> str:
-    drafter = createAgent(run.run_id, "drafter", "executor", parent_agent=run.router_agent)["agent_name"]
-    c1 = createAgent(run.run_id, "checker", "builder_qwen", parent_agent=run.router_agent)["agent_name"]
-    c2 = createAgent(run.run_id, "checker", "builder_llama", parent_agent=run.router_agent)["agent_name"]
+    lead, support = _committee_roles(run)
+    if len(support) < 2:
+        support = list(BACKUP_BUILDERS)
+    drafter = createAgent(run.run_id, "drafter", lead, parent_agent=run.router_agent)["agent_name"]
+    c1 = createAgent(run.run_id, "checker", support[0], parent_agent=run.router_agent)["agent_name"]
+    c2 = createAgent(run.run_id, "checker", support[1], parent_agent=run.router_agent)["agent_name"]
     createBlackBoard(run.run_id)
     setBlackBoardRules(run.run_id)
     blackboard.pin_context_card(run)
@@ -413,8 +476,9 @@ def _run_medium(run: Run) -> str:
 def _run_large(run: Run) -> str:
     createKeepDir(run.run_id)
     createSandbox(run.run_id)
-    exec_name = createAgent(run.run_id, "executor", "executor", parent_agent=run.router_agent)["agent_name"]
-    builder_roles = BUILDER_ROLES if models.usb_present() else BACKUP_BUILDERS
+    lead, support = _committee_roles(run)
+    exec_name = createAgent(run.run_id, "executor", lead, parent_agent=run.router_agent)["agent_name"]
+    builder_roles = support or list(BACKUP_BUILDERS)
     builders = [
         createAgent(run.run_id, "builder", role, parent_agent=run.router_agent)["agent_name"]
         for role in builder_roles

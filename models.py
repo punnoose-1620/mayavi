@@ -40,12 +40,54 @@ def _gpu_check():
     return _GPU_CHECK
 
 
+def usb_manifest_path() -> Path | None:
+    if config.MODELS_DIR and config.MODELS_DIR.is_dir():
+        path = config.MODELS_DIR / "models.json"
+        if path.is_file():
+            return path
+    return None
+
+
+def manifest_path() -> Path:
+    return usb_manifest_path() or config.MODELS_JSON
+
+
 def load_manifest() -> dict[str, Any]:
-    return json.loads(config.MODELS_JSON.read_text(encoding="utf-8"))
+    return json.loads(manifest_path().read_text(encoding="utf-8"))
 
 
 def save_manifest(data: dict[str, Any]) -> None:
-    config.MODELS_JSON.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    manifest_path().write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+_THIN_ROLES = {"router", "executor", "builder_qwen", "builder_llama"}
+
+
+def roles_for_use(use: str) -> list[str]:
+    """Role names tagged for this job, in manifest order, only if a GGUF is on disk."""
+    wanted = str(use or "").strip()
+    found: list[str] = []
+    for name, spec in (load_manifest().get("roles") or {}).items():
+        tags = spec.get("use") or []
+        if wanted in tags and role_is_ready(name):
+            found.append(name)
+    return found
+
+
+def role_is_ready(role: str) -> bool:
+    spec = (load_manifest().get("roles") or {}).get(role)
+    if not spec:
+        return False
+    primary_name = (spec.get("primary") or {}).get("filename") or ""
+    for item in _candidates(role, spec):
+        path = item.get("path")
+        if not path or not Path(path).is_file():
+            continue
+        if item.get("filename") == primary_name:
+            return True
+        if role in _THIN_ROLES:
+            return True
+    return False
 
 
 def checkRam(role: str, file_path: str | Path | None = None) -> dict[str, Any]:
@@ -384,47 +426,32 @@ def usb_present() -> bool:
 
 def _candidates(role: str, spec: dict[str, Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
+    primary = spec.get("primary") or {}
+    backup = spec.get("backup") or {}
     if config.MODELS_DIR and config.MODELS_DIR.is_dir():
-        primary = spec["primary"]
-        out.append(
-            {
-                "role": role,
-                "root": "usb",
-                "repo_id": primary["repo_id"],
-                "filename": primary["filename"],
-                "revision": primary.get("revision") or "main",
-                "sha256": primary.get("sha256") or "",
-                "bytes": primary.get("bytes") or 0,
-                "path": config.MODELS_DIR / primary["filename"],
-            }
-        )
-    backup = spec["backup"]
+        if primary.get("filename"):
+            out.append(_candidate(role, "usb", primary, config.MODELS_DIR / primary["filename"]))
+        if backup.get("filename") and backup.get("filename") != primary.get("filename"):
+            out.append(_candidate(role, "usb", backup, config.MODELS_DIR / backup["filename"]))
     if config.BACKUP_MODELS_DIR and config.BACKUP_MODELS_DIR.is_dir():
-        out.append(
-            {
-                "role": role,
-                "root": "backup",
-                "repo_id": backup["repo_id"],
-                "filename": backup["filename"],
-                "revision": backup.get("revision") or "main",
-                "sha256": backup.get("sha256") or "",
-                "bytes": backup.get("bytes") or 0,
-                "path": config.BACKUP_MODELS_DIR / backup["filename"],
-            }
-        )
-        out.append(
-            {
-                "role": role,
-                "root": "backup",
-                "repo_id": spec["primary"]["repo_id"],
-                "filename": spec["primary"]["filename"],
-                "revision": spec["primary"].get("revision") or "main",
-                "sha256": spec["primary"].get("sha256") or "",
-                "bytes": spec["primary"].get("bytes") or 0,
-                "path": config.BACKUP_MODELS_DIR / spec["primary"]["filename"],
-            }
-        )
+        if backup.get("filename"):
+            out.append(_candidate(role, "backup", backup, config.BACKUP_MODELS_DIR / backup["filename"]))
+        if primary.get("filename"):
+            out.append(_candidate(role, "backup", primary, config.BACKUP_MODELS_DIR / primary["filename"]))
     return out
+
+
+def _candidate(role: str, root: str, slot: dict[str, Any], path: Path) -> dict[str, Any]:
+    return {
+        "role": role,
+        "root": root,
+        "repo_id": slot.get("repo_id") or "",
+        "filename": slot.get("filename") or "",
+        "revision": slot.get("revision") or "main",
+        "sha256": slot.get("sha256") or "",
+        "bytes": slot.get("bytes") or 0,
+        "path": path,
+    }
 
 
 def _download_backup(role: str, spec: dict[str, Any]) -> dict[str, Any]:
