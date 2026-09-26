@@ -82,6 +82,11 @@ class UsbChatApp:
         self._stream_holder: dict | None = None
         self._ui_font = ("Segoe UI", 11) if sys.platform == "win32" else ("sans-serif", 11)
         self._title_font = (self._ui_font[0], 11, "bold")
+        self.web_visible = False
+        self._turn_prompt_tokens = 0
+        self._turn_completion_tokens = 0
+        self._spin_angle = 0
+        self._spin_after: str | None = None
 
         usbchat.purge_old_logs(self.log_root)
         self._build()
@@ -170,11 +175,21 @@ class UsbChatApp:
         ttk.Button(self.attach_row, text="Attach…", command=self.attach).pack(side="right", padx=(gap, 0))
         ttk.Button(self.attach_row, text="Clear file", command=self.clear_attach).pack(side="right")
 
+        self.web_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
+        self.web_search_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(self.web_row, text="Web Search", variable=self.web_search_var).pack(side="left")
+        star = ttk.Label(self.web_row, text="*", foreground="#5f6368")
+        star.pack(side="left", padx=(2, 0))
+        _HoverTip(
+            star,
+            "Web Search takes extra time and model passes. Use it only when you need live internet.",
+        )
+
         ttk.Label(self._page, text="Message", font=self._title_font, padding=(pad, 16, pad, 6)).grid(
-            row=5, column=0, sticky="w"
+            row=6, column=0, sticky="w"
         )
         input_row = ttk.Frame(self._page, padding=(pad, 0, pad, 16))
-        input_row.grid(row=6, column=0, sticky="ew")
+        input_row.grid(row=7, column=0, sticky="ew")
         self.input = tk.Text(
             input_row,
             height=4,
@@ -185,14 +200,25 @@ class UsbChatApp:
             pady=10,
         )
         self.input.pack(side="left", fill="x", expand=True)
-        ttk.Button(input_row, text="Send", command=self.send).pack(side="right", padx=(12, 0), fill="y")
-        self.input.bind("<Control-Return>", lambda e: self.send())
+        self.send_btn = ttk.Button(input_row, text="Send", command=self.send)
+        self.send_btn.pack(side="right", padx=(12, 0), fill="y")
+        self.spin_host = ttk.Frame(input_row)
+        self.spin = tk.Canvas(
+            self.spin_host,
+            width=36,
+            height=36,
+            highlightthickness=0,
+            borderwidth=0,
+            background=self.root.cget("background"),
+        )
+        self.spin.pack(expand=True)
+        self.input.bind("<Control-Return>", self._send_shortcut)
         self.input.bind("<FocusIn>", self._clear_input_hint)
         self.input.bind("<FocusOut>", self._restore_input_hint)
         self._restore_input_hint()
 
         buttons = ttk.Frame(self._page, padding=(pad, 0, pad, 12))
-        buttons.grid(row=7, column=0, sticky="ew")
+        buttons.grid(row=8, column=0, sticky="ew")
         ttk.Button(buttons, text="Stop", command=self.stop).pack(side="left")
         ttk.Button(buttons, text="New session", command=self.new_session).pack(side="left", padx=(gap, 0))
         ttk.Button(buttons, text="Save PDF", command=self.save_pdf).pack(side="right")
@@ -201,7 +227,7 @@ class UsbChatApp:
 
         self.status_var = tk.StringVar(value="")
         ttk.Label(self._page, textvariable=self.status_var, padding=(pad, 0, pad, 16)).grid(
-            row=8, column=0, sticky="ew"
+            row=9, column=0, sticky="ew"
         )
 
         self._page.bind("<Configure>", self._sync_page)
@@ -211,6 +237,7 @@ class UsbChatApp:
         self.root.bind_all("<Button-5>", self._on_page_wheel)
 
         self.root.protocol("WM_DELETE_WINDOW", self.root.destroy)
+        self._schedule_web_probe()
 
     def _sync_page(self, _event=None) -> None:
         width = max(self._canvas.winfo_width(), 1)
@@ -244,6 +271,36 @@ class UsbChatApp:
 
     def _status(self, text: str) -> None:
         self.status_var.set(text)
+
+    def _ui_status(self, text: str) -> None:
+        self.root.after(0, lambda t=text: self._status(t))
+
+    def _set_web_row(self, online: bool) -> None:
+        if online:
+            self.web_row.grid(row=5, column=0, sticky="ew")
+            self.web_visible = True
+        elif not self.web_search_var.get():
+            self.web_row.grid_remove()
+            self.web_visible = False
+        self._sync_page()
+
+    def _probe_web_search(self) -> None:
+        def work() -> None:
+            online = False
+            if usbchat.web_search_available():
+                try:
+                    import search
+
+                    online = bool(search.check_internet_connectivity())
+                except Exception:
+                    online = False
+            self.root.after(0, lambda: self._set_web_row(online))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _schedule_web_probe(self) -> None:
+        self._probe_web_search()
+        self.root.after(60_000, self._schedule_web_probe)
 
     def _show_no_earlier_history(self) -> None:
         if self._history_empty or self._end_of_history:
@@ -282,22 +339,73 @@ class UsbChatApp:
             return ""
         return self.input.get("1.0", "end").strip()
 
+    def _send_shortcut(self, _event=None):
+        if self.busy:
+            return "break"
+        self.send()
+        return "break"
+
     def _clear_input_hint(self, _event=None) -> None:
-        if not self._input_hint:
+        if self.busy or not self._input_hint:
             return
         self._input_hint = False
+        self.input.configure(state="normal")
         self.input.delete("1.0", "end")
         self.input.configure(foreground="#1a1a1a")
 
     def _restore_input_hint(self, _event=None) -> None:
+        if self.busy:
+            return
         current = self.input.get("1.0", "end").strip()
         if current and current != "Type a message…":
             self._input_hint = False
             return
         self._input_hint = True
+        self.input.configure(state="normal")
         self.input.delete("1.0", "end")
         self.input.insert("1.0", "Type a message…")
         self.input.configure(foreground="#8a8a8a")
+
+    def _draw_spinner(self) -> None:
+        self.spin.delete("all")
+        self.spin.create_arc(
+            6,
+            6,
+            30,
+            30,
+            start=self._spin_angle,
+            extent=80,
+            style="arc",
+            outline="#0b57d0",
+            width=3,
+        )
+
+    def _tick_spinner(self) -> None:
+        if not self.busy:
+            self._spin_after = None
+            return
+        self._spin_angle = (self._spin_angle - 30) % 360
+        self._draw_spinner()
+        self._spin_after = self.root.after(50, self._tick_spinner)
+
+    def _set_busy(self, busy: bool) -> None:
+        self.busy = busy
+        if busy:
+            self.send_btn.pack_forget()
+            self.spin_host.pack(side="right", padx=(12, 0), fill="y")
+            self.input.configure(state="disabled", background="#f7f7f7")
+            self._spin_angle = 0
+            self._draw_spinner()
+            if self._spin_after is None:
+                self._spin_after = self.root.after(50, self._tick_spinner)
+            return
+        if self._spin_after is not None:
+            self.root.after_cancel(self._spin_after)
+            self._spin_after = None
+        self.spin_host.pack_forget()
+        self.send_btn.pack(side="right", padx=(12, 0), fill="y")
+        self.input.configure(state="normal", background="#ffffff")
+        self._restore_input_hint()
 
     def _role_look(self, role: str) -> tuple[str, str, str]:
         if role == "user":
@@ -480,6 +588,27 @@ class UsbChatApp:
         if choice is None:
             messagebox.showerror("Send", "Pick a model that fits RAM.")
             return
+        use_web = bool(self.web_visible and self.web_search_var.get())
+        if use_web:
+            if not usbchat.web_search_available():
+                messagebox.showerror(
+                    "Web Search",
+                    "Run setup.bat so the requests and beautifulsoup4 libraries are installed.",
+                )
+                return
+            try:
+                import search
+
+                if not search.check_internet_connectivity():
+                    messagebox.showerror(
+                        "Web Search",
+                        "No internet. Turn Web Search off or reconnect.",
+                    )
+                    self._set_web_row(False)
+                    return
+            except Exception as exc:
+                messagebox.showerror("Web Search", str(exc))
+                return
         attachments = [self.attachment] if self.attachment else []
         quote = self.quote
         notes = usbchat.read_notes(self.notes_file)
@@ -501,36 +630,117 @@ class UsbChatApp:
         self._input_hint = False
         self._restore_input_hint()
         self.clear_quote()
-        self.busy = True
+        self._set_busy(True)
         self.stop_event.clear()
         self._status(f"Loading {choice.label}…" if self.loaded_path != choice.path else "Thinking…")
-        threading.Thread(target=self._generate, args=(choice, messages, text, attachments, quote), daemon=True).start()
+        threading.Thread(
+            target=self._generate,
+            args=(choice, messages, text, attachments, quote, use_web),
+            daemon=True,
+        ).start()
 
-    def _generate(self, choice, messages, user_text, attachments, quote) -> None:
-        err = ""
-        reply_parts: list[str] = []
-        try:
-            if self.engine is None or self.loaded_path != choice.path:
-                self.engine = None
-                self.loaded_path = None
-                self.engine = usbchat.make_engine(choice.path, n_ctx=self.n_ctx, here=HERE)
-                self.loaded_path = choice.path
-                self.root.after(0, lambda: self._status(f"Loaded {choice.label}. Thinking…"))
-            self.root.after(0, self._begin_assistant)
-            for piece in self.engine.stream(messages, self.stop_event):
-                reply_parts.append(piece)
-                self.root.after(0, lambda p=piece: self._stream_piece(p))
-        except Exception as exc:
-            err = str(exc)
-        prompt_tokens, completion_tokens = (0, 0)
+    def _complete(self, messages: list[dict[str, str]]) -> str:
+        parts: list[str] = []
+        for piece in self.engine.stream(messages, self.stop_event):
+            parts.append(piece)
+            if self.stop_event.is_set():
+                break
         if self.engine is not None:
             prompt_tokens, completion_tokens = self.engine.last_usage
+            self._turn_prompt_tokens += prompt_tokens
+            self._turn_completion_tokens += completion_tokens
+        return "".join(parts).strip()
+
+    def _ensure_engine(self, choice) -> None:
+        if self.engine is not None and self.loaded_path == choice.path:
+            return
+        self.engine = None
+        self.loaded_path = None
+        self.engine = usbchat.make_engine(choice.path, n_ctx=self.n_ctx, here=HERE)
+        self.loaded_path = choice.path
+        self._ui_status(f"Loaded {choice.label}. Thinking…")
+
+    def _generate(self, choice, messages, user_text, attachments, quote, use_web) -> None:
+        err = ""
+        reply_parts: list[str] = []
+        self._turn_prompt_tokens = 0
+        self._turn_completion_tokens = 0
+        web_meta = {"used": False, "query": "", "urls": [], "log": ""}
+        try:
+            self._ensure_engine(choice)
+            if use_web:
+                web_path = usbchat.new_web_log_path(self.log_root)
+                web_meta["log"] = web_path.name
+                web = usbchat.run_web_search(
+                    complete=self._complete,
+                    messages=messages,
+                    user_text=user_text,
+                    stop_event=self.stop_event,
+                    log_path=web_path,
+                    status=self._ui_status,
+                    n_ctx=self.n_ctx,
+                )
+                web_meta["query"] = str(web.get("query") or "")
+                web_meta["urls"] = list(web.get("urls") or [])
+                web_meta["used"] = bool(web.get("ok"))
+                usbchat.append_web_event(
+                    web_path,
+                    {
+                        "step": "summary",
+                        "ok": web.get("ok"),
+                        "error": web.get("error"),
+                        "query": web_meta["query"],
+                        "urls": web_meta["urls"],
+                    },
+                )
+                if web.get("stopped"):
+                    err = "stopped"
+                elif web.get("ok"):
+                    messages, stopped = usbchat.fit_web_answer_messages(
+                        complete=self._complete,
+                        chat_messages=messages,
+                        user_text=user_text,
+                        query=web_meta["query"],
+                        excerpts=web.get("excerpts") or [],
+                        n_ctx=self.n_ctx,
+                        stop_event=self.stop_event,
+                        status=self._ui_status,
+                        log=lambda event: usbchat.append_web_event(web_path, event),
+                    )
+                    if stopped:
+                        err = "stopped"
+                    else:
+                        self._ui_status("Web Search: writing the answer…")
+                else:
+                    self._ui_status("Search failed; answering without the web.")
+            if not err:
+                if usbchat.messages_tokens(messages) > usbchat.token_budget(self.n_ctx) and messages:
+                    last = dict(messages[-1])
+                    cap = usbchat._blob_char_budget(self.n_ctx, user_text, str((messages[0] or {}).get("content") or ""))
+                    last["content"] = str(last.get("content") or "")[:cap]
+                    messages = [dict(m) for m in messages[:-1]] + [last]
+                self.root.after(0, self._begin_assistant)
+                for piece in self.engine.stream(messages, self.stop_event):
+                    reply_parts.append(piece)
+                    self.root.after(0, lambda p=piece: self._stream_piece(p))
+                if self.engine is not None:
+                    prompt_tokens, completion_tokens = self.engine.last_usage
+                    self._turn_prompt_tokens += prompt_tokens
+                    self._turn_completion_tokens += completion_tokens
+        except Exception as exc:
+            err = (
+                "This turn still did not fit the local context window."
+                if usbchat._context_overflow(exc)
+                else str(exc)
+            )
+        prompt_tokens = self._turn_prompt_tokens
+        completion_tokens = self._turn_completion_tokens
         reply = "".join(reply_parts).strip()
         if err and not reply:
-            reply = f"(error: {err})"
+            reply = "Web Search stopped." if err == "stopped" else f"(error: {err})"
 
         def finish() -> None:
-            self.busy = False
+            self._set_busy(False)
             if err and not reply_parts:
                 self._append("system", reply)
             elif reply:
@@ -557,6 +767,10 @@ class UsbChatApp:
                 "completion_tokens": completion_tokens,
                 "attached": [a.get("path") or a["name"] for a in attachments],
                 "quote": quote,
+                "web_search": bool(web_meta["used"]),
+                "web_query": web_meta["query"],
+                "web_urls": web_meta["urls"],
+                "web_log": web_meta["log"],
             }
             usbchat.append_turn(self.session_path, turn)
             self.session_turns.append(turn)

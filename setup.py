@@ -13,6 +13,8 @@ MIN_VERSION = (3, 11)
 MIN_LABEL = "3.11"
 PACKAGE = "llama-cpp-python>=0.3.35"
 PYPDF_PACKAGE = "pypdf>=4.0"
+REQUESTS_PACKAGE = "requests>=2.31"
+BS4_PACKAGE = "beautifulsoup4>=4.12"
 CPU_WHEEL_INDEX = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 
 HERE = Path(__file__).resolve().parent
@@ -169,6 +171,18 @@ def upgrade_packages(executable: Path) -> None:
         name="pypdf",
         purpose="required to read attached PDF files",
     )
+    _pip(
+        executable,
+        ["install", "-U", REQUESTS_PACKAGE],
+        name="requests",
+        purpose="required for Web Search",
+    )
+    _pip(
+        executable,
+        ["install", "-U", BS4_PACKAGE],
+        name="beautifulsoup4",
+        purpose="required for Web Search to read HTML",
+    )
 
 
 def have_llama_cli() -> bool:
@@ -210,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
     except subprocess.CalledProcessError:
         show_alert(
             "USB chat could not update pip inside its private host venv. "
-            "The llama-cpp-python and pypdf libraries were not installed. "
+            "The llama-cpp-python, pypdf, requests, and beautifulsoup4 libraries were not installed. "
             "System Python was not changed. Run setup again."
         )
         return 1

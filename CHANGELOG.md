@@ -2,6 +2,27 @@
 
 Newest first. Hand-written. Update when a set of files is copied onto the USB, not on every save.
 
+## 1.1.3 — 2026-09-26
+
+If the loaded GGUF template rejects a `system` role, that text is folded into the first user message and the turn is retried. Fixes `(error: System role not supported)` on models such as Gemma, including the extra Web Search JSON passes.
+
+## 1.1.2 — 2026-09-26
+
+While a reply or Web Search is running, the message box is locked and Send is replaced by a spinner. Stop stays available.
+
+## 1.1.1 — 2026-09-26
+
+Web Search no longer dumps a whole page into one 4096-token window. HTML and page excerpts that will not fit (default 4096, minus the 512-token reply) are processed in parts and optionally summarized; only the last answer is shown in History.
+
+## 1.1.0 — 2026-09-26
+
+Optional **Web Search** for the standalone chat (not Serp/Scraper, not the committee).
+
+- Toggle above Message when the host is online; stays on until you turn it off. Asterisk hover warns that it is slow.
+- On Send: model query → Google HTML scrape (`search.py`) → model remove-or-keep class/id pairs → up to 3 URLs → fetch and clean each page → one answer in History.
+- Intermediate steps (query, specs, URLs, page notes) go to `logs/web_YYYY-MM-DD_HHMMSS.jsonl`. Session turns can record `web_search` / `web_query` / `web_urls` / `web_log`.
+- Setup also installs `requests` and `beautifulsoup4`.
+
 ## 1.0.11 — 2026-09-26
 
 The window is vertically scrollable when it is smaller than the full layout, so the message box padding still works outside fullscreen.
