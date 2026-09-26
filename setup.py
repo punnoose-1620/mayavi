@@ -12,6 +12,7 @@ from pathlib import Path
 MIN_VERSION = (3, 11)
 MIN_LABEL = "3.11"
 PACKAGE = "llama-cpp-python>=0.3.35"
+PYPDF_PACKAGE = "pypdf>=4.0"
 CPU_WHEEL_INDEX = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 
 HERE = Path(__file__).resolve().parent
@@ -103,8 +104,37 @@ def ensure_host_venv(base_python: Path) -> Path:
     return venv_python(root)
 
 
-class LlamaCppInstallError(RuntimeError):
-    """Raised when llama-cpp-python is missing and pip cannot install it."""
+class PackageInstallError(RuntimeError):
+    """Raised when a named library is missing and pip cannot install it."""
+
+    def __init__(self, name: str, purpose: str, extra: str = "") -> None:
+        super().__init__(name)
+        self.name = name
+        self.purpose = purpose
+        self.extra = extra
+
+
+def package_missing_message(name: str, purpose: str, extra: str = "") -> str:
+    extra_line = f"\n\n{extra}" if extra else ""
+    return (
+        f"USB chat could not install the {name} library.\n\n"
+        f"That library is {purpose}. It is missing from the "
+        "usb-chat environment on this PC.\n\n"
+        "Setup did not change your system Python."
+        f"{extra_line}\n\n"
+        "Check you are online and run setup again."
+    )
+
+
+def _pip(executable: Path, args: list[str], name: str, purpose: str, extra: str = "") -> None:
+    try:
+        subprocess.check_call(
+            [str(executable), "-m", "pip", *args],
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise PackageInstallError(name, purpose, extra) from exc
 
 
 def upgrade_packages(executable: Path) -> None:
@@ -115,35 +145,29 @@ def upgrade_packages(executable: Path) -> None:
     )
     # PyPI only has a source tarball. Without this index, pip tries to compile
     # and fails on machines with no Visual Studio / nmake.
-    try:
-        subprocess.check_call(
-            [
-                str(executable),
-                "-m",
-                "pip",
-                "install",
-                "-U",
-                "--prefer-binary",
-                "--only-binary=llama-cpp-python",
-                "--extra-index-url",
-                CPU_WHEEL_INDEX,
-                PACKAGE,
-            ],
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-    except subprocess.CalledProcessError as exc:
-        raise LlamaCppInstallError from exc
-
-
-def llama_cpp_missing_message() -> str:
-    return (
-        "USB chat could not install the llama-cpp-python library.\n\n"
-        "That library is required to load GGUF models. It is missing from the "
-        "usb-chat environment on this PC.\n\n"
-        "Setup tried to download a prebuilt CPU wheel. It did not compile from "
-        "source, and it did not change your system Python.\n\n"
-        "Check you are online and run setup again, or put llama-cli in chat\\bin\\."
+    _pip(
+        executable,
+        [
+            "install",
+            "-U",
+            "--prefer-binary",
+            "--only-binary=llama-cpp-python",
+            "--extra-index-url",
+            CPU_WHEEL_INDEX,
+            PACKAGE,
+        ],
+        name="llama-cpp-python",
+        purpose="required to load GGUF models",
+        extra=(
+            "Setup tried to download a prebuilt CPU wheel (no local C++ compile). "
+            "You can also put llama-cli in chat\\bin\\."
+        ),
+    )
+    _pip(
+        executable,
+        ["install", "-U", PYPDF_PACKAGE],
+        name="pypdf",
+        purpose="required to read attached PDF files",
     )
 
 
@@ -180,14 +204,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Updating packages in {vpy} (not the system Python)")
     try:
         upgrade_packages(vpy)
-    except LlamaCppInstallError:
-        show_alert(llama_cpp_missing_message())
+    except PackageInstallError as exc:
+        show_alert(package_missing_message(exc.name, exc.purpose, exc.extra))
         return 1
     except subprocess.CalledProcessError:
         show_alert(
             "USB chat could not update pip inside its private host venv. "
-            "The llama-cpp-python library was not installed. "
-            "System Python was not changed. Run setup again, or put llama-cli in chat\\bin\\."
+            "The llama-cpp-python and pypdf libraries were not installed. "
+            "System Python was not changed. Run setup again."
         )
         return 1
 

@@ -16,6 +16,41 @@ if str(HERE) not in sys.path:
 import usbchat
 
 
+class _HoverTip:
+    def __init__(self, widget: tk.Widget, text: str) -> None:
+        self.widget = widget
+        self.text = text
+        self.tip: tk.Toplevel | None = None
+        widget.bind("<Enter>", self._show)
+        widget.bind("<Leave>", self._hide)
+
+    def _show(self, _event=None) -> None:
+        if self.tip is not None:
+            return
+        x = self.widget.winfo_rootx() + 12
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        tip = tk.Toplevel(self.widget)
+        tip.wm_overrideredirect(True)
+        tip.wm_geometry(f"+{x}+{y}")
+        tk.Label(
+            tip,
+            text=self.text,
+            background="#ffffe0",
+            relief="solid",
+            borderwidth=1,
+            padx=6,
+            pady=3,
+            font=("Segoe UI", 9) if sys.platform == "win32" else ("sans-serif", 9),
+        ).pack()
+        self.tip = tip
+
+    def _hide(self, _event=None) -> None:
+        if self.tip is None:
+            return
+        self.tip.destroy()
+        self.tip = None
+
+
 class UsbChatApp:
     def __init__(self, root: tk.Tk, args: argparse.Namespace) -> None:
         self.root = root
@@ -41,6 +76,12 @@ class UsbChatApp:
         self.prompt_tokens_total = 0
         self.completion_tokens_total = 0
         self.messages: list[tuple[str, str]] = []
+        self._history_empty = True
+        self._end_of_history = False
+        self._input_hint = True
+        self._stream_holder: dict | None = None
+        self._ui_font = ("Segoe UI", 11) if sys.platform == "win32" else ("sans-serif", 11)
+        self._title_font = (self._ui_font[0], 11, "bold")
 
         usbchat.purge_old_logs(self.log_root)
         self._build()
@@ -52,72 +93,145 @@ class UsbChatApp:
     def _build(self) -> None:
         self.root.title("USB chat")
         self.root.geometry("920x700")
-        self.root.minsize(720, 520)
+        self.root.minsize(420, 360)
 
-        top = ttk.Frame(self.root, padding=(10, 8, 10, 4))
-        top.pack(fill="x")
+        pad, gap = 16, 8
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+
+        shell = ttk.Frame(self.root)
+        shell.grid(row=0, column=0, sticky="nsew")
+        shell.columnconfigure(0, weight=1)
+        shell.rowconfigure(0, weight=1)
+
+        self._canvas = tk.Canvas(shell, highlightthickness=0, borderwidth=0)
+        page_scroll = ttk.Scrollbar(shell, orient="vertical", command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=page_scroll.set)
+        self._canvas.grid(row=0, column=0, sticky="nsew")
+        page_scroll.grid(row=0, column=1, sticky="ns")
+
+        self._page = ttk.Frame(self._canvas)
+        self._page_id = self._canvas.create_window((0, 0), window=self._page, anchor="nw")
+        self._page.columnconfigure(0, weight=1)
+        self._page.rowconfigure(2, weight=1)
+
+        top = ttk.Frame(self._page, padding=(pad, 12, pad, gap))
+        top.grid(row=0, column=0, sticky="ew")
         ttk.Label(top, text="Model").pack(side="left")
         self.model_var = tk.StringVar()
         self.model_box = ttk.Combobox(top, textvariable=self.model_var, state="readonly", width=52)
-        self.model_box.pack(side="left", padx=(6, 8), fill="x", expand=True)
+        self.model_box.pack(side="left", padx=(gap, gap), fill="x", expand=True)
         ttk.Button(top, text="Reload", command=self.refresh_models).pack(side="left")
 
-        mid = ttk.Frame(self.root, padding=(10, 0, 10, 0))
-        mid.pack(fill="both", expand=True)
+        ttk.Label(self._page, text="History", font=self._title_font, padding=(pad, 12, pad, 6)).grid(
+            row=1, column=0, sticky="w"
+        )
+
+        mid = ttk.Frame(self._page, padding=(pad, 0, pad, 0))
+        mid.grid(row=2, column=0, sticky="nsew")
+        mid.columnconfigure(0, weight=1)
+        mid.rowconfigure(0, weight=1)
         self.transcript = tk.Text(
             mid,
             wrap="word",
-            height=24,
+            height=12,
             state="disabled",
-            font=("Segoe UI", 11) if sys.platform == "win32" else ("sans-serif", 11),
-            padx=8,
-            pady=8,
+            font=self._ui_font,
+            padx=16,
+            pady=12,
+            background="#f7f7f7",
         )
         scroll = ttk.Scrollbar(mid, command=self.transcript.yview)
         self.transcript.configure(yscrollcommand=self._on_scroll(scroll))
-        self.transcript.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
-        self.transcript.tag_configure("user", foreground="#0b57d0", spacing1=8, spacing3=4)
-        self.transcript.tag_configure("assistant", foreground="#1a7f37", spacing1=8, spacing3=4)
+        self.transcript.grid(row=0, column=0, sticky="nsew")
+        scroll.grid(row=0, column=1, sticky="ns")
+        self.transcript.tag_configure("user", foreground="#0b57d0", spacing3=4)
+        self.transcript.tag_configure("assistant", foreground="#1a7f37", spacing3=4)
         self.transcript.tag_configure("system", foreground="#5f6368", spacing1=6, spacing3=4)
+        self.transcript.tag_configure("title_user", foreground="#0b57d0", font=self._title_font)
+        self.transcript.tag_configure("title_assistant", foreground="#1a7f37", font=self._title_font)
+        self.transcript.tag_configure("title_system", foreground="#5f6368", font=self._title_font)
+        self.transcript.tag_configure("empty", foreground="#8a8a8a", font=(self._ui_font[0], 11, "italic"))
         self.transcript.bind("<Button-3>", self._reply_menu)
         self.transcript.bind("<Control-c>", lambda e: None)
+        self._show_history_empty()
 
-        quote_row = ttk.Frame(self.root, padding=(10, 4, 10, 0))
-        quote_row.pack(fill="x")
+        self.quote_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
         self.quote_var = tk.StringVar(value="")
-        ttk.Label(quote_row, textvariable=self.quote_var, foreground="#5f6368").pack(
+        ttk.Label(self.quote_row, textvariable=self.quote_var, foreground="#5f6368").pack(
             side="left", fill="x", expand=True
         )
-        ttk.Button(quote_row, text="Clear quote", command=self.clear_quote).pack(side="right")
+        ttk.Button(self.quote_row, text="Clear quote", command=self.clear_quote).pack(side="right")
 
-        attach_row = ttk.Frame(self.root, padding=(10, 2, 10, 0))
-        attach_row.pack(fill="x")
+        self.attach_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
+        self.attach_row.grid(row=4, column=0, sticky="ew")
         self.attach_var = tk.StringVar(value="No document attached")
-        ttk.Label(attach_row, textvariable=self.attach_var).pack(side="left", fill="x", expand=True)
-        ttk.Button(attach_row, text="Attach…", command=self.attach).pack(side="right", padx=(6, 0))
-        ttk.Button(attach_row, text="Clear file", command=self.clear_attach).pack(side="right")
+        ttk.Label(self.attach_row, textvariable=self.attach_var).pack(side="left", fill="x", expand=True)
+        ttk.Button(self.attach_row, text="Attach…", command=self.attach).pack(side="right", padx=(gap, 0))
+        ttk.Button(self.attach_row, text="Clear file", command=self.clear_attach).pack(side="right")
 
-        input_row = ttk.Frame(self.root, padding=(10, 6, 10, 4))
-        input_row.pack(fill="x")
-        self.input = tk.Text(input_row, height=4, wrap="word", font=("Segoe UI", 11) if sys.platform == "win32" else ("sans-serif", 11))
-        self.input.pack(fill="x")
+        ttk.Label(self._page, text="Message", font=self._title_font, padding=(pad, 16, pad, 6)).grid(
+            row=5, column=0, sticky="w"
+        )
+        input_row = ttk.Frame(self._page, padding=(pad, 0, pad, 16))
+        input_row.grid(row=6, column=0, sticky="ew")
+        self.input = tk.Text(
+            input_row,
+            height=4,
+            wrap="word",
+            font=self._ui_font,
+            background="#ffffff",
+            padx=12,
+            pady=10,
+        )
+        self.input.pack(side="left", fill="x", expand=True)
+        ttk.Button(input_row, text="Send", command=self.send).pack(side="right", padx=(12, 0), fill="y")
         self.input.bind("<Control-Return>", lambda e: self.send())
+        self.input.bind("<FocusIn>", self._clear_input_hint)
+        self.input.bind("<FocusOut>", self._restore_input_hint)
+        self._restore_input_hint()
 
-        buttons = ttk.Frame(self.root, padding=(10, 0, 10, 8))
-        buttons.pack(fill="x")
-        ttk.Button(buttons, text="Send", command=self.send).pack(side="left")
-        ttk.Button(buttons, text="Stop", command=self.stop).pack(side="left", padx=(6, 0))
-        ttk.Button(buttons, text="Reply", command=self.reply_selection).pack(side="left", padx=(6, 0))
-        ttk.Button(buttons, text="New session", command=self.new_session).pack(side="left", padx=(16, 0))
+        buttons = ttk.Frame(self._page, padding=(pad, 0, pad, 12))
+        buttons.grid(row=7, column=0, sticky="ew")
+        ttk.Button(buttons, text="Stop", command=self.stop).pack(side="left")
+        ttk.Button(buttons, text="New session", command=self.new_session).pack(side="left", padx=(gap, 0))
         ttk.Button(buttons, text="Save PDF", command=self.save_pdf).pack(side="right")
-        ttk.Button(buttons, text="Print", command=self.print_pdf).pack(side="right", padx=(0, 6))
-        ttk.Button(buttons, text="Notes…", command=self.notes_dialog).pack(side="right", padx=(0, 6))
+        ttk.Button(buttons, text="Print", command=self.print_pdf).pack(side="right", padx=(0, gap))
+        ttk.Button(buttons, text="Notes…", command=self.notes_dialog).pack(side="right", padx=(0, gap))
 
         self.status_var = tk.StringVar(value="")
-        ttk.Label(self.root, textvariable=self.status_var, padding=(10, 0, 10, 8)).pack(fill="x")
+        ttk.Label(self._page, textvariable=self.status_var, padding=(pad, 0, pad, 16)).grid(
+            row=8, column=0, sticky="ew"
+        )
+
+        self._page.bind("<Configure>", self._sync_page)
+        self._canvas.bind("<Configure>", self._sync_page)
+        self.root.bind_all("<MouseWheel>", self._on_page_wheel)
+        self.root.bind_all("<Button-4>", self._on_page_wheel)
+        self.root.bind_all("<Button-5>", self._on_page_wheel)
 
         self.root.protocol("WM_DELETE_WINDOW", self.root.destroy)
+
+    def _sync_page(self, _event=None) -> None:
+        width = max(self._canvas.winfo_width(), 1)
+        height = max(self._canvas.winfo_height(), 1)
+        self._canvas.itemconfigure(self._page_id, width=width)
+        self._page.update_idletasks()
+        needed = max(self._page.winfo_reqheight(), height)
+        self._canvas.itemconfigure(self._page_id, height=needed)
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+
+    def _on_page_wheel(self, event) -> str | None:
+        widget = self.root.winfo_containing(event.x_root, event.y_root)
+        while widget is not None:
+            if widget in {self.transcript, self.input}:
+                return None
+            widget = getattr(widget, "master", None)
+        if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0:
+            self._canvas.yview_scroll(-1, "units")
+        else:
+            self._canvas.yview_scroll(1, "units")
+        return "break"
 
     def _on_scroll(self, scrollbar: ttk.Scrollbar):
         def set_view(*args):
@@ -131,18 +245,103 @@ class UsbChatApp:
     def _status(self, text: str) -> None:
         self.status_var.set(text)
 
-    def _append(self, role: str, text: str, *, remember: bool = True) -> None:
+    def _show_no_earlier_history(self) -> None:
+        if self._history_empty or self._end_of_history:
+            return
+        self._end_of_history = True
         self.transcript.configure(state="normal")
-        prefix = {"user": "You", "assistant": "Model", "system": "System"}.get(role, role)
-        start = self.transcript.index("end-1c")
-        self.transcript.insert("end", f"{prefix}\n{text}\n\n", role)
-        end = self.transcript.index("end-1c")
-        tag = f"msg_{len(self.messages)}"
-        self.transcript.tag_add(tag, start, end)
+        self.transcript.insert(
+            "1.0",
+            "No earlier history. Nothing is stored before this, or older logs were deleted.\n\n",
+            "empty",
+        )
+        self.transcript.configure(state="disabled")
+
+    def _show_history_empty(self) -> None:
+        self._history_empty = True
+        self._end_of_history = False
+        self.transcript.configure(state="normal")
+        self.transcript.delete("1.0", "end")
+        self.transcript.insert(
+            "1.0",
+            "No messages yet. Type below and press Send.",
+            "empty",
+        )
+        self.transcript.configure(state="disabled")
+
+    def _clear_history_empty(self) -> None:
+        if not self._history_empty:
+            return
+        self._history_empty = False
+        self.transcript.configure(state="normal")
+        self.transcript.delete("1.0", "end")
+        self.transcript.configure(state="disabled")
+
+    def _input_text(self) -> str:
+        if self._input_hint:
+            return ""
+        return self.input.get("1.0", "end").strip()
+
+    def _clear_input_hint(self, _event=None) -> None:
+        if not self._input_hint:
+            return
+        self._input_hint = False
+        self.input.delete("1.0", "end")
+        self.input.configure(foreground="#1a1a1a")
+
+    def _restore_input_hint(self, _event=None) -> None:
+        current = self.input.get("1.0", "end").strip()
+        if current and current != "Type a message…":
+            self._input_hint = False
+            return
+        self._input_hint = True
+        self.input.delete("1.0", "end")
+        self.input.insert("1.0", "Type a message…")
+        self.input.configure(foreground="#8a8a8a")
+
+    def _role_look(self, role: str) -> tuple[str, str, str]:
+        if role == "user":
+            return "👤", "You", "title_user"
+        if role == "assistant":
+            return "🤖", "Model", "title_assistant"
+        return "•", "System", "title_system"
+
+    def _quote_button(self, body: str) -> ttk.Button:
+        holder = {"text": body}
+
+        def quote() -> None:
+            self._set_quote(holder["text"])
+
+        btn = ttk.Button(self.transcript, text="↩", width=3, command=quote)
+        btn.holder = holder  # type: ignore[attr-defined]
+        _HoverTip(btn, "Reply to this message")
+        return btn
+
+    def _insert_header(self, role: str, body: str) -> dict:
+        icon, title, title_tag = self._role_look(role)
+        holder = {"text": body}
+        self.transcript.configure(state="normal")
+        if self.transcript.get("1.0", "end-1c").strip():
+            self.transcript.insert("end", "\n")
+        if role in {"user", "assistant"}:
+            btn = self._quote_button(body)
+            holder = btn.holder  # type: ignore[attr-defined]
+            self.transcript.window_create("end", window=btn)
+            self.transcript.insert("end", "  ")
+        self.transcript.insert("end", f"{icon}  {title}\n", title_tag)
+        self.transcript.configure(state="disabled")
+        return holder
+
+    def _append(self, role: str, text: str, *, remember: bool = True) -> None:
+        self._clear_history_empty()
+        holder = self._insert_header(role, text)
+        self.transcript.configure(state="normal")
+        self.transcript.insert("end", f"{text}\n", role)
         self.transcript.configure(state="disabled")
         if remember:
             self.messages.append((role, text))
         self.transcript.see("end")
+        holder["text"] = text
 
     def refresh_models(self) -> None:
         free = usbchat.free_ram()
@@ -184,8 +383,9 @@ class UsbChatApp:
         except Exception as exc:
             messagebox.showerror("Attach", str(exc))
             return
-        self.attachment = {"name": file_path.name, "text": text}
-        self.attach_var.set(f"Attached {file_path.name} ({len(text)} chars, read-only)")
+        resolved = str(file_path.resolve())
+        self.attachment = {"name": file_path.name, "path": resolved, "text": text}
+        self.attach_var.set(f"{usbchat.attach_label(resolved)} ({len(text)} chars, read-only)")
 
     def clear_attach(self) -> None:
         self.attachment = None
@@ -194,6 +394,19 @@ class UsbChatApp:
     def clear_quote(self) -> None:
         self.quote = ""
         self.quote_var.set("")
+        self.quote_row.grid_remove()
+        self._sync_page()
+
+    def _set_quote(self, text: str) -> None:
+        text = " ".join(text.split())
+        if not text:
+            return
+        self.quote = text
+        shown = text if len(text) <= 80 else text[:77] + "…"
+        self.quote_var.set(f"Replying to: {shown}")
+        if not self.quote_row.winfo_ismapped():
+            self.quote_row.grid(row=3, column=0, sticky="ew")
+            self._sync_page()
 
     def reply_selection(self) -> None:
         try:
@@ -201,11 +414,8 @@ class UsbChatApp:
         except tk.TclError:
             text = ""
         if not text:
-            messagebox.showinfo("Reply", "Select text in the transcript first.")
             return
-        self.quote = text
-        shown = text if len(text) <= 80 else text[:77] + "…"
-        self.quote_var.set(f"Replying to: {shown}")
+        self._set_quote(text)
 
     def _reply_menu(self, event) -> None:
         try:
@@ -224,10 +434,8 @@ class UsbChatApp:
         self.messages = []
         self.prompt_tokens_total = 0
         self.completion_tokens_total = 0
-        self.transcript.configure(state="normal")
-        self.transcript.delete("1.0", "end")
-        self.transcript.configure(state="disabled")
         self.clear_quote()
+        self._show_history_empty()
         self._status(f"New session {self.session_path.name}")
 
     def load_older(self) -> None:
@@ -237,34 +445,35 @@ class UsbChatApp:
         already = {p.resolve() for p in self.older_files}
         nxt = next((p for p in sessions if p.resolve() not in already), None)
         if nxt is None:
+            self._show_no_earlier_history()
             return
         self.loading_older = True
         turns = usbchat.load_turns(nxt)
         self.older_files.append(nxt)
         self.older_turns = turns + self.older_turns
         if turns:
-            self.transcript.configure(state="normal")
-            insert_at = "1.0"
-            block = f"— earlier session {nxt.name} —\n"
-            for turn in turns:
-                if turn.get("prompt"):
-                    block += f"You\n{turn['prompt']}\n\n"
-                if turn.get("response"):
-                    block += f"Model\n{turn['response']}\n\n"
-            self.transcript.insert(insert_at, block, "system")
-            self.transcript.configure(state="disabled")
+            self._clear_history_empty()
             for turn in reversed(turns):
                 if turn.get("response"):
+                    self._prepend_message("assistant", str(turn["response"]))
                     self.messages.insert(0, ("assistant", str(turn["response"])))
-                if turn.get("prompt"):
-                    self.messages.insert(0, ("user", str(turn["prompt"])))
+                user_line = usbchat.display_user_prompt(turn)
+                if user_line:
+                    self._prepend_message("user", user_line)
+                    self.messages.insert(0, ("user", user_line))
+            self.transcript.configure(state="normal")
+            self.transcript.insert("1.0", f"— earlier session {nxt.name} —\n", "system")
+            self.transcript.configure(state="disabled")
         self.loading_older = False
         self._status(f"Loaded older log {nxt.name} as earlier turns")
+        loaded = {p.resolve() for p in self.older_files}
+        if not any(p.resolve() not in loaded for p in sessions):
+            self._show_no_earlier_history()
 
     def send(self) -> None:
         if self.busy:
             return
-        text = self.input.get("1.0", "end").strip()
+        text = self._input_text()
         if not text:
             return
         choice = self._selected()
@@ -286,9 +495,11 @@ class UsbChatApp:
         if quote:
             shown = f"> {quote[: usbchat.QUOTE_CAP]}\n\n{text}"
         if self.attachment:
-            shown = f"[attached {self.attachment['name']}]\n{shown}"
+            shown = f"{usbchat.attach_label(self.attachment['path'])}\n{shown}"
         self._append("user", shown)
         self.input.delete("1.0", "end")
+        self._input_hint = False
+        self._restore_input_hint()
         self.clear_quote()
         self.busy = True
         self.stop_event.clear()
@@ -323,18 +534,28 @@ class UsbChatApp:
             if err and not reply_parts:
                 self._append("system", reply)
             elif reply:
+                if self._stream_holder is not None:
+                    self._stream_holder["text"] = reply
                 self.messages.append(("assistant", reply))
                 self.transcript.configure(state="normal")
-                self.transcript.insert("end", "\n\n", "assistant")
+                self.transcript.insert("end", "\n", "assistant")
                 self.transcript.configure(state="disabled")
+                self._stream_holder = None
+            shown = user_text
+            if quote:
+                shown = f"> {quote[: usbchat.QUOTE_CAP]}\n\n{user_text}"
+            if attachments:
+                names = "\n".join(usbchat.attach_label(a.get("path") or a["name"]) for a in attachments)
+                shown = f"{names}\n{shown}"
             turn = {
                 "time": usbchat.utc_now(),
                 "model": choice.label,
                 "prompt": user_text,
+                "shown": shown,
                 "response": reply,
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
-                "attached": [a["name"] for a in attachments],
+                "attached": [a.get("path") or a["name"] for a in attachments],
                 "quote": quote,
             }
             usbchat.append_turn(self.session_path, turn)
@@ -348,10 +569,19 @@ class UsbChatApp:
 
         self.root.after(0, finish)
 
-    def _begin_assistant(self) -> None:
+    def _prepend_message(self, role: str, text: str) -> None:
         self.transcript.configure(state="normal")
-        self.transcript.insert("end", "Model\n", "assistant")
+        self.transcript.insert("1.0", f"{text}\n\n", role)
+        icon, title, title_tag = self._role_look(role)
+        self.transcript.insert("1.0", f"{icon}  {title}\n", title_tag)
+        if role in {"user", "assistant"}:
+            self.transcript.insert("1.0", "  ")
+            self.transcript.window_create("1.0", window=self._quote_button(text))
         self.transcript.configure(state="disabled")
+
+    def _begin_assistant(self) -> None:
+        self._clear_history_empty()
+        self._stream_holder = self._insert_header("assistant", "")
         self.transcript.see("end")
 
     def _stream_piece(self, piece: str) -> None:

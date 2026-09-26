@@ -36,6 +36,8 @@ _INSTRUCT = re.compile(r"(?i)[-_](Instruct|Chat|it)$")
 _SS_NS = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
 ALLOWED_ATTACH = {".pdf", ".docx", ".xlsx", ".txt", ".md", ".csv"}
+ATTACH_ICON = "📄"
+_ATTACH_MARK = re.compile(r"\[attached ([^\]]+)\]")
 
 
 @dataclass(frozen=True)
@@ -258,6 +260,27 @@ def load_turns(path: Path) -> list[dict]:
     return turns
 
 
+def attach_label(path_or_name: str) -> str:
+    return f"{ATTACH_ICON} {path_or_name}"
+
+
+def rewrite_attach_markers(text: str) -> str:
+    return _ATTACH_MARK.sub(lambda m: attach_label(m.group(1)), text)
+
+
+def display_user_prompt(turn: dict) -> str:
+    """History line for a logged user turn, including an attach note if present."""
+    shown = str(turn.get("shown") or "").strip()
+    if shown:
+        return rewrite_attach_markers(shown)
+    prompt = str(turn.get("prompt") or "")
+    names = [str(n) for n in (turn.get("attached") or []) if n]
+    if not names:
+        return prompt
+    prefix = "\n".join(attach_label(n) for n in names)
+    return f"{prefix}\n{prompt}" if prompt else prefix
+
+
 def _budget_turns(turns: list[dict], budget: int) -> list[dict]:
     kept: list[dict] = []
     used = 0
@@ -305,9 +328,9 @@ def build_chat_messages(
     if quote.strip():
         parts.append("Replying to:\n> " + quote.strip()[:QUOTE_CAP])
     for att in attachments or []:
-        name = str(att.get("name") or "document")
+        label = str(att.get("path") or att.get("name") or "document")
         body = str(att.get("text") or "")[:DOC_CAP]
-        parts.append(f"Attached {name}:\n{body}")
+        parts.append(f"Attached {label}:\n{body}")
     parts.append(user_text)
     messages.append({"role": "user", "content": "\n\n".join(parts)})
     return messages

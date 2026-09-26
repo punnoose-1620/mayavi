@@ -4,19 +4,19 @@ Backup of the **standalone USB chat** (`chat\` on the stick). This git branch is
 
 It is **not** the id10t committee. The stick does not need a Python venv.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for what landed in each version. Features below are what **1.0.4** can do.
+See [`CHANGELOG.md`](CHANGELOG.md) for what landed in each version. Features below are what **1.0.11** can do.
 
 ## Features
 
 - One GGUF at a time. The picker lists only files that fit **free RAM ≥ file size × 1.2 + 2 GB**, largest first, labeled like `Qwen2.5 Coder 14B (8.4 GB)`.
-- Chat window: transcript, send, stop, new session.
-- Reply/quote from selected transcript text.
-- Read-only attach: `pdf`, `docx`, `xlsx`, `txt`, `md`, `csv`.
-- Session logs in `logs/` (JSONL with prompt, reply, token counts). Scroll the transcript to the top to load an older log as earlier llama.cpp turns.
+- Chat window: labeled History (empty-state hint) and Message (placeholder + Send on the right).
+- Quote a turn with the ↩ control on each **You** / **Model** line (hover: *Reply to this message*). **Clear quote** and **Replying to:** appear only while a quote is pending.
+- Read-only attach: `pdf`, `docx`, `xlsx`, `txt`, `md`, `csv`. History shows a document icon and the full path (older logs: icon and the stored name).
+- Session logs in `logs/` (JSONL with prompt, optional `shown` / `attached`, reply, token counts). Scroll the transcript to the top to load an older log as earlier llama.cpp turns. When none remain, History says nothing is stored before this.
 - Logs older than 30 days are deleted by the `YYYY-MM-DD_` prefix in the filename.
 - `notes.md` is included (first 4000 characters). The model cannot write it; you confirm in **Notes…**.
 - **Save PDF** / **Print** build the transcript in memory. Nothing is written unless you pick a save path or the OS print spooler needs a temp file.
-- Host `setup.bat` / `setup.sh`: require **Python 3.11+**. Compatible interpreters only seed a **private host venv** (`%LOCALAPPDATA%\usb-chat\venv` or `~/.local/share/usb-chat/venv`); `llama-cpp-python` is installed from the official **CPU wheel** index (no local C++ compile). System Python is never replaced. If the PC has no 3.11+ (or only 2.7 / 3.9), a dialog names the version we need and the version we found. `chat.bat` / `chat.sh` boot that venv.
+- Host `setup.bat` / `setup.sh`: require **Python 3.11+**. Compatible interpreters only seed a **private host venv** (`%LOCALAPPDATA%\usb-chat\venv` or `~/.local/share/usb-chat/venv`); installs `llama-cpp-python` (CPU wheel) and **`pypdf`**. A failed install names the missing library in the popup. System Python is never replaced. If the PC has no 3.11+ (or only 2.7 / 3.9), a dialog names the version we need and the version we found. `chat.bat` / `chat.sh` boot that venv.
 - Windows first; same scripts on Ubuntu.
 - No committee, search, mail, or factory.
 
