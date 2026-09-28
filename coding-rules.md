@@ -13,6 +13,8 @@ Only these extensions: `.py`, `.html`, `.css`, `.js`. Anything else: `sandbox_wr
 ## What “execute” means
 
 - **Python** — `python <file.py>` under the sandbox root. This is the API / tests / one-shot processors.
+- On a **coding** committee only the **tester** may execute. The **coder** writes `.py`; the tester calls `executeScriptInSandbox` then `getResultsFromSandbox`.
+- On a **high-stakes review** run only the **executor** may execute. Builders write `.py`; they do not call `executeScriptInSandbox`.
 - **HTML / CSS** — write only. Not executed.
 - **JavaScript** — write as browser-side UI (or small `.js` helpers). v1 does **not** require `node` unless you later add it; default execute is Python.
 - **No shell**, no `.exe`, no PowerShell, no bash, no other languages.
@@ -33,7 +35,7 @@ GET (optional POST) only to the sandbox loopback address and the port the execut
 
 The factory creates `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of every large run. That folder is the keep tree.
 
-The sandbox is a separate jail (`sandboxes/<run_id>/`) and is destroyed at teardown. On large runs, `write_doc` / `write_json` / `write_pdf` / `append_file` / `mkdir` stay locked until the executor has a successful `executeScriptInSandbox` **and** a majority of builders plus the executor have voted `ship` (not `reject`) on the blackboard. Then the factory copies allowed sandbox files (`.py`, `.html`, `.css`, `.js`) and stdout (`result.txt`) into the keep folder. After unlock, durable writes are forced into that same folder. Nothing in the jail enters createdIndex until that copy.
+The sandbox is a separate jail (`sandboxes/<run_id>/`) and is destroyed at teardown. Durable `write_doc` stays locked until the run ships. On a **coding** committee that is a **≥4/5** role-scoped vote, then the factory copies allowed sandbox files into the keep folder and records a git commit. On a **high-stakes review** run that is a majority blackboard **ship** vote after a script has actually executed. After unlock, durable writes go to that folder. Git push only happens on a coding run with a valid GitHub URL.
 
 ## Logging
 

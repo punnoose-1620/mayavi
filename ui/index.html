@@ -46,6 +46,36 @@
       padding: 12px;
     }
     .msg { margin: 0 0 10px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
+    .msg.md { white-space: normal; }
+    .msg.md p { margin: 0.4em 0; }
+    .msg.md h1, .msg.md h2, .msg.md h3, .msg.md h4, .msg.md h5, .msg.md h6 {
+      margin: 0.6em 0 0.3em;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0;
+    }
+    .msg.md h1 { font-size: 1.35em; }
+    .msg.md h2 { font-size: 1.2em; }
+    .msg.md h3 { font-size: 1.08em; }
+    .msg.md a { color: var(--accent); }
+    .msg.md ul, .msg.md ol { margin: 0.4em 0 0.4em 1.3em; }
+    .msg.md blockquote {
+      margin: 0.4em 0;
+      padding: 0 0 0 10px;
+      border-left: 3px solid var(--accent);
+      color: var(--muted);
+    }
+    .msg.md pre {
+      margin: 0.5em 0;
+      padding: 8px 10px;
+      background: #111;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+    .msg.md code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+    .msg.md table { border-collapse: collapse; margin: 0.5em 0; }
+    .msg.md th, .msg.md td { border: 1px solid var(--line); padding: 4px 8px; }
+    .msg.md hr { border: 0; border-top: 1px solid var(--line); margin: 0.8em 0; }
     .you { background: var(--you); }
     .bot { background: var(--bot); border-left: 3px solid var(--accent); }
     .progress {
@@ -73,6 +103,33 @@
     .meta { color: var(--muted); font-size: 12px; margin: 4px 10px 12px; }
     .summary-link { color: var(--muted); font-size: 13px; margin: 0 10px 12px; }
     .summary-link a { color: var(--accent); }
+    .artifact {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 0 10px 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .artifact-icon {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 16px;
+      color: var(--accent);
+    }
+    .artifact-name { color: var(--text); flex: 1; min-width: 140px; }
+    .artifact-btn {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 4px 10px;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .artifact-btn:disabled { opacity: 0.45; cursor: default; }
     #composer {
       display: flex;
       gap: 8px;
@@ -99,13 +156,33 @@
       cursor: pointer;
     }
     #send:disabled { opacity: 0.45; cursor: wait; }
-    #notebook-row {
+    #task-row, #notebook-row {
       margin-top: 8px;
       display: flex;
       align-items: center;
       gap: 8px;
       color: var(--muted);
       font-size: 13px;
+    }
+    #task-row { margin-top: 0; margin-bottom: 8px; flex-wrap: wrap; }
+    #coding-label { display: flex; align-items: center; gap: 6px; margin-top: 10px; cursor: pointer; white-space: nowrap; }
+    #repo-wrap {
+      display: none;
+      flex: 1;
+      align-items: center;
+      gap: 8px;
+      min-width: 220px;
+    }
+    #repo-wrap.open { display: flex; }
+    #repo-wrap label { margin-top: 10px; }
+    #repo {
+      flex: 1;
+      margin-top: 10px;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--line);
+      padding: 6px;
+      font: inherit;
     }
     #thread {
       flex: 1;
@@ -120,6 +197,13 @@
 <body>
   <h1>ID10T - Your personal AI Assistant</h1>
   <div id="log" aria-live="polite"></div>
+  <div id="task-row">
+    <label id="coding-label" for="coding"><input type="checkbox" id="coding"> Coding</label>
+    <div id="repo-wrap">
+      <label for="repo">GitHub</label>
+      <input id="repo" type="url" placeholder="https://github.com/owner/repo" autocomplete="off" spellcheck="false">
+    </div>
+  </div>
   <div id="composer">
     <textarea id="prompt" placeholder="Ask something" rows="2"></textarea>
     <button id="send" type="button">Send</button>
@@ -135,8 +219,58 @@
     const promptEl = document.getElementById("prompt");
     const sendEl = document.getElementById("send");
     const threadEl = document.getElementById("thread");
+    const codingEl = document.getElementById("coding");
+    const repoEl = document.getElementById("repo");
+    const repoWrap = document.getElementById("repo-wrap");
+
+    function syncRepoField() {
+      repoWrap.classList.toggle("open", codingEl.checked);
+    }
+    codingEl.addEventListener("change", syncRepoField);
 
     let progressEl = null;
+    let profileApplied = new Set();
+
+    const DEVICE_KEY = "id10t-device-id";
+    const DEVICE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    function fallbackUUID() {
+      const bytes = new Uint8Array(16);
+      if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(bytes);
+      else for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+      return (
+        hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) +
+        "-" + hex.slice(16, 20) + "-" + hex.slice(20)
+      );
+    }
+
+    function deviceId() {
+      let id = "";
+      try { id = localStorage.getItem(DEVICE_KEY) || ""; } catch (e) {}
+      if (!DEVICE_RE.test(id)) {
+        id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : fallbackUUID();
+        try { localStorage.setItem(DEVICE_KEY, id); } catch (e) {}
+      }
+      return String(id || "").toLowerCase();
+    }
+
+    function withDevice(url) {
+      const u = new URL(url, location.origin);
+      u.searchParams.set("device", deviceId());
+      if (navigator.language) u.searchParams.set("language", navigator.language);
+      return u.pathname + u.search;
+    }
+
+    function devicePayload(extra) {
+      return Object.assign({
+        device: deviceId(),
+        user_agent: navigator.userAgent || "",
+        language: navigator.language || "",
+      }, extra || {});
+    }
 
     function add(cls, text) {
       if (!text) return;
@@ -179,17 +313,48 @@
 
     function paintTurn(turn) {
       add("msg you", turn.prompt || "");
-      addBot(turn.answer || "(empty)", turn.summary_url);
+      addBot(turn);
+      addArtifacts(turn);
       const bits = [];
       if (turn.level) bits.push("level=" + turn.level);
+      if (turn.shape) bits.push("shape=" + turn.shape);
       if (turn.run_id) bits.push("run_id=" + turn.run_id);
+      if (turn.git_remote) bits.push("git=" + turn.git_remote);
       if (turn.thread_id) bits.push("thread_id=" + turn.thread_id);
+      addCommittee(bits, turn.committee);
       if (bits.length) add("meta", bits.join("  "));
     }
 
-    function addBot(text, summaryUrl) {
-      add("msg bot", text || "(empty)");
-      if (!summaryUrl) return;
+    function addCommittee(bits, board) {
+      if (!board) return;
+      if (board.phase != null) bits.push("phase=" + board.phase);
+      if (board.round != null) bits.push("round=" + board.round);
+      if (board.shipped) bits.push("shipped");
+      if (board.vote && typeof board.vote === "object") {
+        const marks = Object.keys(board.vote).map((k) => k + "=" + board.vote[k]);
+        if (marks.length) bits.push("vote " + marks.join(" "));
+      }
+    }
+
+    function addBot(turn) {
+      const html = String(turn.answer_html || "").trim();
+      const raw = turn.answer || turn.text || "";
+      const pages = turn.html_pages || [];
+      if (html) {
+        const el = document.createElement("div");
+        el.className = "msg bot md";
+        el.innerHTML = html;
+        logEl.appendChild(el);
+      } else if (String(raw).trim() && !pages.length) {
+        add("msg bot", raw);
+      } else if (!pages.length) {
+        add("msg bot", "(empty)");
+      }
+      const summaryUrl = turn.summary_url;
+      if (!summaryUrl) {
+        logEl.scrollTop = logEl.scrollHeight;
+        return;
+      }
       const row = document.createElement("div");
       row.className = "summary-link";
       row.appendChild(document.createTextNode("......... "));
@@ -203,6 +368,120 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
+    function pdfIcon() {
+      const ns = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(ns, "svg");
+      svg.setAttribute("class", "artifact-icon");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(ns, "path");
+      path.setAttribute("fill", "currentColor");
+      path.setAttribute("d", "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm0 2.5L18.5 9H14zM8 12h8v1.5H8zm0 3h8v1.5H8zm0-6h5v1.5H8z");
+      svg.appendChild(path);
+      return svg;
+    }
+
+    function addArtifacts(turn) {
+      for (const pdf of turn.pdfs || []) {
+        if (!pdf || !pdf.url || !pdf.name) continue;
+        const row = document.createElement("div");
+        row.className = "artifact";
+        row.appendChild(pdfIcon());
+        const label = document.createElement("span");
+        label.className = "artifact-name";
+        label.textContent = pdf.name;
+        row.appendChild(label);
+        const link = document.createElement("a");
+        link.className = "artifact-btn";
+        link.href = pdf.url + (pdf.url.indexOf("?") >= 0 ? "&" : "?") + "download=1";
+        link.setAttribute("download", pdf.name);
+        link.textContent = "Save to PDF";
+        row.appendChild(link);
+        logEl.appendChild(row);
+      }
+      for (const page of turn.html_pages || []) {
+        if (!page || !page.url) continue;
+        const row = document.createElement("div");
+        row.className = "artifact";
+        const label = document.createElement("span");
+        label.className = "artifact-name";
+        label.textContent = page.name || "page.html";
+        row.appendChild(label);
+        const link = document.createElement("a");
+        link.className = "artifact-btn";
+        link.href = page.url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "View HTML page";
+        row.appendChild(link);
+        logEl.appendChild(row);
+      }
+      addProfileChip(turn);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function previewProfile(update) {
+      const bits = [];
+      if (update.name) bits.push(update.name);
+      if (update.role) bits.push(update.role);
+      if (Array.isArray(update.skills) && update.skills.length) bits.push("skills: " + update.skills.slice(0, 4).join(", "));
+      if (Array.isArray(update.education) && update.education.length) bits.push("education: " + update.education.slice(0, 2).join(", "));
+      if (Array.isArray(update.links) && update.links.length) bits.push("links: " + update.links.length);
+      return bits.join(" · ");
+    }
+
+    function addProfileChip(turn) {
+      const update = turn.profile_update;
+      if (!update || typeof update !== "object") return;
+      const preview = previewProfile(update);
+      if (!preview) return;
+      const runId = turn.run_id || turn.id;
+      const row = document.createElement("div");
+      row.className = "artifact";
+      const label = document.createElement("span");
+      label.className = "artifact-name";
+      label.textContent = "Profile: " + preview;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "artifact-btn";
+      const saved = profileApplied.has(runId);
+      btn.textContent = saved ? "Saved" : "Save to board";
+      btn.disabled = saved;
+      btn.addEventListener("click", async () => {
+        if (!runId || btn.disabled) return;
+        btn.disabled = true;
+        try {
+          const res = await fetch("/profile", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(devicePayload({ run_id: runId })),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (data.ok) {
+            profileApplied.add(runId);
+            btn.textContent = "Saved";
+            return;
+          }
+          btn.disabled = false;
+        } catch {
+          btn.disabled = false;
+        }
+      });
+      row.appendChild(label);
+      row.appendChild(btn);
+      logEl.appendChild(row);
+    }
+
+    async function loadProfileState() {
+      try {
+        const res = await fetch(withDevice("/profile"));
+        const data = await res.json();
+        profileApplied = new Set(data.applied_runs || []);
+      } catch {
+        profileApplied = new Set();
+      }
+    }
+
     function sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
@@ -213,7 +492,7 @@
         await sleep(1000);
         let data;
         try {
-          const res = await fetch("/history");
+          const res = await fetch(withDevice("/history"));
           data = await res.json();
         } catch {
           continue;
@@ -237,7 +516,8 @@
     }
 
     async function loadHistory() {
-      const res = await fetch("/history");
+      await loadProfileState();
+      const res = await fetch(withDevice("/history"));
       const data = await res.json();
       const turns = data.turns || [];
       for (const turn of turns) paintTurn(turn);
@@ -279,7 +559,12 @@
         const res = await fetch("/turns", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, thread_id: threadEl.value || null }),
+          body: JSON.stringify(devicePayload({
+            prompt,
+            thread_id: threadEl.value || null,
+            coding: codingEl.checked,
+            git_remote: codingEl.checked ? (repoEl.value || "").trim() : "",
+          })),
         });
         if (res.status === 409) {
           setProgress("Busy — wait for the current turn to finish.");
@@ -314,11 +599,15 @@
             else if (ev === "error") setProgress(payload.text || "Run stopped");
             else if (ev === "answer") {
               clearProgress();
-              addBot(payload.text || "(empty)", payload.summary_url);
+              addBot(payload);
+              addArtifacts(payload);
               const bits = [];
               if (payload.level) bits.push("level=" + payload.level);
+              if (payload.shape) bits.push("shape=" + payload.shape);
               if (payload.run_id) bits.push("run_id=" + payload.run_id);
+              if (payload.git_remote) bits.push("git=" + payload.git_remote);
               if (payload.thread_id) bits.push("thread_id=" + payload.thread_id);
+              addCommittee(bits, payload.committee);
               for (const notice of payload.notices || []) bits.push(notice);
               if (bits.length) add("meta", bits.join("  "));
               if (payload.thread_id) await loadThreads(payload.thread_id);

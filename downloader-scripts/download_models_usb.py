@@ -22,7 +22,7 @@ from huggingface_hub import hf_hub_download, login
 # Preferred role order is the picker order (first tagged file is the lead).
 USB_ROLES: dict[str, dict] = {
     "router": {
-        "use": ["route"],
+        "use": ["route", "evaluate", "test"],
         "license": "apache-2.0",
         "primary": {
             "repo_id": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
@@ -122,7 +122,7 @@ USB_ROLES: dict[str, dict] = {
         },
     },
     "builder_qwen": {
-        "use": ["plan", "language"],
+        "use": ["plan", "manage", "document", "language"],
         "license": "apache-2.0",
         "primary": {
             "repo_id": "bartowski/Qwen_Qwen3-14B-GGUF",
@@ -142,7 +142,7 @@ USB_ROLES: dict[str, dict] = {
         },
     },
     "builder_llama": {
-        "use": ["plan", "language"],
+        "use": ["plan", "language", "document", "critique", "manage"],
         "license": "llama3.1",
         "primary": {
             "repo_id": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
@@ -162,7 +162,7 @@ USB_ROLES: dict[str, dict] = {
         },
     },
     "builder_gemma": {
-        "use": ["plan", "language"],
+        "use": ["plan", "critique"],
         "license": "gemma",
         "primary": {
             "repo_id": "bartowski/gemma-2-9b-it-GGUF",

@@ -34,6 +34,50 @@ class Blackboard:
 
 
 @dataclass
+class CritiqueItem:
+    item_id: str
+    text: str
+    score: str = ""
+    status: str = "open"
+
+
+@dataclass
+class TestItem:
+    name: str
+    feature: str = ""
+    status: str = "pending"
+    detail: str = ""
+
+
+@dataclass
+class CommitItem:
+    message: str
+    when: str = ""
+    sha: str = ""
+    skipped: str = ""
+
+
+@dataclass
+class CommitteeBoard:
+    coding_rules: str = ""
+    features: str = ""
+    architecture: str = ""
+    code: str = ""
+    tests: list[TestItem] = field(default_factory=list)
+    critiques: list[CritiqueItem] = field(default_factory=list)
+    commits: list[CommitItem] = field(default_factory=list)
+    last_push: str = ""
+    docs: str = ""
+    phase: str = "0"
+    round: int = 0
+    last_vote: dict[str, str] = field(default_factory=dict)
+    vote_open: bool = False
+    phase_complete: bool = False
+    stop: bool = False
+    commits_since_push: int = 0
+
+
+@dataclass
 class Run:
     run_id: str
     level: str = "small"
@@ -69,6 +113,12 @@ class Run:
     secondary_provider: str | None = None
     thread_id: str | None = None
     thread: dict[str, Any] | None = None
+    committee: CommitteeBoard | None = None
+    committee_stage: str = ""
+    git_remote: str | None = None
+    shape: str = ""
+    coding: bool = False
+    profile_updates: list[dict[str, Any]] = field(default_factory=list)
 
 
 _RUNS: dict[str, Run] = {}

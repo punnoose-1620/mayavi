@@ -12,13 +12,12 @@ ROUTER_SYSTEM = """You are the routing model. You do not answer the user. You on
 
 You are the smallest model in the system. Stay cheap and strict. If unsure about stakes, mark them low. If unsure about effort, round counts down. Greetings, chat, summaries, and casual how-to are low stakes.
 
-Prefer a direct spoken answer. Count a tool family only when the user clearly needs it. Do not count file, web, or code tools just because they exist. "hi", chat, and questions that can be answered from the model's own knowledge are file_ops 0, web_ops 0, needs_code_exec no.
+Prefer a direct spoken answer. Count a tool family only when the user clearly needs it. Do not count file or web tools just because they exist. "hi", chat, and questions that can be answered from the model's own knowledge are file_ops 0, web_ops 0.
 
-Output only these fields. Do not output small, medium, or large. Do not invent tools that are not listed.
+Output only these fields. Do not output small, medium, or large. Do not invent tools that are not listed. Do not output needs_code_exec. The operator chooses whether this is a coding task.
 
 - file_ops: 0 | 1 | 2 | 3+
 - web_ops: 0 | 1 | 2+
-- needs_code_exec: yes | no
 - mail_cal: off | read | write
 - stakes: low | high
 - intent: one short sentence of what the user wants
@@ -27,9 +26,7 @@ file_ops is how many file tool calls the job needs (read, discovery, or write). 
 
 web_ops is how many web tool calls the job needs. v1 calls are search_web, get_url, and post_url. Count web if they asked to search the web, google something, look up a live fact, or fetch/scrape a URL. Search then one page fetch is 1. Several pages is 2+. Casual "how do I" questions that the model can answer from training are 0. Do not count web because the word search appears in a file-search or code-search request.
 
-needs_code_exec is yes only if the job cannot finish without writing and running new custom code in the closed sandbox. Using the provided PDF/doc writer is not code execution. Reading, summarizing, or explaining code that was already saved under outputs/ is a file read: file_ops at least 1, needs_code_exec no. Do not mark yes because they mentioned tests, matrices, or an earlier build. If unsure, mark no.
-
-mail_cal is off unless the user clearly needs inbox or calendar. Default off when needs_code_exec is yes. Use read for list/open/search/free-busy only. Use write only for send, reply, create, update, or cancel events. Coding tasks must not get schedule access.
+mail_cal is off unless the user clearly needs inbox or calendar. Use read for list/open/search/free-busy only. Use write only for send, reply, create, update, or cancel events.
 
 High stakes: legal, official, contractual, policy, government, financial, medical, or something they will sign, file, send as official, or rely on as a record. Only mark high when that is clearly true. If unsure, mark low.
 
@@ -45,17 +42,60 @@ MAIL = {"off", "read", "write"}
 STAKES = {"low", "high"}
 
 
-def mapRoute(fields: dict[str, Any], run_id: str, agent_name: str) -> dict[str, Any]:
-    cleaned = normalize_fields(fields)
-    if cleaned["stakes"] == "high":
-        level = "large"
-    elif cleaned["needs_code_exec"] == "yes":
-        level = "large"
-    elif cleaned["file_ops"] == "3+" or cleaned["web_ops"] == "2+":
-        level = "medium"
+def apply_user_controls(fields: dict[str, Any], *, coding: Any = None, git_remote: str | None = None) -> dict[str, Any]:
+    """Operator coding flag and GitHub URL win over the router."""
+    import git_tools
+
+    out = dict(fields)
+    flag = coding if coding is not None else out.get("coding")
+    is_coding = _flag(flag)
+    out["coding"] = is_coding
+    if is_coding:
+        out["needs_code_exec"] = "yes"
+        out["mail_cal"] = "off"
+        out["git_remote"] = git_tools.public_github_remote(git_remote if git_remote is not None else out.get("git_remote"))
     else:
+        out["needs_code_exec"] = "no"
+        out["git_remote"] = None
+    return out
+
+
+def _flag(value: Any) -> bool:
+    if value is True:
+        return True
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def mapRoute(fields: dict[str, Any], run_id: str, agent_name: str) -> dict[str, Any]:
+    controlled = apply_user_controls(fields)
+    cleaned = normalize_fields(controlled)
+    coding = bool(controlled.get("coding"))
+    git_remote = controlled.get("git_remote") if coding else None
+    if coding:
+        cleaned["needs_code_exec"] = "yes"
+        cleaned["mail_cal"] = "off"
+        level = "large"
+        shape = "coding"
+    elif cleaned["stakes"] == "high":
+        cleaned["needs_code_exec"] = "no"
+        level = "large"
+        shape = "review"
+    elif cleaned["file_ops"] == "3+" or cleaned["web_ops"] == "2+":
+        cleaned["needs_code_exec"] = "no"
+        level = "medium"
+        shape = "medium"
+    else:
+        cleaned["needs_code_exec"] = "no"
         level = "small"
-    result = {**cleaned, "ok": True, "level": level}
+        shape = "small"
+    result = {
+        **cleaned,
+        "ok": True,
+        "level": level,
+        "shape": shape,
+        "coding": coding,
+        "git_remote": git_remote,
+    }
     return logger.finish(
         event="route",
         tool="mapRoute",
@@ -65,7 +105,7 @@ def mapRoute(fields: dict[str, Any], run_id: str, agent_name: str) -> dict[str, 
         level=level,
         stakes=cleaned["stakes"],
         mail_cal=cleaned["mail_cal"],
-        summary=f"level={level} file_ops={cleaned['file_ops']} web_ops={cleaned['web_ops']}",
+        summary=f"level={level} shape={shape} file_ops={cleaned['file_ops']} web_ops={cleaned['web_ops']}",
     )
 
 

@@ -24,6 +24,13 @@ def main(argv: list[str] | None = None) -> int:
         metavar="thr_id",
         help="Attach a durable thread (state/threads). Raises a mapped-small run to medium.",
     )
+    parser.add_argument("--code", action="store_true", help="Run the sequential coding committee")
+    parser.add_argument(
+        "--repo",
+        default=None,
+        metavar="URL",
+        help="GitHub repo https://github.com/owner/repo (coding only). Empty or invalid hides git tools.",
+    )
     args = parser.parse_args(argv)
     prompt = " ".join(args.prompt).strip()
     if not prompt:
@@ -31,8 +38,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     generate_fn = stub_generate if args.no_model else None
     fields = _route_fields(prompt, args.no_model)
-    if fields.get("level") == "large" and not args.json:
-        print("working (large) — sequential models, this can take a while…", flush=True)
+    fields = router.apply_user_controls(fields, coding=args.code, git_remote=args.repo)
+    if not args.json:
+        if fields.get("coding"):
+            print("working (coding committee) — sequential models, this can take a while…", flush=True)
+        elif str(fields.get("stakes") or "") == "high":
+            print("working (review committee) — sequential models, this can take a while…", flush=True)
     try:
         result = executor.run_session(
             prompt, fields, generate_fn=generate_fn, provider=args.provider, thread_id=args.thread
@@ -76,9 +87,19 @@ def _print_run(prompt: str, result: dict[str, Any]) -> None:
         f"ok={result.get('ok')} level={result.get('level')} "
         f"stakes={result.get('stakes')} mail_cal={result.get('mail_cal')} "
         f"run_id={result.get('run_id')}"
+        + (f" shape={result.get('shape')}" if result.get("shape") else "")
+        + (f" git={result.get('git_remote')}" if result.get("git_remote") else "")
         + (f" thread_id={result.get('thread_id')}" if result.get("thread_id") else ""),
         flush=True,
     )
+    board = result.get("committee")
+    if isinstance(board, dict):
+        vote = board.get("vote") or {}
+        print(
+            f"committee phase={board.get('phase')} round={board.get('round')} "
+            f"shipped={board.get('shipped')} vote={vote}",
+            flush=True,
+        )
     for notice in result.get("notices") or []:
         print(NOTICE_TEXT.get(str(notice).split(":", 1)[0], str(notice)), flush=True)
 
@@ -129,6 +150,8 @@ def _route_fields(prompt: str, no_model: bool) -> dict[str, Any]:
 
 
 def stub_generate(run: Any, agent: Any, history: list[dict[str, str]]) -> str:
+    if getattr(run, "committee", None) is not None:
+        return _stub_committee(run, agent, history)
     tool_turns = sum(1 for m in history if m.get("role") == "tool")
     if run.level in {"medium", "large"}:
         body = f"{agent.role}: {run.intent}"
@@ -139,6 +162,52 @@ def stub_generate(run: Any, agent: Any, history: list[dict[str, str]]) -> str:
             return json.dumps({"tool": "sendMessageToBlackboard", "args": {"kind": "vote", "body": run.intent}})
         return json.dumps({"final": run.intent})
     return json.dumps({"final": f"(no local model) {run.intent}"})
+
+
+def _stub_committee(run: Any, agent: Any, history: list[dict[str, str]]) -> str:
+    stage = str(getattr(run, "committee_stage", "") or "")
+    role = agent.role
+    tools_done = sum(1 for m in history if m.get("role") == "tool")
+    intent = str(run.intent or run.user_prompt or "hello").strip() or "hello"
+    if stage == "vote":
+        return json.dumps({"vote": "yes", "final": f"{role} yes"})
+    if role == "manager" and stage == "phase0":
+        return json.dumps(
+            {
+                "board_update": {
+                    "features": f"{intent}; non-goals: network, secrets",
+                    "architecture": "hello.py CLI",
+                },
+                "final": "phase 0 contract",
+            }
+        )
+    if role == "coder":
+        if tools_done == 0:
+            return json.dumps(
+                {
+                    "tool": "sandbox_write",
+                    "args": {"path": "hello.py", "content": "print('hello')\n"},
+                }
+            )
+        return json.dumps({"board_update": {"code": "hello.py print hello"}, "final": "wrote hello.py"})
+    if role == "tester":
+        if tools_done == 0:
+            return json.dumps({"tool": "executeScriptInSandbox", "args": {"path": "hello.py"}})
+        return json.dumps(
+            {
+                "board_update": {"tests": [{"name": "hello", "feature": intent, "status": "pass"}]},
+                "final": "tests pass",
+            }
+        )
+    if role == "critique":
+        return json.dumps({"board_update": {"critiques": ["none blocking"]}, "final": "no blockers"})
+    if role == "evaluator":
+        return json.dumps({"final": "bar met"})
+    if role == "manager":
+        return json.dumps({"call_vote": True, "final": "ready to vote"})
+    if role == "documenter":
+        return json.dumps({"board_update": {"docs": f"README: {intent}"}, "final": "documented"})
+    return json.dumps({"final": "ok"})
 
 
 if __name__ == "__main__":

@@ -12,11 +12,14 @@ from typing import Any, Callable
 from urllib.parse import urlencode
 
 import blackboard
+import committee
 import config
+import git_tools
 import google_backend
 import logger
 import mailAndCalendar
 import models
+import profile
 import runtime
 import store
 import web_scrape
@@ -194,8 +197,12 @@ def setSessionDetails(run_id: str) -> dict[str, Any]:
         ],
         "sandbox_id": run.run_id if run.sandbox_path else None,
         "keep_path": str(run.keep_path) if run.keep_path else None,
-        "may_execute": [a.agent_name for a in run.agents.values() if a.role == "executor"],
-        "may_write": [a.agent_name for a in run.agents.values() if a.role == "builder"],
+        "may_execute": [
+            a.agent_name for a in run.agents.values() if a.role in {"executor", "tester"}
+        ],
+        "may_write": [
+            a.agent_name for a in run.agents.values() if a.role in {"builder", "coder"}
+        ],
         "mail_cal": run.mail_cal,
         "provider": run.provider,
         "account_email": run.account_email,
@@ -281,6 +288,9 @@ def run_session(
     run.web_ops = mapped["web_ops"]
     run.needs_code_exec = mapped["needs_code_exec"]
     run.intent = mapped["intent"]
+    run.shape = str(mapped.get("shape") or run.level)
+    run.coding = bool(mapped.get("coding"))
+    run.git_remote = mapped.get("git_remote") or None
     blackboard.bind_thread(run, thread_id)
     if blackboard.shipped_keep_paths(run.thread):
         if not _ops_needed(run.file_ops):
@@ -310,6 +320,12 @@ def run_session(
         "thread_id": run.thread_id,
         "summary_url": keep_summary_url(run),
         "notices": list(run.notices),
+        "committee": _committee_meta(run),
+        "shape": run.shape,
+        "coding": run.coding,
+        "git_remote": run.git_remote,
+        "pdfs": _pdf_artifacts(run),
+        "profile_update": profile.merge(run.profile_updates),
     }
 
 
@@ -474,33 +490,183 @@ def _run_medium(run: Run) -> str:
 
 
 def _run_large(run: Run) -> str:
+    if run.coding:
+        return _run_coding(run)
+    return _run_review(run)
+
+
+def _run_coding(run: Run) -> str:
     createKeepDir(run.run_id)
     createSandbox(run.run_id)
-    lead, support = _committee_roles(run)
-    exec_name = createAgent(run.run_id, "executor", lead, parent_agent=run.router_agent)["agent_name"]
-    builder_roles = support or list(BACKUP_BUILDERS)
-    builders = [
-        createAgent(run.run_id, "builder", role, parent_agent=run.router_agent)["agent_name"]
-        for role in builder_roles
-    ]
     createBlackBoard(run.run_id)
     setBlackBoardRules(run.run_id, pin_coding_rules=True)
+    run.committee = store.CommitteeBoard(coding_rules=_coding_rules_text(), phase="0")
+    if not _ops_needed(run.file_ops):
+        run.file_ops = "1"
     blackboard.pin_context_card(run)
     if run.mail_cal != "off":
         _connect_mail(run)
+    names = _spawn_committee(run)
     setSessionDetails(run.run_id)
-    order = builders + [exec_name] + builders + [exec_name]
+    _committee_turn(run, names["manager"], "phase0")
+    if run.committee and not str(run.committee.features or "").strip():
+        run.committee.features = (run.user_prompt or run.intent or "phase 1").strip()
+    if run.committee and not str(run.committee.architecture or "").strip():
+        run.committee.architecture = "sandbox scripts (.py / .html / .css / .js)"
+    run.committee.phase = "1"
+    max_rounds = int(config.COMMITTEE_MAX_ROUNDS)
+    for rnd in range(1, max_rounds + 1):
+        run.committee.round = rnd
+        if run.committee.stop or run.committee.phase_complete:
+            break
+        _committee_turn(run, names["coder"], "code")
+        _committee_turn(run, names["tester"], "test")
+        _committee_turn(run, names["critique"], "critique")
+        _committee_turn(run, names["evaluator"], "evaluate")
+        _committee_turn(run, names["manager"], "plan")
+        if not run.committee.stop:
+            run.committee.vote_open = True
+        if run.committee.vote_open:
+            _committee_ballot(run, names)
+            run.committee.vote_open = False
+            votes = run.committee.last_vote
+            if committee.should_commit(votes):
+                run.ship_unlocked = True
+                _copy_sandbox_out(run)
+                who = names["manager"]
+                if run.git_remote:
+                    git_tools.git_login(agent_id=who)
+                git_tools.git_commit(_committee_commit_message(run), agent_id=who)
+                if run.git_remote and committee.should_push(run.committee.commits_since_push):
+                    git_tools.git_push(agent_id=who)
+                _committee_turn(run, names["documenter"], "document")
+            if committee.yes_count(votes) == len(committee.VOTING_ROLES):
+                run.committee.phase_complete = True
+                break
+        if run.committee.stop:
+            break
+    if run.git_remote and run.committee.commits_since_push and run.committee.stop:
+        git_tools.git_push(agent_id=names["manager"])
+    return _committee_user_answer(run)
+
+
+def _run_review(run: Run) -> str:
+    """High-stakes, not coding: builders + executor, blackboard ship vote, no git tools."""
+    createKeepDir(run.run_id)
+    createSandbox(run.run_id)
+    createBlackBoard(run.run_id)
+    setBlackBoardRules(run.run_id, pin_coding_rules=True)
+    if not _ops_needed(run.file_ops):
+        run.file_ops = "1"
+    blackboard.pin_context_card(run)
+    if run.mail_cal != "off":
+        _connect_mail(run)
+    _lead, support = _lead_and_support("plan", 3)
+    exec_model = committee.pick_model("code", ("executor", "builder_coder", "builder_qwen"))
+    exec_name = createAgent(run.run_id, "executor", exec_model, parent_agent=run.router_agent)["agent_name"]
+    builders: list[str] = []
+    models_cycle = list(support) or list(BACKUP_BUILDERS)
+    while len(builders) < 3:
+        model = models_cycle[len(builders) % len(models_cycle)]
+        builders.append(
+            createAgent(run.run_id, "builder", model, parent_agent=run.router_agent)["agent_name"]
+        )
+    setSessionDetails(run.run_id)
+    order = builders + [exec_name] + builders[:2] + [exec_name] + [builders[0], exec_name]
     for name in order:
         createThread(name)
         startThread(name)
         endThread(name)
         deleteThread(name)
-    _refresh_ship_lock(run)
     if run.ship_unlocked:
-        if not _ops_needed(run.file_ops):
-            run.file_ops = "1"
         _run_ship_summary(run, exec_name)
     return select_vote(run)
+
+
+def _spawn_committee(run: Run) -> dict[str, str]:
+    picks = {
+        "manager": committee.pick_model("manage", ("builder_qwen", "builder_llama", "executor")),
+        "coder": committee.pick_model("code", ("executor", "builder_coder", "builder_qwen")),
+        "tester": committee.pick_model("test", ("router", "builder_llama", "executor")),
+        "critique": committee.pick_model("critique", ("builder_gemma", "builder_llama", "builder_qwen")),
+        "evaluator": committee.pick_model("evaluate", ("router", "builder_llama")),
+        "documenter": committee.pick_model("document", ("builder_llama", "builder_qwen", "router")),
+    }
+    names: dict[str, str] = {}
+    for role, model_role in picks.items():
+        created = createAgent(run.run_id, role, model_role, parent_agent=run.router_agent)
+        names[role] = created["agent_name"]
+    return names
+
+
+def _committee_turn(run: Run, agent_name: str, stage: str) -> None:
+    if agent_name not in run.agents:
+        return
+    run.committee_stage = stage
+    role = run.agents[agent_name].role
+    rnd = run.committee.round if run.committee else 0
+    logger.finish(
+        event="factory",
+        tool="committeeTurn",
+        run_id=run.run_id,
+        agent_name=agent_name,
+        result={"ok": True, "role": role, "stage": stage, "round": rnd},
+        level=run.level,
+        stakes=run.stakes,
+        mail_cal=run.mail_cal,
+        summary=f"role={role} stage={stage} round={rnd}",
+    )
+    if stage in {"code", "test"}:
+        runtime.openSandbox(agent_id=agent_name)
+    createThread(agent_name)
+    startThread(agent_name)
+    endThread(agent_name)
+    deleteThread(agent_name)
+    run.committee_stage = ""
+
+
+def _committee_ballot(run: Run, names: dict[str, str]) -> None:
+    if run.committee is None:
+        return
+    run.committee.last_vote = {}
+    for role in committee.VOTING_ROLES:
+        _committee_turn(run, names[role], "vote")
+
+
+def _committee_commit_message(run: Run) -> str:
+    board = run.committee
+    feat = (board.features if board else "")[:80] or (run.intent or "phase")
+    return f"committee r{board.round if board else 0}: {feat}"
+
+
+def _protocol_blob(text: str | None) -> bool:
+    body = str(text or "").strip()
+    if not body.startswith("{"):
+        return False
+    parsed = committee.parse_committee_json(body)
+    if parsed.get("board_update") or parsed.get("call_vote") or parsed.get("vote") is not None:
+        return True
+    if parsed.get("tool"):
+        return True
+    return False
+
+
+def _committee_user_answer(run: Run) -> str:
+    if run.ship_unlocked:
+        summary = _keep_summary(run)
+        if summary:
+            return summary
+    board = run.committee
+    if board and board.features:
+        vote = json.dumps(board.last_vote, ensure_ascii=False) if board.last_vote else "{}"
+        body = board.features.strip()
+        if len(body) > 800:
+            body = body[:799] + "…"
+        return f"Committee phase {board.phase} round {board.round}.\nVote: {vote}\n{body}"
+    latest = _latest_final(run)
+    if latest and not _protocol_blob(latest) and not _pointer_answer(latest):
+        return latest
+    return _unshipped_summary(run)
 
 
 def _teardown(run: Run) -> None:
@@ -538,6 +704,8 @@ def _run_agent_loop(run: Run, agent: Agent) -> dict[str, Any]:
     tools = _tools_for(run, agent)
     system = _system_prompt(run, agent, tools)
     user = run.user_prompt
+    if run.committee is not None:
+        user = committee.user_payload(run, agent)
     if run.summarize_keep and run.keep_path is not None:
         user = (
             f"The build shipped to {run.keep_path}. "
@@ -547,10 +715,20 @@ def _run_agent_loop(run: Run, agent: Agent) -> dict[str, Any]:
         )
     agent.history.append({"role": "system", "content": system})
     agent.history.append({"role": "user", "content": user})
-    max_steps = 8
+    max_steps = 5 if run.committee is not None else 8
     final = ""
     for _ in range(max_steps):
         raw = _generate(run, agent, agent.history)
+        for blob in _extract_json_objects(raw):
+            if isinstance(blob, dict):
+                profile.collect(run, blob)
+        if run.committee is not None:
+            blobs = [b for b in _extract_json_objects(raw) if isinstance(b, dict)]
+            if blobs:
+                for blob in blobs:
+                    committee.ingest_output(run, agent, blob)
+            else:
+                committee.ingest_output(run, agent, committee.parse_committee_json(raw))
         items = _parse_all_model_output(raw)
         tools_this = [p for p in items if p.get("tool")]
         for parsed in tools_this:
@@ -578,6 +756,11 @@ def _run_agent_loop(run: Run, agent: Agent) -> dict[str, Any]:
             leftover = (raw or "").strip()
             if leftover and not items and _usable_answer(leftover):
                 text = leftover
+            elif leftover and run.committee is not None:
+                parsed_c = committee.parse_committee_json(leftover)
+                cand = str(parsed_c.get("final") or "").strip()
+                if cand and _usable_answer(cand):
+                    text = cand
         if text:
             final = text
             agent.history.append({"role": "final", "content": final})
@@ -680,7 +863,7 @@ def _pointer_answer(text: str | None) -> bool:
 def _user_answer(run: Run, answer: str | None) -> str:
     """Last gate before the UI/CLI see a reply. Pointer words never leave a large run."""
     text = str(answer or "").strip()
-    if run.level == "large" and (not text or _pointer_answer(text)):
+    if run.level == "large" and (not text or _pointer_answer(text) or _protocol_blob(text)):
         return _large_fallback_answer(run)
     if not text:
         return "The run finished without a usable answer."
@@ -690,6 +873,8 @@ def _user_answer(run: Run, answer: str | None) -> str:
 def _usable_answer(text: str | None) -> bool:
     body = str(text or "").strip()
     if not body:
+        return False
+    if _protocol_blob(body):
         return False
     lowered = body.lower()
     if lowered in {
@@ -866,13 +1051,13 @@ def _tools_for(run: Run, agent: Agent) -> dict[str, Callable[..., Any]]:
             end=_as_int(kw.get("end", 1), 1),
             agent_id=aid,
         )
-        if agent.role == "builder":
+        if agent.role in {"builder", "coder"}:
             tools["sandbox_write"] = lambda **kw: runtime.sandbox_write(
                 path=str(kw.get("path") or kw.get("file") or kw.get("filename") or ""),
                 content=str(kw.get("content") or kw.get("text") or kw.get("code") or ""),
                 agent_id=aid,
             )
-        if agent.role == "executor":
+        if agent.role in {"executor", "tester"}:
             tools["executeScriptInSandbox"] = lambda **kw: runtime.executeScriptInSandbox(
                 path=str(kw.get("path") or kw.get("file") or ""),
                 timeout=_exec_timeout(kw.get("timeout")),
@@ -886,6 +1071,13 @@ def _tools_for(run: Run, agent: Agent) -> dict[str, Callable[..., Any]]:
                 end=_as_int(kw.get("end", 1), 1),
                 agent_id=aid,
             )
+    if run.committee is not None:
+        tools["updateBoard"] = lambda **kw: _tool_update_board(run, agent, kw)
+        tools["viewCommitteeBoard"] = lambda **kw: _tool_view_board(run, agent, kw)
+        if agent.role == "manager":
+            tools["callVote"] = lambda **kw: _tool_call_vote(run, agent)
+            if run.git_remote:
+                tools["git_login"] = lambda **kw: git_tools.git_login(agent_id=aid)
     if run.mail_cal != "off" and _mail_manager(run, agent):
         for name in (
             "listMails",
@@ -906,6 +1098,8 @@ def _tools_for(run: Run, agent: Agent) -> dict[str, Callable[..., Any]]:
 
 
 def _mail_manager(run: Run, agent: Agent) -> bool:
+    if run.committee is not None:
+        return agent.role == "manager"
     if run.level == "large":
         return agent.role == "executor"
     return agent.role == "drafter"
@@ -946,13 +1140,78 @@ def _dispatch_tool(run: Run, agent: Agent, name: str, args: dict[str, Any]) -> d
         )
 
 
+def _tool_update_board(run: Run, agent: Agent, kw: dict[str, Any]) -> dict[str, Any]:
+    if run.committee is None:
+        return logger.finish(
+            event="tool",
+            tool="updateBoard",
+            run_id=run.run_id,
+            agent_name=agent.agent_name,
+            result={"ok": False, "error": "no_board"},
+        )
+    section = str(kw.get("section") or kw.get("kind") or "")
+    content = kw.get("content") if "content" in kw else kw.get("body") or kw.get("text")
+    result = committee.apply_update(run.committee, agent.role, section, content)
+    return logger.finish(
+        event="tool",
+        tool="updateBoard",
+        run_id=run.run_id,
+        agent_name=agent.agent_name,
+        result=result,
+    )
+
+
+def _tool_view_board(run: Run, agent: Agent, kw: dict[str, Any]) -> dict[str, Any]:
+    if run.committee is None:
+        return logger.finish(
+            event="tool",
+            tool="viewCommitteeBoard",
+            run_id=run.run_id,
+            agent_name=agent.agent_name,
+            result={"ok": False, "error": "no_board"},
+        )
+    pages = committee.view_pages(agent.role, run.committee)
+    total = len(pages) or 1
+    chunk = max(1, min(_as_int(kw.get("chunk", kw.get("n", 1)), 1), total))
+    return logger.finish(
+        event="tool",
+        tool="viewCommitteeBoard",
+        run_id=run.run_id,
+        agent_name=agent.agent_name,
+        result={"ok": True, "chunk": chunk, "total": len(pages), "view": pages[chunk - 1] if pages else ""},
+    )
+
+
+def _tool_call_vote(run: Run, agent: Agent) -> dict[str, Any]:
+    if run.committee is None or agent.role != "manager":
+        return logger.finish(
+            event="tool",
+            tool="callVote",
+            run_id=run.run_id,
+            agent_name=agent.agent_name,
+            result={"ok": False, "error": "role_denied"},
+        )
+    run.committee.vote_open = True
+    return logger.finish(
+        event="tool",
+        tool="callVote",
+        run_id=run.run_id,
+        agent_name=agent.agent_name,
+        result={"ok": True, "vote_open": True},
+    )
+
+
 def _unknown_tool_error(run: Run, agent: Agent, name: str) -> str:
     if name in WRITE_TOOL_NAMES and run.level == "large" and not run.ship_unlocked:
         return "ship_locked"
-    if name == "executeScriptInSandbox" and agent.role != "executor":
+    if name == "executeScriptInSandbox" and agent.role not in {"executor", "tester"}:
         return "role_denied"
-    if name == "sandbox_write" and agent.role != "builder":
+    if name == "sandbox_write" and agent.role not in {"builder", "coder"}:
         return "role_denied"
+    if name == "callVote" and agent.role != "manager":
+        return "role_denied"
+    if name == "git_login" and (agent.role != "manager" or not run.git_remote):
+        return "unknown_tool"
     if name in {"sendMessageToBlackboard", "viewBlackboardMessages", "viewSessionDetails"} and run.level == "small":
         return "level_denied"
     return "unknown_tool"
@@ -969,6 +1228,9 @@ _ARG_ALIASES = {
     "max_n": ("max_n", "num"),
     "n": ("n", "count"),
     "kind": ("kind",),
+    "section": ("section",),
+    "chunk": ("chunk", "page"),
+    "repo_url": ("repo_url", "url"),
     "start": ("start",),
     "end": ("end",),
     "type": ("type",),
@@ -998,6 +1260,10 @@ _TOOL_PARAMS = {
     "executeScriptInSandbox": {"path", "timeout"},
     "getResultsFromSandbox": {"start", "end"},
     "sandbox_fetch": {"url", "method", "body", "start", "end"},
+    "updateBoard": {"section", "content"},
+    "viewCommitteeBoard": {"chunk", "n"},
+    "callVote": set(),
+    "git_login": set(),
 }
 
 
@@ -1024,6 +1290,7 @@ def _tool_args(name: str, args: dict[str, Any]) -> dict[str, Any]:
         "search_web",
         "get_url",
         "post_url",
+        "viewCommitteeBoard",
     }:
         if "start" in out:
             out["start"] = _as_int(out["start"], 1)
@@ -1033,6 +1300,8 @@ def _tool_args(name: str, args: dict[str, Any]) -> dict[str, Any]:
             out["n"] = _as_int(out["n"], 20)
         if "max_n" in out:
             out["max_n"] = _as_int(out["max_n"], 10)
+        if "chunk" in out:
+            out["chunk"] = _as_int(out["chunk"], 1)
     return out
 
 
@@ -1043,6 +1312,8 @@ def _public_result(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]]) -> str:
+    if run.committee is not None:
+        return committee.system_prompt(run, agent, list(tools))
     names = ", ".join(sorted(tools))
     need_tools = _ops_needed(run.file_ops) or _ops_needed(run.web_ops) or run.mail_cal != "off" or run.level == "large"
     if need_tools:
@@ -1091,13 +1362,14 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
         "Allowed kinds: draft, critique, debug, vote. "
         "The script also records your final as a draft (builders/drafter) or vote (executor/checkers). "
         "Blackboard rules and debug messages are not the user answer.\n"
+        'If this turn established durable facts about the user (name, job title, skills, education, professional links), include "profile_update": {"name":"...","role":"...","skills":["..."],"education":["..."],"links":["..."]} with only keys you know. Do not guess.\n'
         "Do not pass agent_id. Do not request tokens or passwords.\n"
     )
 
 
 EXECUTE_ROLE_HINT = (
-    "Only the executor may run scripts. Builders write the .py; "
-    "the executor calls executeScriptInSandbox then getResultsFromSandbox."
+    "On a coding committee only the tester may run scripts. On a high-stakes review run only the executor may run scripts. "
+    "Builders/coders write the .py; they do not call executeScriptInSandbox."
 )
 
 
@@ -1136,7 +1408,7 @@ def _keep_summary(run: Run) -> str:
     files = [
         p.relative_to(keep).as_posix()
         for p in sorted(keep.rglob("*"))
-        if p.is_file() and p.name != "SUMMARY.md"
+        if p.is_file() and p.name != "SUMMARY.md" and ".git" not in p.relative_to(keep).parts
     ]
     if not files:
         return ""
@@ -1159,6 +1431,29 @@ def keep_summary_url(run: Run) -> str | None:
     if keep is None or not (keep / "SUMMARY.md").is_file():
         return None
     return "/keep?" + urlencode({"dir": keep.name, "file": "SUMMARY.md"})
+
+
+def _pdf_artifacts(run: Run) -> list[dict[str, str]]:
+    root = config.OUTPUTS.resolve()
+    rows: list[dict[str, str]] = []
+    for path in file_tools.pdf_paths_for_run(run.run_id, run.keep_path):
+        try:
+            rel = path.resolve().relative_to(root)
+        except ValueError:
+            continue
+        parts = rel.parts
+        if len(parts) < 2:
+            continue
+        folder = "/".join(parts[:-1])
+        name = parts[-1]
+        rows.append(
+            {
+                "name": name,
+                "dir": folder,
+                "url": "/keep?" + urlencode({"dir": folder, "file": name}),
+            }
+        )
+    return rows
 
 
 def _large_fallback_answer(run: Run) -> str:
@@ -1265,11 +1560,30 @@ def _ship_ready(run: Run) -> bool:
 
 
 def _refresh_ship_lock(run: Run) -> None:
-    if run.level != "large":
+    if run.level != "large" or run.committee is not None:
         return
     if _ship_ready(run):
         run.ship_unlocked = True
         _copy_sandbox_out(run)
+
+
+def _committee_meta(run: Run) -> dict[str, Any] | None:
+    board = run.committee
+    if board is None:
+        return None
+    feat = (board.features or "").strip()
+    if len(feat) > 160:
+        feat = feat[:159] + "…"
+    return {
+        "phase": board.phase,
+        "round": board.round,
+        "vote": dict(board.last_vote),
+        "shipped": run.ship_unlocked,
+        "phase_complete": board.phase_complete,
+        "commits": len(board.commits),
+        "features": feat,
+        "git_remote": run.git_remote,
+    }
 
 
 def _copy_sandbox_out(run: Run) -> None:

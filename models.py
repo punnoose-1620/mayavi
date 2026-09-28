@@ -22,6 +22,7 @@ _LLM = None
 _LOADED_ROLE: str | None = None
 _LOADED_PATH: Path | None = None
 _LOADED_ROOT: str | None = None
+_NO_SYSTEM_ROLE = False
 RESERVE_BYTES = 2 * 1024 ** 3
 GENERATE_MIN_AVAILABLE = 256 * 1024 ** 2
 _GPU_CHECK = None
@@ -82,6 +83,11 @@ def role_is_ready(role: str) -> bool:
     for item in _candidates(role, spec):
         path = item.get("path")
         if not path or not Path(path).is_file():
+            continue
+        try:
+            if not _ram_ok(Path(path)):
+                continue
+        except OSError:
             continue
         if item.get("filename") == primary_name:
             return True
@@ -317,6 +323,7 @@ def generate(role: str, prompt: str | None = None, messages: list[dict[str, str]
     try:
         if messages is None:
             messages = [{"role": "user", "content": prompt or ""}]
+        payload = _fold_system_messages(messages) if _NO_SYSTEM_ROLE else list(messages)
         if _available_ram() < GENERATE_MIN_AVAILABLE:
             unloadModel()
             return logger.finish(
@@ -326,11 +333,22 @@ def generate(role: str, prompt: str | None = None, messages: list[dict[str, str]
                 agent_name=agent,
                 result={"ok": False, "error": "ram_dropped", "role": role},
             )
-        out = _LLM.create_chat_completion(
-            messages=messages,
-            temperature=kwargs.get("temperature", 0.2),
-            max_tokens=kwargs.get("max_tokens", config.GENERATE_MAX_TOKENS),
-        )
+        try:
+            out = _LLM.create_chat_completion(
+                messages=payload,
+                temperature=kwargs.get("temperature", 0.2),
+                max_tokens=kwargs.get("max_tokens", config.GENERATE_MAX_TOKENS),
+            )
+        except Exception as exc:
+            if "system role not supported" not in str(exc).lower():
+                raise
+            globals()["_NO_SYSTEM_ROLE"] = True
+            payload = _fold_system_messages(messages)
+            out = _LLM.create_chat_completion(
+                messages=payload,
+                temperature=kwargs.get("temperature", 0.2),
+                max_tokens=kwargs.get("max_tokens", config.GENERATE_MAX_TOKENS),
+            )
         text = out["choices"][0]["message"]["content"] or ""
         return logger.finish(
             event="tool",
@@ -350,6 +368,27 @@ def generate(role: str, prompt: str | None = None, messages: list[dict[str, str]
         )
     finally:
         _INFER_LOCK.release()
+
+
+def _fold_system_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    systems: list[str] = []
+    rest: list[dict[str, str]] = []
+    for msg in messages:
+        role = str(msg.get("role") or "user").lower()
+        content = str(msg.get("content") or "")
+        if role == "system":
+            if content.strip():
+                systems.append(content.strip())
+            continue
+        rest.append({"role": role if role in {"user", "assistant"} else "user", "content": content})
+    if not systems:
+        return rest or messages
+    prefix = "\n\n".join(systems)
+    for i, msg in enumerate(rest):
+        if msg.get("role") == "user":
+            rest[i] = {"role": "user", "content": prefix + "\n\n" + msg.get("content", "")}
+            return rest
+    return [{"role": "user", "content": prefix}] + rest
 
 
 def checkAndUpdateModels(used_root: str | None = None) -> dict[str, Any]:

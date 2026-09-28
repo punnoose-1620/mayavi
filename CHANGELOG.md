@@ -6,6 +6,48 @@ Newest version first — the top entry is the current feature set, older release
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-28
+
+Large runs split into two loops. **Coding** is an operator control (CLI `--code`, UI checkbox), not a router guess. High stakes without coding restores the builders + executor **review** committee. Coding plus high stakes stays sequential.
+
+### Routing
+
+- The router no longer emits `needs_code_exec`. It still decides `stakes`, `file_ops`, `web_ops`, `mail_cal`, and `intent`.
+- Operator coding → sequential committee (`shape=coding`). Else high stakes → review (`shape=review`). Else `file_ops=3+` or `web_ops=2+` → medium. Else small.
+- Coding forces `mail_cal=off`. File/web gating is unchanged.
+
+### Coding committee
+
+- Roles, one at a time: manager (phase-0 contract, then plans) → coder → tester → critique → evaluator → vote. Documenter transcribes after a commit and does not vote.
+- Shared **board** with locked writers: coding rules, features/targets/baselines, architecture, code (paths + last diff), tests, critiques (open/score/status), commits + last push, docs.
+- Each agent sees a **view** of the board, not the whole dump. Long views are **chunked** for 4096-token workers (`viewCommitteeBoard` pages).
+- Votes are role-scoped. ≥4/5 copies the sandbox to keep and **commits**. 5/5 marks the phase complete. **Push every 5 commits** (or on stop) only when a valid GitHub URL was given. `COMMITTEE_MAX_ROUNDS` caps the loop.
+- Tester is the only coding role that executes. Coder is the only coding role that `sandbox_write`s.
+- `models.json` `use` tags include `manage`, `test`, `critique`, `evaluate`, `document`. The picker skips a GGUF that fails the RAM check so a 14B miss falls through to 7B/8B or the 3B backup.
+- `--no-model` drives the same sequential loop with stubs.
+- If phase 0 does not land a contract, the factory seeds features from the user prompt. Empty board updates do not wipe a filled section.
+- If a GGUF template rejects `system`, that text is folded into the first user message.
+
+### Review committee
+
+- High stakes, coding off: keep folder, sandbox, blackboard, `coding-rules.md`, three builders plus an executor.
+- Majority blackboard **ship** vote unlocks writers. No git tools.
+
+### GitHub remote
+
+- UI GitHub field appears only when coding is selected. CLI `--repo https://github.com/owner/repo`.
+- Empty or anything other than that public GitHub shape hides `git_login` from the schema. Keep-folder commits still run locally.
+- `git_login` / commit / push keep `GH_TOKEN` in process (HTTP extraHeader, never in the remote URL or tool result). Agents never see credentials. The factory does not open a browser. Keep-folder commits use a one-shot `git -c user.*` identity, not global git config.
+
+### Chat UI artifacts
+
+- Bot replies render as Markdown. Raw HTML in the answer is escaped. Fenced `html` blocks and full HTML documents become **View HTML page** on that reply (`GET /html`, CSP, no scripts). The session tape still stores the raw answer.
+- PDFs a run wrote under `outputs/` appear under that bot reply (icon, filename, **Save to PDF**), not next to the prompt. `/keep` may serve those PDFs (and still `SUMMARY.md`).
+- A structured `profile_update` on a reply shows **Save to board**. Confirm writes `state/profile.json`. The factory does not guess profile fields from prose.
+- Each browser stores a UUID in `localStorage`. Chat history lives in `state/ui-session/<uuid>/` (`session.jsonl`, `html/`, `meta.jsonl`). Starting the server does not rotate those tapes. Peer IP, User-Agent, and language are appended to `meta.jsonl` for later analytics and are not used to look up a session.
+
+Small and medium sessions are unchanged.
+
 ## [1.0.0] - 2026-09-18
 
 First working version: a local multi-agent runtime that routes one prompt into a small, medium, or large session and runs GGUF models one at a time behind a gated tool set.

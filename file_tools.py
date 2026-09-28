@@ -582,6 +582,45 @@ def _load_index() -> dict[str, Any]:
         return {}
 
 
+def pdf_paths_for_run(run_id: str, keep_path: Path | None = None) -> list[Path]:
+    """PDFs this run wrote under outputs/. Agents never call this."""
+    rid = str(run_id or "").strip()
+    root = config.OUTPUTS.resolve()
+    seen: set[str] = set()
+    out: list[Path] = []
+
+    def add(path: Path) -> None:
+        try:
+            dest = path.resolve()
+        except OSError:
+            return
+        if not dest.is_file() or dest.suffix.lower() != ".pdf":
+            return
+        try:
+            dest.relative_to(root)
+        except ValueError:
+            return
+        key = str(dest)
+        if key in seen:
+            return
+        seen.add(key)
+        out.append(dest)
+
+    if rid:
+        for key, meta in _load_index().items():
+            if not isinstance(meta, dict):
+                continue
+            if str(meta.get("run_id") or "") != rid:
+                continue
+            add(Path(str(meta.get("path") or key)))
+    if keep_path is not None:
+        folder = Path(keep_path)
+        if folder.is_dir():
+            for path in sorted(folder.rglob("*.pdf")):
+                add(path)
+    return out
+
+
 def _save_index(index: dict[str, Any]) -> None:
     config.CREATED_INDEX.parent.mkdir(parents=True, exist_ok=True)
     _atomic_write(config.CREATED_INDEX, json.dumps(index, indent=2).encode("utf-8"))

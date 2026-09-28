@@ -96,7 +96,7 @@ def executeScriptInSandbox(path: str, timeout: int | None = None, agent_id: str 
     denied = _sandbox_ready(run, agent_id, write=False)
     if denied:
         return _done("executeScriptInSandbox", run, agent_id, denied)
-    if run.agents[agent_id].role != "executor":
+    if run.agents[agent_id].role not in _exec_roles(run):
         return _done("executeScriptInSandbox", run, agent_id, {"ok": False, "error": "role_denied"})
     target = _inside(run.sandbox_path, path)
     if target is None or target.suffix.lower() != ".py":
@@ -166,7 +166,7 @@ def sandbox_fetch(url: str, method: str = "GET", body: str | None = None, start:
     denied = _sandbox_ready(run, agent_id, write=False)
     if denied:
         return _done("sandbox_fetch", run, agent_id, denied)
-    if run.agents[agent_id].role != "executor":
+    if run.agents[agent_id].role not in _exec_roles(run):
         return _done("sandbox_fetch", run, agent_id, {"ok": False, "error": "role_denied"})
     verb = str(method or "GET").strip().upper()
     if verb not in FETCH_METHODS:
@@ -259,9 +259,21 @@ def _sandbox_ready(run: Any, agent_id: str | None, *, write: bool) -> dict[str, 
         return {"ok": False, "error": "no_agent"}
     if not run.agents[agent_id].sandbox_bound:
         return {"ok": False, "error": "not_bound"}
-    if write and run.agents[agent_id].role != "builder":
+    if write and run.agents[agent_id].role not in _write_roles(run):
         return {"ok": False, "error": "role_denied"}
     return None
+
+
+def _write_roles(run: Any) -> set[str]:
+    if getattr(run, "committee", None) is not None:
+        return {"coder"}
+    return {"builder"}
+
+
+def _exec_roles(run: Any) -> set[str]:
+    if getattr(run, "committee", None) is not None:
+        return {"tester"}
+    return {"executor"}
 
 
 def _inside(root: Path, rel: str) -> Path | None:

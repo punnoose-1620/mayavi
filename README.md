@@ -7,12 +7,12 @@ Local multi-agent runtime that routes a user request into a **small**, **medium*
 
 It is designed to run on a single machine (overnight / sequential). It does **not** keep five models in RAM. Weights come from Hugging Face as GGUF files. Inference uses llama.cpp (`llama-cpp-python`).
 
-Release history lives in [`CHANGELOG.md`](CHANGELOG.md), newest version **first** (`1.0.2` above `1.0.1`, and so on), so the top entry is always the current feature set. Work that is deliberately not in v1 is parked in [`docs/v2-scope.md`](docs/v2-scope.md).
+Release history lives in [`CHANGELOG.md`](CHANGELOG.md), newest version **first** (`1.1.0` above `1.0.0`, and so on), so the top entry is always the current feature set. The large-run committee is specified in [`docs/committee.md`](docs/committee.md).
 
 ## What it does
 
-1. A **router** inspects the prompt and emits effort/stakes fields (not a tier name). It does not answer the user and does not call tools.
-2. The script maps those fields to `small` | `medium` | `large`.
+1. A **router** inspects the prompt and emits effort/stakes fields (not a tier name). It does not answer the user, does not call tools, and does not decide whether the job is a coding task.
+2. The script maps those fields to `small` | `medium` | `large`. The operator’s **coding** flag (CLI `--code` / UI checkbox) selects the sequential coding committee. High stakes without that flag selects the review committee.
 3. A **factory** (`executor.py`) creates agents, optional blackboard, optional sandbox, and (if requested) mail/calendar OAuth. File and web tools are **gated** from the router counts: `file_ops=0` hides writers/readers; `web_ops=0` hides scrape tools.
 4. Workers prefer a direct `{"final": "..."}`. They only get a tool if the router counted that family and the user asked for a file, URL, mail, or sandbox code.
 5. The CLI prints **one** user-facing answer (Prompt / Response / Meta). Tokens are not streamed. On medium/large, that answer comes from blackboard `vote` then `draft`. Factory `rules`, sandbox `debug`, and bare `ship` / `reject` / `saved` / `shipped` pointers are never the answer. After a large run ships, the answer is a summary of the keep folder; artifacts land in `outputs/<YYYY-MM-DD>_<intent-slug>/`. If they do not ship, the factory says so (and lists jail files / stdout when it has them) instead of the word `saved`. If the model only emits `final`, the script copies it onto the board.
@@ -22,24 +22,27 @@ Release history lives in [`CHANGELOG.md`](CHANGELOG.md), newest version **first*
 
 The router never outputs `small` / `medium` / `large`. Mapping is:
 
-| Condition | Tier |
+| Condition | Tier / shape |
 | --- | --- |
-| `stakes` is `high` | **large** (always) |
-| else `needs_code_exec` is `yes` | **large** |
+| Operator **coding** is on | **large** sequential coding committee (even if stakes are high) |
+| else `stakes` is `high` | **large** review committee (builders + executor) |
 | else `file_ops` is `3+` **or** `web_ops` is `2+` | **medium** |
 | else | **small** |
 
-`mail_cal` does not pick the tier. Coding tasks force `mail_cal` to `off`.
+`mail_cal` does not pick the tier. Coding tasks force `mail_cal` to `off`. The router does not emit `needs_code_exec`; that flag is set from the operator coding control.
 
-If the router is **unsure**, fields default **cheap**: `stakes=low`, `needs_code_exec=no`, `file_ops=0`, `web_ops=0` → **small**. High stakes only when the prompt is clearly legal/official/medical/financial (or similar). Greetings, chat, how-to, and summaries are low. A write counts toward `file_ops` only if the user asked to create or save a file. Summarizing or reading code already under `outputs/` is a file read (`file_ops` at least 1, `needs_code_exec=no`), not a new sandbox build. Missing or garbage router JSON uses those same cheap defaults (it does **not** round up to large).
+If the router is **unsure**, fields default **cheap**: `stakes=low`, `file_ops=0`, `web_ops=0` → **small** unless the operator marked coding. High stakes only when the prompt is clearly legal/official/medical/financial (or similar). Greetings, chat, how-to, and summaries are low. A write counts toward `file_ops` only if the user asked to create or save a file. Summarizing or reading code already under `outputs/` is a file read (`file_ops` at least 1), not a new sandbox build. Missing or garbage router JSON uses those same cheap defaults (it does **not** round up to large).
 
 | Tier | Agents | Blackboard | Sandbox | Typical use |
 | --- | --- | --- | --- | --- |
 | Small | 1 drafter | no | no | cheap Q&A, light file/web |
 | Medium | drafter + 2 checkers | yes + durable thread | no | more file/web work, review |
-| Large | 1 executor + builders | yes | **always** | high stakes and/or custom code |
+| Large (coding) | sequential committee (manager, coder, tester, critique, evaluator; documenter after commit) | sectioned board | **always** | operator marked coding |
+| Large (review) | executor + builders | blackboard ship vote | **always** | high stakes, not coding |
 
-Large always creates a sandbox and a keep folder, and injects `coding-rules.md`, even when the user task is not “write a program.” If the USB library is present, the factory picks builders from `models.json` `use` tags (coding large: 14B coder plus up to three other `code` models). If not, it uses the thinner backup pair (Llama 3.2 3B + Qwen 3B).
+Large **coding** always creates a sandbox and a keep folder, and injects `coding-rules.md`. Phase 0 is planning only. Then each round is coder → tester → critique → evaluator → manager → vote. ≥4/5 yes commits; push every 5 commits if a valid GitHub URL was given. Tester executes; coder writes. If the USB library is present, `use` tags pick `manage` / `code` / `test` / `critique` / `evaluate` / `document`. If not, thinner backups (router / 3B) are used when RAM is short.
+
+Large **review** (high stakes, coding off) uses the older committee: builders write, the executor runs scripts, and a majority blackboard **ship** vote unlocks the keep folder. No git tools.
 
 ## Requirements
 
@@ -106,7 +109,7 @@ python main.py --thread thr_abc123def4 "tweak the third bullet"
 python app.py
 ```
 
-`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `POST /turns`). Double-click `run-id10t.bat` to start it on port **9001** and open the browser. The dropdown lists durable notebooks (`thr_…`) from medium and large runs. The page hydrates from `state/ui-session/session.jsonl`; starting the server renames that file to `previous.jsonl` so a crash copy survives one restart. `python app.py --no-model` uses the same stubs as the CLI.
+`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `GET /profile`, `GET /html`, `POST /profile`, `POST /turns`). Double-click `run-id10t.bat` to start it on port **9001** and open the browser. The dropdown lists durable notebooks (`thr_…`) from medium and large runs. A **Coding** checkbox sits above the prompt; when it is on, a GitHub URL field appears (`https://github.com/owner/repo` only). Empty or invalid URLs hide git tools. Bot replies render as Markdown (raw HTML in the text is escaped). Fenced `html` blocks and full HTML documents get a **View HTML page** button on that reply (new tab, CSP, no scripts). PDFs the run wrote appear under that reply (icon, filename, **Save to PDF**). If the worker emitted a structured `profile_update`, that reply gets **Save to board**. Each browser stores a UUID in `localStorage` and hydrates from `state/ui-session/<uuid>/session.jsonl`. Starting the server does not wipe those tapes. Peer IP, User-Agent, and language are appended to `meta.jsonl` in that folder for later analytics; they are not used to look up a session. `python app.py --no-model` uses the same stubs as the CLI.
 
 Double-clickable live checks (open a cmd window, show Prompt / Response / Meta, pause):
 
@@ -147,6 +150,7 @@ Copy `.env.example` to `.env`. **Never put secrets in `.env.example`.** `.env` i
 | `MS_CLIENT_ID` / `MS_TENANT` / `MS_LOGIN_HINT` | Microsoft Graph mail + calendar OAuth. |
 | `ID10T_DATA_DIR` | Private state (logs, tokens, createdIndex). Default `state/`. |
 | `ID10T_SANDBOX_ROOT` | Large-run jails. Default `sandboxes/`. |
+| `GH_TOKEN` | Optional GitHub token for coding-committee `git_push` when a valid GitHub URL was given. Stays in-process; never logged or returned to an agent. |
 
 Relative paths in `.env` are resolved from the **repo root**, not the current working directory.
 
@@ -167,6 +171,8 @@ Writes aimed at `input/` or anywhere else are denied.
 
 ```text
 python main.py PROMPT
+python main.py --code PROMPT
+python main.py --code --repo https://github.com/owner/repo PROMPT
 python main.py --no-model PROMPT
 python main.py --json PROMPT
 python main.py --provider google PROMPT
@@ -175,6 +181,8 @@ python main.py --provider microsoft PROMPT
 
 | Flag | Meaning |
 | --- | --- |
+| `--code` | Run the sequential coding committee. Without this flag the router never maps a job to that loop. |
+| `--repo URL` | Coding only. `https://github.com/owner/repo` enables git tools; empty or invalid hides them. Local keep commits still happen. |
 | `--no-model` | Heuristic routing + stub replies. Does not load GGUFs. Use this before weights exist. |
 | `--json` | Print the full run record instead of the Prompt/Response block. |
 | `--provider` | Prefer Google or Microsoft when `mail_cal` is not `off`. |
@@ -204,19 +212,19 @@ Gated for this set: **Llama 3.2 3B** only. Qwen files are public.
 
 ### Full / USB set (~40GB, 64GB stick)
 
-`downloader-scripts/download_models_usb.py` writes `models.json` on the stick when it finishes. The factory reads that file when `MODELS_DIR` points at the USB. Roles have a closed `use` list (`route`, `code`, `plan`, `language`). Coding large runs use the 14B coder plus up to three other `code` builders. Medium planning uses the `plan` models. Language prompts (translate / resume / rewrite) use `language`. Leave the leftover space for later image weights.
+`downloader-scripts/download_models_usb.py` writes `models.json` on the stick when it finishes. The factory reads that file when `MODELS_DIR` points at the USB. Roles have a closed `use` list (`route`, `code`, `plan`, `language`, plus committee tags `manage` / `test` / `critique` / `evaluate` / `document`). Coding large runs pick a RAM-safe `code` model (14B if it fits, else 7B). Medium planning uses the `plan` models. Language prompts (translate / resume / rewrite) use `language`. Leave the leftover space for later image weights.
 
 | Role | Model | Use | Approx |
 | --- | --- | --- | --- |
-| router | Qwen2.5 1.5B Instruct | route | 1.1GB |
+| router | Qwen2.5 1.5B Instruct | route, evaluate, test | 1.1GB |
 | router (backup) | Llama 3.2 **3B** Instruct | route | 2.0GB |
 | executor | Qwen2.5 Coder **14B** Instruct | code | 9.0GB |
 | builder_coder | Qwen2.5 Coder **7B** Instruct | code | 4.7GB |
 | builder_deepseek | DeepSeek Coder **6.7B** Instruct | code | 4.1GB |
 | builder_yi | Yi-Coder **9B** Chat | code | 5.3GB |
-| builder_qwen | Qwen3 **14B** Instruct | plan, language | 9.0GB |
-| builder_llama | Llama **3.1 8B** Instruct | plan, language | 4.9GB |
-| builder_gemma | Gemma 2 **9B** Instruct | plan, language | 5.8GB |
+| builder_qwen | Qwen3 **14B** Instruct | plan, manage, document, language | 9.0GB |
+| builder_llama | Llama **3.1 8B** Instruct | plan, language, document, critique, manage | 4.9GB |
+| builder_gemma | Gemma 2 **9B** Instruct | plan, critique | 5.8GB |
 
 Gated for this set: **Llama 3.2 3B**, **Llama 3.1 8B**, and **Gemma 2 9B**.
 
@@ -253,6 +261,7 @@ The worker system prompt tells them to **answer directly** unless the user asked
 | `mail_cal` is `off` | No mail/calendar tools |
 | not `large` | No sandbox tools |
 | `large` before the ship vote | No writers; the sandbox is the only place to build |
+| coding without a valid GitHub URL | No `git_login` |
 
 A model that still calls a hidden tool gets `unknown_tool` and can finish with `{"final": "..."}`. That is why a greeting must not invoke `write_doc`. A writer called too early on a large run gets `ship_locked`.
 
@@ -273,7 +282,7 @@ A model that still calls a hidden tool gets `unknown_tool` and can finish with `
 **Mail / calendar** (`mailAndCalendar.py`): list/search/open mail, send/reply (no delete), calendars, events, free/busy.
 
 - `mail_cal`: `off` | `read` | `write`.
-- Only the manager agent: small/medium = drafter; large = executor role.
+- Only the manager agent: small/medium = drafter; coding large = manager role; review large = executor.
 - Outbound bodies are scanned for tokens/JWTs; matches are denied without echoing the secret.
 - OAuth is browser **Allow**, not mailbox password. Tokens stay on blocked paths.
 
@@ -283,13 +292,13 @@ Allowed blackboard kinds: `draft`, `critique`, `debug`, `vote`, `rules`, `memory
 
 Medium and large runs also write a **thread** under `state/threads/` (`thr_…`, title from `intent`). Pass `--thread thr_…` on the next command to attach it: a mapped-small prompt is raised to medium; a thread that already shipped artifacts also unlocks `read_file` / `search_dir` so follow-ups can inspect the keep folder. Small without `--thread` never creates or reads a thread. The live committee board is still unique per run and is dropped at teardown.
 
-**Sandbox** (`runtime.py`, large only): `openSandbox`, `sandbox_read`, `sandbox_write` (builders), `executeScriptInSandbox` / `sandbox_fetch` (executor), `getResultsFromSandbox`.
+**Sandbox** (`runtime.py`, large only): `openSandbox`, `sandbox_read`, `sandbox_write` (builders / coder), `executeScriptInSandbox` / `sandbox_fetch` (tester on coding, executor on review), `getResultsFromSandbox`.
 
 Sandbox v1: `.py` / `.html` / `.css` / `.js` only. Execute is `python <file.py>` under the sandbox root, timed, host env stripped. One exclusive lock covers write, execute, and fetch. HTML/CSS/JS are written as UI, not run as a GUI. `getResultsFromSandbox` returns `not_run` until a script has actually executed, so a committee cannot vote on output that was never produced. Full rules: `coding-rules.md`.
 
 ### Keep vs wipe on a large run
 
-The factory makes `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of the run and keeps every writer (`write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir`) shut. Builders can only use `sandbox_write`; the executor runs the script and reads the results. Once a script has run and the committee votes **ship** by majority, the factory unlocks the writers, copies the sandbox's `.py` / `.html` / `.css` / `.js` files plus captured stdout (`result.txt`) into the keep folder, writes `SUMMARY.md` there, remaps any later write into that same folder, and answers with a summary of those files. The UI links **view complete summary** to `GET /keep?dir=<keep-folder>&file=SUMMARY.md` (outputs only). `write_doc` may use type `md` the same way as `txt`. Without a ship, the sandbox is wiped at teardown and nothing durable survives — the user answer is a factory note that they did not ship (plus any jail file names and captured stdout), never the pointer word `saved`.
+The factory makes `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of the run and keeps every writer (`write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir`) shut. On a coding run the coder uses `sandbox_write` and the tester executes; a **≥4/5** vote copies the sandbox into the keep folder and records a local git commit (push only if a valid GitHub URL was given). On a review run builders write and the executor executes; a majority blackboard **ship** vote unlocks the same keep path, with no git tools. `write_doc` may use type `md` the same way as `txt`. Without a ship, the sandbox is wiped at teardown and nothing durable survives — the user answer is a factory note that they did not ship (plus any jail file names and captured stdout), never the pointer word `saved`. The UI links **view complete summary** to `GET /keep?dir=<keep-folder>&file=SUMMARY.md` (outputs only).
 
 ## Path policy
 
@@ -300,7 +309,7 @@ The factory makes `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of the run 
 ## Logging
 
 `logger.py` writes one binary file per local calendar day under `state/logs/` (`YYYY-MM-DD.id10t.log`).
-The chat UI keeps a separate prompt/answer tape in `state/ui-session/` (not the audit log).
+The chat UI keeps a separate prompt/answer tape per browser UUID in `state/ui-session/<uuid>/` (not the audit log). `meta.jsonl` in that folder is an analytics sidecar (time, UUID, socket IP, User-Agent, language, path).
 
 Every exported function logs once on return (`ok` or `fail`): factory, tools, and the route mapping step. Spawn records bind `agent_name` → GGUF filename. Summaries are short; bodies and tokens are never stored.
 
@@ -315,6 +324,8 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `ui/index.html` | Chat page served by `app.py` |
 | `router.py` | Router prompt, parse, `mapRoute`, heuristic fallback |
 | `executor.py` | Factory: agents, worker threads, sandbox, session, OAuth connect, run lifecycle |
+| `committee.py` | Sequential coding board, views, votes (agents never import this) |
+| `git_tools.py` | Keep-folder git login/commit/push; `GH_TOKEN` stays in-process |
 | `blackboard.py` | Live committee board + durable `state/threads/` notes |
 | `runtime.py` | Agent committee + sandbox tools (blackboard send/view are wrappers)
 | `file_tools.py` | Public file API |
@@ -328,6 +339,8 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `logger.py` | Spawn + event audit log |
 | `config.py` | Paths, env, allowed/blocked lists |
 | `store.py` | Private run registry |
+| `profile.py` | Durable operator profile board (`state/profile.json`). Agents never import this. |
+| `formatter.py` | Chat-answer Markdown HTML + sandboxed HTML pages. Agents never import this. |
 | `coding-rules.md` | Injected on every large run |
 | `Hardware Requirements.md` | Ubuntu/Windows, headless vs desktop, named NVIDIA and Ryzen SKUs |
 | `CHANGELOG.md` | Hand-written release history, newest first (never updated automatically) |
