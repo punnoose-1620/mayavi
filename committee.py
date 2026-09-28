@@ -13,16 +13,22 @@ from pathlib import Path
 from typing import Any, Callable
 
 YES_FOR_COMMIT = 4
-MAX_ROUNDS = 2
-MAX_TOOL_STEPS = 3
-VIEW_CHARS = 1400
+MAX_ROUNDS = 4
+MAX_TOOL_STEPS = 8
+VIEW_CHARS = 1800
 EXECUTE_TIMEOUT = 30
+EXECUTE_TIMEOUT_MAX = 1200
 CLONE_TIMEOUT = 120
 WRITE_EXT = {".py", ".txt", ".md", ".html", ".css", ".js", ".json", ".csv"}
 VOTING_ROLES = ("manager", "coder", "tester", "critique", "evaluator")
+TARGET_AGGS = frozenset({"mean", "min"})
+TARGET_OPS = frozenset({">=", "<=", ">", "<", "=="})
+_VACUOUS_METRIC = frozenset(
+    {"works", "work", "ok", "okay", "correct", "pass", "passed", "passing", "success", "runs", "running", "valid", "good"}
+)
+_SCORES_LINE = re.compile(r"^SCORES\s+(.+)$", re.I | re.M)
 
 SECTION_ALIASES = {
-    "targets": "features",
     "baselines": "features",
     "contract": "features",
     "job": "features",
@@ -38,13 +44,16 @@ SECTION_ALIASES = {
     "diff": "code",
     "paths": "code",
     "cases": "tests",
+    "plan": "test_plan",
 }
 SECTION_WRITERS = {
     "coding_rules": frozenset({"factory", "manager"}),
     "features": frozenset({"manager", "drafter"}),
     "architecture": frozenset({"manager", "drafter"}),
+    "targets": frozenset({"manager"}),
     "code": frozenset({"coder"}),
     "tests": frozenset({"tester"}),
+    "test_plan": frozenset({"tester"}),
     "critiques": frozenset({"critique", "critic"}),
     "critique_scores": frozenset({"evaluator"}),
     "critique_status": frozenset({"manager"}),
@@ -137,7 +146,14 @@ class Board:
     features: str = ""
     architecture: str = ""
     code: str = ""
+    targets: list[dict[str, Any]] = field(default_factory=list)
+    targets_source: str = ""
+    targets_locked: bool = False
+    test_plan: str = ""
     tests: list[TestItem] = field(default_factory=list)
+    trial_scores: dict[str, list[float]] = field(default_factory=dict)
+    qualify_detail: str = ""
+    qualified: bool = False
     critiques: list[CritiqueItem] = field(default_factory=list)
     docs: str = ""
     phase: str = "0"
@@ -326,8 +342,330 @@ def yes_count(votes: dict[str, str]) -> int:
     return sum(1 for role in VOTING_ROLES if str(votes.get(role) or "").lower() in {"yes", "y", "ship"})
 
 
-def should_commit(votes: dict[str, str]) -> bool:
-    return yes_count(votes) >= YES_FOR_COMMIT
+def should_commit(board: Board, votes: dict[str, str] | None = None) -> bool:
+    ballots = votes if votes is not None else board.last_vote
+    return bool(board.vote_open and board.qualified and yes_count(ballots) >= YES_FOR_COMMIT)
+
+
+def _metric_key(name: str) -> str:
+    return re.sub(r"[^a-z0-9_]+", "", str(name or "").strip().lower().replace(" ", "_"))
+
+
+def _is_vacuous_metric(name: str) -> bool:
+    key = _metric_key(name)
+    return not key or key in _VACUOUS_METRIC
+
+
+def _as_number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return float(int(value))
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value or "").strip().rstrip("%")
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def normalize_criteria(raw: Any) -> list[dict[str, Any]]:
+    if isinstance(raw, dict):
+        if isinstance(raw.get("criteria"), list):
+            rows = raw["criteria"]
+        elif "metric" in raw:
+            rows = [raw]
+        else:
+            rows = [raw]
+    elif isinstance(raw, list):
+        rows = raw
+    else:
+        parsed = parse_committee_json(str(raw or ""))
+        if parsed:
+            return normalize_criteria(parsed)
+        decoder = json.JSONDecoder()
+        text = str(raw or "")
+        i = text.find("[")
+        while i >= 0:
+            try:
+                obj, _end = decoder.raw_decode(text, i)
+            except json.JSONDecodeError:
+                i = text.find("[", i + 1)
+                continue
+            if isinstance(obj, list):
+                return normalize_criteria(obj)
+            i = text.find("[", i + 1)
+        return []
+    out: list[dict[str, Any]] = []
+    for index, row in enumerate(rows, 1):
+        if not isinstance(row, dict):
+            continue
+        metric = _metric_key(row.get("metric") or row.get("name") or row.get("id") or "")
+        n_raw = row.get("n") if row.get("n") is not None else row.get("trials")
+        try:
+            n_val = int(n_raw)
+        except (TypeError, ValueError):
+            n_val = 0
+        agg = str(row.get("aggregate") or row.get("agg") or "mean").strip().lower()
+        op = str(row.get("op") or row.get("compare") or ">=").strip()
+        value = _as_number(row.get("value") if row.get("value") is not None else row.get("threshold"))
+        item = {
+            "id": str(row.get("id") or f"{metric}_{agg}_{index}")[:80],
+            "metric": metric,
+            "n": n_val,
+            "aggregate": agg,
+            "op": op,
+            "value": value if value is not None else 0.0,
+        }
+        out.append(item)
+    return out
+
+
+def criteria_valid(rows: list[dict[str, Any]]) -> bool:
+    if len(rows) < 1:
+        return False
+    for row in rows:
+        if _is_vacuous_metric(row.get("metric")):
+            return False
+        if int(row.get("n") or 0) < 2:
+            return False
+        if str(row.get("aggregate") or "") not in TARGET_AGGS:
+            return False
+        if str(row.get("op") or "") not in TARGET_OPS:
+            return False
+        if _as_number(row.get("value")) is None:
+            return False
+    return True
+
+
+def extract_targets_from_text(text: str) -> list[dict[str, Any]]:
+    blob = str(text or "")
+    marker = re.search(r"TARGETS\s*:", blob, re.I)
+    if marker:
+        decoder = json.JSONDecoder()
+        j = blob.find("[", marker.end())
+        if j >= 0:
+            try:
+                obj, _end = decoder.raw_decode(blob, j)
+                rows = normalize_criteria(obj)
+                if criteria_valid(rows):
+                    return rows
+            except json.JSONDecodeError:
+                pass
+    return []
+
+
+QUALITY_PRESETS: dict[str, list[dict[str, Any]]] = {
+    "snake-dqn": [
+        {"id": "fruit_mean", "metric": "fruit_points", "n": 5, "aggregate": "mean", "op": ">=", "value": 16},
+        {"id": "fruit_min", "metric": "fruit_points", "n": 5, "aggregate": "min", "op": ">=", "value": 0},
+    ],
+    "maze-path": [
+        {"id": "maze_mean", "metric": "maze_ok", "n": 8, "aggregate": "mean", "op": ">=", "value": 1},
+    ],
+    "csv-sql": [
+        {"id": "csv_mean", "metric": "query_ok", "n": 6, "aggregate": "mean", "op": ">=", "value": 1},
+    ],
+    "expr-lang": [
+        {"id": "expr_mean", "metric": "expr_ok", "n": 8, "aggregate": "mean", "op": ">=", "value": 1},
+    ],
+    "http-kv": [
+        {"id": "kv_mean", "metric": "kv_ok", "n": 4, "aggregate": "mean", "op": ">=", "value": 1},
+    ],
+}
+
+GENERIC_QUALITY = [
+    {"id": "case_mean", "metric": "case_ok", "n": 4, "aggregate": "mean", "op": ">=", "value": 1},
+]
+
+
+def preset_targets_for_text(text: str) -> list[dict[str, Any]]:
+    blob = str(text or "").lower()
+    if "snake" in blob and ("dqn" in blob or "fruit" in blob):
+        return [dict(row) for row in QUALITY_PRESETS["snake-dqn"]]
+    if "maze" in blob and ("path" in blob or "bfs" in blob or "shortest" in blob):
+        return [dict(row) for row in QUALITY_PRESETS["maze-path"]]
+    if "csv" in blob and ("select" in blob or "query" in blob or "where" in blob):
+        return [dict(row) for row in QUALITY_PRESETS["csv-sql"]]
+    if "eval_expr" in blob or ("expression" in blob and "eval" in blob):
+        return [dict(row) for row in QUALITY_PRESETS["expr-lang"]]
+    if "kv" in blob or ("key-value" in blob or "key value" in blob) or "basehttprequesthandler" in blob:
+        return [dict(row) for row in QUALITY_PRESETS["http-kv"]]
+    return [dict(row) for row in GENERIC_QUALITY]
+
+
+def _criterion_key(row: dict[str, Any]) -> tuple[str, str]:
+    return (_metric_key(row.get("metric")), str(row.get("aggregate") or "mean"))
+
+
+def _is_stricter(old: dict[str, Any], new: dict[str, Any]) -> bool:
+    if _criterion_key(old) != _criterion_key(new):
+        return False
+    if int(new.get("n") or 0) < int(old.get("n") or 0):
+        return False
+    op = str(old.get("op") or ">=")
+    if str(new.get("op") or "") != op:
+        return False
+    old_v = float(old.get("value") or 0)
+    new_v = float(new.get("value") or 0)
+    if op in {">=", ">"}:
+        return new_v >= old_v
+    if op in {"<=", "<"}:
+        return new_v <= old_v
+    return new_v == old_v
+
+
+def merge_targets(locked: list[dict[str, Any]], incoming: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not incoming:
+        return list(locked)
+    if not locked:
+        return list(incoming) if criteria_valid(incoming) else []
+    by_key = {_criterion_key(row): dict(row) for row in locked}
+    for row in incoming:
+        key = _criterion_key(row)
+        if key not in by_key:
+            if criteria_valid([row]):
+                by_key[key] = dict(row)
+            continue
+        if _is_stricter(by_key[key], row):
+            by_key[key] = dict(row)
+    out = list(by_key.values())
+    return out if criteria_valid(out) else list(locked)
+
+
+def parse_score_blob(text: str) -> dict[str, list[float]]:
+    found: dict[str, list[float]] = {}
+    blob = str(text or "")
+    for match in _SCORES_LINE.finditer(blob):
+        body = match.group(1).strip()
+        for part in body.split():
+            if "=" not in part:
+                continue
+            name, _, raw = part.partition("=")
+            metric = _metric_key(name)
+            if not metric:
+                continue
+            values: list[float] = []
+            for item in raw.split(","):
+                num = _as_number(item)
+                if num is None:
+                    values = []
+                    break
+                values.append(num)
+            if values:
+                found.setdefault(metric, []).extend(values)
+    decoder = json.JSONDecoder()
+    i = blob.find("{")
+    while i >= 0:
+        try:
+            obj, end = decoder.raw_decode(blob, i)
+        except json.JSONDecodeError:
+            i = blob.find("{", i + 1)
+            continue
+        if isinstance(obj, dict) and isinstance(obj.get("scores"), dict):
+            for key, val in obj["scores"].items():
+                metric = _metric_key(key)
+                if isinstance(val, list):
+                    nums = [_as_number(x) for x in val]
+                    if metric and nums and all(n is not None for n in nums):
+                        found.setdefault(metric, []).extend(float(n) for n in nums if n is not None)
+        i = blob.find("{", end)
+    return found
+
+
+def ingest_scores(board: Board, stdout: str) -> None:
+    for metric, values in parse_score_blob(stdout).items():
+        board.trial_scores.setdefault(metric, []).extend(values)
+
+
+def _aggregate(values: list[float], how: str) -> float | None:
+    if not values:
+        return None
+    if how == "min":
+        return float(min(values))
+    if how == "mean":
+        return float(sum(values) / len(values))
+    return None
+
+
+def _compare(got: float, op: str, want: float) -> bool:
+    if op == ">=":
+        return got >= want
+    if op == "<=":
+        return got <= want
+    if op == ">":
+        return got > want
+    if op == "<":
+        return got < want
+    if op == "==":
+        return abs(got - want) <= 1e-9
+    return False
+
+
+def evaluate_criteria(targets: list[dict[str, Any]], scores: dict[str, list[float]]) -> tuple[bool, str]:
+    if not criteria_valid(targets):
+        return False, "no valid quality targets"
+    bits: list[str] = []
+    ok = True
+    for row in targets:
+        metric = str(row["metric"])
+        need_n = int(row["n"])
+        got = list(scores.get(metric) or [])
+        agg = str(row["aggregate"])
+        if len(got) < need_n:
+            ok = False
+            bits.append(f"{row['id']}: need {need_n} {metric} values, got {len(got)}")
+            continue
+        use = got
+        stat = _aggregate(use, agg)
+        if stat is None:
+            ok = False
+            bits.append(f"{row['id']}: cannot {agg} {metric}")
+            continue
+        if not _compare(stat, str(row["op"]), float(row["value"])):
+            ok = False
+            bits.append(
+                f"{row['id']}: {agg}({metric})={stat:.4g} not {row['op']} {row['value']} n={len(use)}"
+            )
+        else:
+            bits.append(f"{row['id']}: {agg}({metric})={stat:.4g} {row['op']} {row['value']} n={len(use)}")
+    return ok, "; ".join(bits) if bits else "no criteria"
+
+
+def lock_targets(board: Board, user_text: str) -> None:
+    user_rows = extract_targets_from_text(user_text)
+    manager_rows = normalize_criteria(board.targets) if board.targets else []
+    if not criteria_valid(manager_rows):
+        manager_rows = []
+    preset = preset_targets_for_text(user_text)
+    if user_rows:
+        merged = merge_targets(user_rows, manager_rows)
+        source = "user"
+    elif manager_rows:
+        merged = manager_rows
+        source = "manager"
+    else:
+        merged = preset
+        source = "preset"
+    if not criteria_valid(merged):
+        merged = preset if criteria_valid(preset) else [dict(row) for row in GENERIC_QUALITY]
+        source = "preset"
+    board.targets = merged
+    board.targets_source = source
+    board.targets_locked = True
+
+
+def apply_qualify(board: Board, box: Sandbox) -> None:
+    listing = box.listing()
+    empty = listing in {"", "(empty)"}
+    ok, detail = evaluate_criteria(board.targets, board.trial_scores)
+    if empty:
+        ok = False
+        detail = "no files in work folder; " + detail
+    board.qualified = bool(ok)
+    board.vote_open = bool(ok)
+    board.qualify_detail = detail
+    if not ok:
+        board.last_vote = {}
 
 
 def clone_github(url: str, dest: Path, status: StatusFn | None = None) -> dict[str, Any]:
@@ -384,6 +722,7 @@ def run_coding(
     if _stopped(stop_event):
         return _result(board, box, notes, stopped=True)
     _turn(ctx, "manager", "phase0")
+    lock_targets(board, user_text)
     if not str(board.features or "").strip():
         board.features = (user_text or "phase 1").strip()[:800]
     if not str(board.architecture or "").strip():
@@ -393,19 +732,31 @@ def run_coding(
         if _stopped(stop_event) or board.stop or board.phase_complete:
             break
         board.round = rnd
+        board.vote_open = False
+        board.qualified = False
+        board.trial_scores = {}
+        board.qualify_detail = ""
         _turn(ctx, "coder", "code")
         _turn(ctx, "tester", "test")
+        apply_qualify(board, box)
+        if status:
+            status(
+                f"Committee: qualify ({'pass' if board.qualified else 'fail'})…"
+            )
         _turn(ctx, "critique", "critique")
         _turn(ctx, "evaluator", "evaluate")
         _turn(ctx, "manager", "plan")
         if _stopped(stop_event) or board.stop:
             break
+        if not board.vote_open:
+            notes.append(f"round {rnd} no vote ({board.qualify_detail or 'criteria not met'})")
+            continue
         board.last_vote = {}
         for role in VOTING_ROLES:
             _turn(ctx, role, "vote")
             if _stopped(stop_event):
                 break
-        if should_commit(board.last_vote):
+        if should_commit(board):
             notes.append(f"round {rnd} shipped ({yes_count(board.last_vote)}/5)")
             _turn(ctx, "documenter", "document")
         if yes_count(board.last_vote) == len(VOTING_ROLES):
@@ -454,6 +805,8 @@ def _stopped(stop_event) -> bool:
 def _turn(ctx: _Ctx, role: str, stage: str) -> None:
     if _stopped(ctx.stop_event):
         return
+    if stage == "vote" and not ctx.board.vote_open:
+        return
     if ctx.status:
         ctx.status(f"Committee: {role} ({stage})…")
     messages = [
@@ -496,7 +849,7 @@ def _system(ctx: _Ctx, role: str, stage: str) -> str:
     job = _job(role, stage)
     vote = ""
     if stage == "vote":
-        vote = 'Ballot. Reply {"vote":"yes"} or {"vote":"no"}.\n'
+        vote = 'Ballot is OPEN because host qualify passed. Reply {"vote":"yes"} or {"vote":"no"}.\n'
     return (
         f"You are the {role} on a sequential local committee. One role. JSON only.\n"
         f"User request:\n{ctx.user_text}\n"
@@ -515,9 +868,12 @@ def _system(ctx: _Ctx, role: str, stage: str) -> str:
 
 def _user(ctx: _Ctx, role: str, stage: str) -> str:
     if stage == "phase0":
-        return "Write the contract. No code yet. JSON board_update for features and architecture."
+        return (
+            "Write the contract. No code yet. JSON board_update for features, architecture, "
+            "and targets (runtime quality criteria: metric, n>=2, aggregate mean or min, op, value)."
+        )
     if stage == "vote":
-        return "Cast your yes/no vote for this round."
+        return "Cast your yes/no vote for this round. Vote only because the host already opened the ballot."
     if stage == "draft":
         return "Draft the high-stakes document. JSON with final text. Do not execute code."
     if stage == "review":
@@ -529,15 +885,31 @@ def _user(ctx: _Ctx, role: str, stage: str) -> str:
 
 def _job(role: str, stage: str) -> str:
     if role == "manager" and stage == "phase0":
-        return "Phase 0: contract only. Cover job, non-goals, files, tests. No code.\n"
+        return (
+            "Phase 0: contract plus runtime QUALITY targets. Copy user numbers if given. "
+            "Else invent measurable standards (scores, exact cases, rates). "
+            "Forbidden: 'the code works', 'tests pass', 'no bugs'. "
+            "Each criterion needs metric, n>=2 trials, aggregate mean or min, op, numeric value. JSON targets section. No code.\n"
+        )
     if role == "manager":
-        return "Plan the next fix. Update features or critique_status. You may stop.\n"
+        return (
+            "Plan the next fix from qualify notes and critiques. Do not weaken locked targets. "
+            "You may stop.\n"
+        )
     if role == "coder":
-        return "Implement with sandbox_write. Stdlib only. Never execute.\n"
+        return "Implement with sandbox_write. Stdlib only. Never execute. Meet locked targets.\n"
     if role == "tester":
-        return "Write tests with sandbox_write then executeScriptInSandbox on .py files.\n"
+        return (
+            "Write a test LOOP (n trials from locked targets), not one lucky case. "
+            "sandbox_write a .py that calls the code with specific inputs/seeds, then "
+            "executeScriptInSandbox once (or several times in this same turn). "
+            "Print ASCII lines: SCORES metric=v1,v2,v3,... for every metric. "
+            "Qualify uses the AVERAGE (mean) of those values, never 'at least one passed'. "
+            "min aggregate is a floor across the same trial list. "
+            "Timeout arg may be raised for long eval (max 1200s).\n"
+        )
     if role == "critique":
-        return "Blocking bugs and missing features only.\n"
+        return "Blocking bugs and misses vs locked targets. If qualify failed, say what to change.\n"
     if role == "evaluator":
         return "Score open critiques. critique_scores section.\n"
     if role == "documenter":
@@ -572,7 +944,14 @@ def _dispatch(ctx: _Ctx, role: str, name: str, args: dict[str, Any]) -> dict[str
     if name == "sandbox_read":
         return ctx.box.read(str(args.get("path") or ""), int(args.get("start") or 0), int(args.get("end") or 4000))
     if name == "executeScriptInSandbox":
-        return ctx.box.execute(str(args.get("path") or ""), int(args.get("timeout") or EXECUTE_TIMEOUT))
+        try:
+            timeout = int(args.get("timeout") or EXECUTE_TIMEOUT)
+        except (TypeError, ValueError):
+            timeout = EXECUTE_TIMEOUT
+        timeout = max(1, min(timeout, EXECUTE_TIMEOUT_MAX))
+        result = ctx.box.execute(str(args.get("path") or ""), timeout)
+        ingest_scores(ctx.board, str(result.get("stdout") or ""))
+        return result
     if name == "write_doc":
         rel = str(args.get("name") or "document") + "." + str(args.get("type") or "md").lstrip(".")
         return ctx.box.write(rel, str(args.get("content") or ""))
@@ -618,12 +997,21 @@ def apply_update(board: Board, role: str, section: str, content: Any) -> dict[st
         return {"ok": False, "error": "unknown_section"}
     if role not in allowed:
         return {"ok": False, "error": "role_denied"}
-    if section in {"features", "architecture", "coding_rules", "code", "docs"}:
+    if section in {"features", "architecture", "coding_rules", "code", "docs", "test_plan"}:
         text = str(content or "")
         if not text.strip():
             return {"ok": True, "skipped": "empty"}
         setattr(board, section, text)
         return {"ok": True, "section": section}
+    if section == "targets":
+        incoming = normalize_criteria(content)
+        if board.targets_locked:
+            board.targets = merge_targets(board.targets, incoming)
+        elif criteria_valid(incoming):
+            board.targets = incoming
+        else:
+            return {"ok": False, "error": "invalid_targets"}
+        return {"ok": True, "section": "targets"}
     if section == "tests":
         board.tests = _parse_tests(content)
     elif section == "critiques":
@@ -718,6 +1106,8 @@ def _apply_status(board: Board, content: Any) -> None:
 def record_vote(board: Board, role: str, vote: str) -> dict[str, Any]:
     if role not in VOTING_ROLES:
         return {"ok": False, "error": "no_vote"}
+    if not board.vote_open:
+        return {"ok": False, "error": "vote_closed"}
     mark = str(vote or "").strip().lower()
     if mark in {"y", "ship", "pass", "true"}:
         mark = "yes"
@@ -746,7 +1136,18 @@ def infer_vote(text: str) -> str | None:
 
 
 def _view(board: Board, role: str) -> str:
-    chunks = [f"phase={board.phase} round={board.round}"]
+    chunks = [
+        f"phase={board.phase} round={board.round} vote_open={board.vote_open} "
+        f"qualified={board.qualified} targets_source={board.targets_source or '-'}"
+    ]
+    if board.targets:
+        chunks.append("## targets (locked)\n" + json.dumps(board.targets, ensure_ascii=True))
+    if board.qualify_detail:
+        chunks.append("## qualify\n" + board.qualify_detail)
+    if board.trial_scores:
+        chunks.append("## scores\n" + json.dumps(board.trial_scores, ensure_ascii=True))
+    if board.test_plan and role in {"manager", "tester", "critique", "evaluator"}:
+        chunks.append("## test plan\n" + board.test_plan)
     if board.features:
         chunks.append("## features\n" + board.features)
     if role in {"manager", "coder", "critique", "documenter", "drafter", "writer"} and board.architecture:
@@ -777,10 +1178,15 @@ def _clip(text: str, cap: int) -> str:
 
 def _coding_answer(board: Board, box: Sandbox, notes: list[str]) -> str:
     files = box.listing(20)
-    vote = json.dumps(board.last_vote, ensure_ascii=False) if board.last_vote else "{}"
+    if board.vote_open and board.last_vote:
+        vote = json.dumps(board.last_vote, ensure_ascii=False)
+    else:
+        vote = "(not opened)"
     body = (board.docs or board.features or "").strip()
     bits = [
         f"Committee phase {board.phase} round {board.round}. Vote: {vote}",
+        f"Qualify: {'yes' if board.qualified else 'no'} ({board.qualify_detail or 'n/a'})",
+        "Targets: " + json.dumps(board.targets, ensure_ascii=True),
         body,
         "Files:\n" + files,
     ]
@@ -807,6 +1213,12 @@ def _result(board: Board, box: Sandbox, notes: list[str], reply: str = "", stopp
         "keep_dir": str(box.root),
         "notes": notes,
         "files": box.listing(),
+        "qualified": bool(board.qualified),
+        "vote_open": bool(board.vote_open),
+        "targets": list(board.targets),
+        "targets_source": board.targets_source,
+        "scores": {k: list(v) for k, v in board.trial_scores.items()},
+        "qualify_detail": board.qualify_detail,
     }
 
 
