@@ -178,8 +178,8 @@ def distill(run: Run, answer: str | None) -> None:
         open_items = [item for item in open_items if item != "committee did not ship"]
     thread["open"] = open_items[-8:]
     decisions = list(thread.get("decisions") or [])
-    if run.level == "large":
-        decisions = _uniq(decisions + ["coding rules in force on large runs"])
+    if run.coding:
+        decisions = _uniq(decisions + ["coding rules in force on coding runs"])
     thread["decisions"] = decisions[-8:]
     save_thread(thread)
     run.thread = thread

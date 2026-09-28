@@ -31,18 +31,18 @@ The router never outputs `small` / `medium` / `large`. Mapping is:
 
 `mail_cal` does not pick the tier. Coding tasks force `mail_cal` to `off`. The router does not emit `needs_code_exec`; that flag is set from the operator coding control.
 
-If the router is **unsure**, fields default **cheap**: `stakes=low`, `file_ops=0`, `web_ops=0` → **small** unless the operator marked coding. High stakes only when the prompt is clearly legal/official/medical/financial (or similar). Greetings, chat, how-to, and summaries are low. A write counts toward `file_ops` only if the user asked to create or save a file. Summarizing or reading code already under `outputs/` is a file read (`file_ops` at least 1), not a new sandbox build. Missing or garbage router JSON uses those same cheap defaults (it does **not** round up to large).
+If the router is **unsure**, fields default **cheap**: `stakes=low`, `file_ops=0`, `web_ops=0` → **small** unless the operator marked coding. The factory then **clamps** `stakes=high` unless the prompt clearly matches legal/official/medical/financial (or similar). Greetings, chat, how-to, HTML pages, and summaries stay low even if the 1.5B router marked high. A write counts toward `file_ops` only if the user asked to create or save a file. Summarizing or reading code already under `outputs/` is a file read (`file_ops` at least 1), not a new sandbox build. Missing or garbage router JSON uses those same cheap defaults (it does **not** round up to large).
 
 | Tier | Agents | Blackboard | Sandbox | Typical use |
 | --- | --- | --- | --- | --- |
-| Small | 1 drafter | no | no | cheap Q&A, light file/web |
+| Small | 1 drafter (code-tagged GGUF when the prompt is HTML/JS/snippet work) | no | no | cheap Q&A, light file/web, a flashy HTML page |
 | Medium | drafter + 2 checkers | yes + durable thread | no | more file/web work, review |
 | Large (coding) | sequential committee (manager, coder, tester, critique, evaluator; documenter after commit) | sectioned board | **always** | operator marked coding |
-| Large (review) | executor + builders | blackboard ship vote | **always** | high stakes, not coding |
+| Large (review) | executor + builders | blackboard ship vote | **no** | high stakes, not coding |
 
 Large **coding** always creates a sandbox and a keep folder, and injects `coding-rules.md`. Phase 0 is planning only. Then each round is coder → tester → critique → evaluator → manager → vote. ≥4/5 yes commits; push every 5 commits if a valid GitHub URL was given. Tester executes; coder writes. If the USB library is present, `use` tags pick `manage` / `code` / `test` / `critique` / `evaluate` / `document`. If not, thinner backups (router / 3B) are used when RAM is short.
 
-Large **review** (high stakes, coding off) uses the older committee: builders write, the executor runs scripts, and a majority blackboard **ship** vote unlocks the keep folder. No git tools.
+Large **review** (high stakes, coding off) uses the older committee: builders and the executor write `write_doc` / PDF / JSON into the keep folder. No sandbox, no git tools. A majority blackboard **ship** vote records that the keep folder shipped.
 
 ## Requirements
 
@@ -149,7 +149,7 @@ Copy `.env.example` to `.env`. **Never put secrets in `.env.example`.** `.env` i
 | `GOOGLE_CLOUD_API_KEY` / `GOOGLE_CSE_ID` | Unused Custom Search JSON leftovers (closed to new projects). |
 | `MS_CLIENT_ID` / `MS_TENANT` / `MS_LOGIN_HINT` | Microsoft Graph mail + calendar OAuth. |
 | `ID10T_DATA_DIR` | Private state (logs, tokens, createdIndex). Default `state/`. |
-| `ID10T_SANDBOX_ROOT` | Large-run jails. Default `sandboxes/`. |
+| `ID10T_SANDBOX_ROOT` | Coding-run jails. Default `sandboxes/`. |
 | `GH_TOKEN` | Optional GitHub token for coding-committee `git_push` when a valid GitHub URL was given. Stays in-process; never logged or returned to an agent. |
 
 Relative paths in `.env` are resolved from the **repo root**, not the current working directory.
@@ -259,16 +259,16 @@ The worker system prompt tells them to **answer directly** unless the user asked
 | `file_ops` is `0` | No `search_dir` / `read_file` / `write_doc` / `write_pdf` / `write_json` / `append_file` / `mkdir` |
 | `web_ops` is `0` | No `search_web` / `get_url` / `post_url` / `resetSession` |
 | `mail_cal` is `off` | No mail/calendar tools |
-| not `large` | No sandbox tools |
-| `large` before the ship vote | No writers; the sandbox is the only place to build |
+| not coding | No sandbox tools |
+| coding before the ship vote | No durable writers; the sandbox is the only place to build |
 | coding without a valid GitHub URL | No `git_login` |
 
-A model that still calls a hidden tool gets `unknown_tool` and can finish with `{"final": "..."}`. That is why a greeting must not invoke `write_doc`. A writer called too early on a large run gets `ship_locked`.
+A model that still calls a hidden tool gets `unknown_tool` and can finish with `{"final": "..."}`. That is why a greeting must not invoke `write_doc`. A writer called too early on a **coding** run gets `ship_locked`.
 
 **Files** (`file_tools.py`): `search_dir`, `read_file`, `write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir` (only if `file_ops` ≠ `0`).
 
 - Reads: `input/` and `outputs/` (allowed roots).
-- Writes: `outputs/` only. On a large run they are locked until the ship vote, then remapped into that run's keep folder.
+- Writes: `outputs/` only. On a **coding** run they are locked until the ship vote, then remapped into that run's keep folder. On a **review** run they go to the keep folder immediately.
 - Original files that exist on disk but are not in `createdIndex` cannot be overwritten.
 - Created files are tracked in `state/createdIndex.json` (agents cannot read that index).
 - Reads/writes are paged (max 5 pages per call).
@@ -288,17 +288,17 @@ A model that still calls a hidden tool gets `unknown_tool` and can finish with `
 
 **Committee** (`blackboard.py`, used by `runtime.py` / `executor.py`, medium/large): `viewSessionDetails`, blackboard send/view.
 
-Allowed blackboard kinds: `draft`, `critique`, `debug`, `vote`, `rules`, `memory`. Only the factory may post `rules` (coding-rules pin on large) and `memory` (a context card from a durable thread). `select_vote` uses `vote`, then `draft`, then worker `final` text. It never returns `rules`, `debug`, `memory`, or pointer words (`saved` / `shipped` / `ship` / `reject`).
+Allowed blackboard kinds: `draft`, `critique`, `debug`, `vote`, `rules`, `memory`. Only the factory may post `rules` (coding-rules pin on coding runs) and `memory` (a context card from a durable thread). `select_vote` uses `vote`, then `draft`, then worker `final` text. It never returns `rules`, `debug`, `memory`, or pointer words (`saved` / `shipped` / `ship` / `reject`).
 
 Medium and large runs also write a **thread** under `state/threads/` (`thr_…`, title from `intent`). Pass `--thread thr_…` on the next command to attach it: a mapped-small prompt is raised to medium; a thread that already shipped artifacts also unlocks `read_file` / `search_dir` so follow-ups can inspect the keep folder. Small without `--thread` never creates or reads a thread. The live committee board is still unique per run and is dropped at teardown.
 
-**Sandbox** (`runtime.py`, large only): `openSandbox`, `sandbox_read`, `sandbox_write` (builders / coder), `executeScriptInSandbox` / `sandbox_fetch` (tester on coding, executor on review), `getResultsFromSandbox`.
+**Sandbox** (`runtime.py`, coding only): `openSandbox`, `sandbox_read`, `sandbox_write` (coder), `executeScriptInSandbox` / `sandbox_fetch` (tester), `getResultsFromSandbox`. Review runs do not get these tools.
 
 Sandbox v1: `.py` / `.html` / `.css` / `.js` only. Execute is `python <file.py>` under the sandbox root, timed, host env stripped. One exclusive lock covers write, execute, and fetch. HTML/CSS/JS are written as UI, not run as a GUI. `getResultsFromSandbox` returns `not_run` until a script has actually executed, so a committee cannot vote on output that was never produced. Full rules: `coding-rules.md`.
 
 ### Keep vs wipe on a large run
 
-The factory makes `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of the run and keeps every writer (`write_doc`, `write_pdf`, `write_json`, `append_file`, `mkdir`) shut. On a coding run the coder uses `sandbox_write` and the tester executes; a **≥4/5** vote copies the sandbox into the keep folder and records a local git commit (push only if a valid GitHub URL was given). On a review run builders write and the executor executes; a majority blackboard **ship** vote unlocks the same keep path, with no git tools. `write_doc` may use type `md` the same way as `txt`. Without a ship, the sandbox is wiped at teardown and nothing durable survives — the user answer is a factory note that they did not ship (plus any jail file names and captured stdout), never the pointer word `saved`. The UI links **view complete summary** to `GET /keep?dir=<keep-folder>&file=SUMMARY.md` (outputs only).
+The factory makes `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of every large run. On a **coding** run, durable writers stay shut until a **≥4/5** vote; the coder uses `sandbox_write` and the tester executes; then the factory copies the sandbox into the keep folder and records a local git commit (push only if a valid GitHub URL was given). On a **review** run, builders and the executor write `write_doc` / PDF / JSON straight into that keep folder; there is no jail. `write_doc` may use type `md` the same way as `txt`. On a coding run that does not ship, the sandbox is wiped at teardown and nothing durable survives — the user answer is a factory note that they did not ship (plus any jail file names and captured stdout), never the pointer word `saved`. The UI links **view complete summary** to `GET /keep?dir=<keep-folder>&file=SUMMARY.md` (outputs only).
 
 ## Path policy
 

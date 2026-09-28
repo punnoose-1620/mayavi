@@ -40,6 +40,39 @@ WEB_OPS = {"0", "1", "2+"}
 YES_NO = {"yes", "no"}
 MAIL = {"off", "read", "write"}
 STAKES = {"low", "high"}
+HIGH_STAKES_MARKS = (
+    "legal",
+    "contract",
+    "clause",
+    "official",
+    "policy",
+    "government",
+    "medical",
+    "financial",
+    "sign this",
+    "review this document",
+    "compliance",
+)
+CODE_AGENT_MARKS = (
+    "html",
+    ".css",
+    "stylesheet",
+    ".js",
+    "javascript",
+    "typescript",
+    "web page",
+    "webpage",
+    "landing page",
+    "python script",
+    "write a function",
+    "write a class",
+    "write a program",
+    "code snippet",
+    "```html",
+    "```css",
+    "```js",
+    "```python",
+)
 
 
 def apply_user_controls(fields: dict[str, Any], *, coding: Any = None, git_remote: str | None = None) -> dict[str, Any]:
@@ -64,6 +97,17 @@ def _flag(value: Any) -> bool:
     if value is True:
         return True
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def looks_high_stakes(prompt: str) -> bool:
+    text = str(prompt or "").lower()
+    return any(mark in text for mark in HIGH_STAKES_MARKS)
+
+
+def wants_code_agent(prompt: str) -> bool:
+    """Hobby HTML/JS/snippet work. Does not select the coding committee."""
+    text = str(prompt or "").lower()
+    return any(mark in text for mark in CODE_AGENT_MARKS)
 
 
 def mapRoute(fields: dict[str, Any], run_id: str, agent_name: str) -> dict[str, Any]:
@@ -206,6 +250,8 @@ def lift_ops_from_prompt(prompt: str, fields: dict[str, Any]) -> dict[str, Any]:
                 out["needs_code_exec"] = "no"
     if "not legal" in text or "low stakes" in text or "casual personal" in text:
         out["stakes"] = "low"
+    if not _flag(out.get("coding")) and not looks_high_stakes(text):
+        out["stakes"] = "low"
     return out
 
 
@@ -258,22 +304,7 @@ def _read_existing_work(text: str) -> bool:
 
 def heuristic_route(prompt: str) -> dict[str, Any]:
     text = prompt.lower()
-    stakes = "low"
-    high_marks = (
-        "legal",
-        "contract",
-        "clause",
-        "official",
-        "policy",
-        "government",
-        "medical",
-        "financial",
-        "sign this",
-        "review this document",
-        "compliance",
-    )
-    if any(mark in text for mark in high_marks):
-        stakes = "high"
+    stakes = "high" if looks_high_stakes(text) else "low"
     needs = "no"
     if any(mark in text for mark in ("write a program", "python app", "web app", "run code", "sandbox", "build an api")):
         needs = "yes"

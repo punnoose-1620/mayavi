@@ -15,6 +15,8 @@ Large runs split into two loops. **Coding** is an operator control (CLI `--code`
 - The router no longer emits `needs_code_exec`. It still decides `stakes`, `file_ops`, `web_ops`, `mail_cal`, and `intent`.
 - Operator coding → sequential committee (`shape=coding`). Else high stakes → review (`shape=review`). Else `file_ops=3+` or `web_ops=2+` → medium. Else small.
 - Coding forces `mail_cal=off`. File/web gating is unchanged.
+- The factory clamps router `stakes=high` unless the prompt matches legal/official/medical/financial marks. A flashy HTML page stays **small**.
+- Small/medium HTML/JS/snippet prompts pick a **code-tagged** drafter. They do not open a sandbox. The operator coding flag is still the only way into the sequential committee.
 
 ### Coding committee
 
@@ -30,8 +32,8 @@ Large runs split into two loops. **Coding** is an operator control (CLI `--code`
 
 ### Review committee
 
-- High stakes, coding off: keep folder, sandbox, blackboard, `coding-rules.md`, three builders plus an executor.
-- Majority blackboard **ship** vote unlocks writers. No git tools.
+- High stakes, coding off: keep folder, blackboard, three builders plus an executor. **No sandbox.** Writers (`write_doc` / PDF / JSON) go to the keep folder immediately.
+- Majority blackboard **ship** vote records that the keep folder shipped. No git tools.
 
 ### GitHub remote
 
@@ -46,7 +48,7 @@ Large runs split into two loops. **Coding** is an operator control (CLI `--code`
 - A structured `profile_update` on a reply shows **Save to board**. Confirm writes `state/profile.json`. The factory does not guess profile fields from prose.
 - Each browser stores a UUID in `localStorage`. Chat history lives in `state/ui-session/<uuid>/` (`session.jsonl`, `html/`, `meta.jsonl`). Starting the server does not rotate those tapes. Peer IP, User-Agent, and language are appended to `meta.jsonl` for later analytics and are not used to look up a session.
 
-Small and medium sessions are unchanged.
+Small and medium sessions stay one/three agents. HTML/JS/snippet prompts on those tiers pick a code-tagged drafter without a sandbox.
 
 ## [1.0.0] - 2026-09-18
 

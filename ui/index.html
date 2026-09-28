@@ -186,11 +186,77 @@
     }
     #thread {
       flex: 1;
+      min-width: 0;
       background: var(--panel);
       color: var(--text);
       border: 1px solid var(--line);
       padding: 6px;
       font: inherit;
+    }
+    .notebook-help {
+      position: relative;
+      flex: 0 0 auto;
+      perspective: 240px;
+    }
+    #notebook-info {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 1.5px solid var(--muted);
+      border-radius: 50%;
+      background: var(--panel);
+      color: var(--muted);
+      cursor: help;
+      transform-style: preserve-3d;
+    }
+    #notebook-info:hover,
+    #notebook-info:focus-visible {
+      border-color: var(--accent);
+      color: var(--accent);
+      outline: none;
+    }
+    .notebook-info-mark {
+      font: italic 700 12px/1 Georgia, "Times New Roman", serif;
+    }
+    .notebook-help:hover #notebook-info,
+    #notebook-info:focus-visible {
+      animation: coin-flip 3s ease-in-out infinite;
+    }
+    @keyframes coin-flip {
+      0% { transform: rotateY(0deg); }
+      10% { transform: rotateY(180deg); }
+      20% { transform: rotateY(360deg); }
+      100% { transform: rotateY(360deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .notebook-help:hover #notebook-info,
+      #notebook-info:focus-visible {
+        animation: none;
+      }
+    }
+    .notebook-tip {
+      display: none;
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + 8px);
+      width: min(320px, 70vw);
+      margin: 0;
+      padding: 8px 10px;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      font-size: 12px;
+      line-height: 1.45;
+      z-index: 5;
+    }
+    .notebook-help:hover .notebook-tip,
+    #notebook-info:focus-visible + .notebook-tip,
+    .notebook-help:focus-within .notebook-tip {
+      display: block;
     }
   </style>
 </head>
@@ -213,6 +279,14 @@
     <select id="thread">
       <option value="">No notebook</option>
     </select>
+    <div class="notebook-help">
+      <button type="button" id="notebook-info" aria-describedby="notebook-tip" aria-label="About notebooks">
+        <span class="notebook-info-mark" aria-hidden="true">i</span>
+      </button>
+      <p id="notebook-tip" class="notebook-tip" role="tooltip">
+        A notebook is a saved project, not this chat log. Heavier jobs (coding, high-stakes review, or a lot of files/web) create one and this menu switches to it. Select a notebook only when this question needs that earlier project — its notes and saved files. For anything unrelated, choose “No notebook”.
+      </p>
+    </div>
   </div>
   <script>
     const logEl = document.getElementById("log");

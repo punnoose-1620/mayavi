@@ -45,7 +45,7 @@ def viewBlackboardMessages(n: int = 20, agent_id: str | None = None) -> dict[str
 
 def openSandbox(agent_id: str | None = None) -> dict[str, Any]:
     run, agent_id = _need(agent_id)
-    if run is None or run.level != "large" or run.sandbox_path is None:
+    if run is None or not getattr(run, "coding", False) or run.sandbox_path is None:
         return _done("openSandbox", run, agent_id, {"ok": False, "error": "no_sandbox"})
     run.agents[agent_id].sandbox_bound = True
     return _done("openSandbox", run, agent_id, {"ok": True, "sandbox": str(run.sandbox_path)})
@@ -253,7 +253,7 @@ def _need(agent_id: str | None) -> tuple[Any, str | None]:
 
 
 def _sandbox_ready(run: Any, agent_id: str | None, *, write: bool) -> dict[str, Any] | None:
-    if run is None or run.level != "large" or run.sandbox_path is None:
+    if run is None or not getattr(run, "coding", False) or run.sandbox_path is None:
         return {"ok": False, "error": "no_sandbox"}
     if agent_id not in run.agents:
         return {"ok": False, "error": "no_agent"}

@@ -20,6 +20,7 @@ import logger
 import mailAndCalendar
 import models
 import profile
+import router
 import runtime
 import store
 import web_scrape
@@ -183,9 +184,7 @@ def setSessionDetails(run_id: str) -> dict[str, Any]:
     run = store.get_run(run_id)
     if run is None:
         return _factory("setSessionDetails", None, "script", {"ok": False, "error": "no_run"})
-    coding = ""
-    if run.level == "large":
-        coding = _coding_rules_text()
+    coding = _coding_rules_text() if run.coding else ""
     details = {
         "run_id": run.run_id,
         "blackboard_id": run.run_id if run.blackboard else None,
@@ -198,10 +197,12 @@ def setSessionDetails(run_id: str) -> dict[str, Any]:
         "sandbox_id": run.run_id if run.sandbox_path else None,
         "keep_path": str(run.keep_path) if run.keep_path else None,
         "may_execute": [
-            a.agent_name for a in run.agents.values() if a.role in {"executor", "tester"}
+            a.agent_name for a in run.agents.values() if run.coding and a.role == "tester"
         ],
         "may_write": [
-            a.agent_name for a in run.agents.values() if a.role in {"builder", "coder"}
+            a.agent_name
+            for a in run.agents.values()
+            if a.role in ({"coder"} if run.coding else {"builder", "executor"})
         ],
         "mail_cal": run.mail_cal,
         "provider": run.provider,
@@ -409,8 +410,10 @@ def _promote_final_to_board(run: Run, agent: Agent, text: str) -> None:
 def _work_kind(run: Run) -> str:
     if str(run.needs_code_exec or "").lower() == "yes":
         return "code"
-    text = f"{run.user_prompt or ''} {run.intent or ''}".lower()
-    if any(mark in text for mark in _LANGUAGE_MARKS):
+    text = f"{run.user_prompt or ''} {run.intent or ''}"
+    if router.wants_code_agent(text):
+        return "code"
+    if any(mark in text.lower() for mark in _LANGUAGE_MARKS):
         return "language"
     return "plan"
 
@@ -551,11 +554,10 @@ def _run_coding(run: Run) -> str:
 
 
 def _run_review(run: Run) -> str:
-    """High-stakes, not coding: builders + executor, blackboard ship vote, no git tools."""
+    """High-stakes, not coding: builders + executor, keep-folder writers, no sandbox."""
     createKeepDir(run.run_id)
-    createSandbox(run.run_id)
     createBlackBoard(run.run_id)
-    setBlackBoardRules(run.run_id, pin_coding_rules=True)
+    setBlackBoardRules(run.run_id, pin_coding_rules=False)
     if not _ops_needed(run.file_ops):
         run.file_ops = "1"
     blackboard.pin_context_card(run)
@@ -1038,7 +1040,7 @@ def _tools_for(run: Run, agent: Agent) -> dict[str, Callable[..., Any]]:
                 ),
             }
         )
-    if run.level == "large" and not run.summarize_keep:
+    if run.coding and not run.summarize_keep:
         tools["openSandbox"] = lambda **kw: runtime.openSandbox(agent_id=aid)
         tools["sandbox_read"] = lambda **kw: runtime.sandbox_read(
             path=str(kw.get("path") or kw.get("file") or ""),
@@ -1202,7 +1204,7 @@ def _tool_call_vote(run: Run, agent: Agent) -> dict[str, Any]:
 
 
 def _unknown_tool_error(run: Run, agent: Agent, name: str) -> str:
-    if name in WRITE_TOOL_NAMES and run.level == "large" and not run.ship_unlocked:
+    if name in WRITE_TOOL_NAMES and run.coding and not run.ship_unlocked:
         return "ship_locked"
     if name == "executeScriptInSandbox" and agent.role not in {"executor", "tester"}:
         return "role_denied"
@@ -1323,8 +1325,10 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
                 "Call search_dir / read_file on the keep folder, then emit "
                 '{"final": "summary of what shipped, architecture, each file, and the save path"}.\n'
             )
-        elif run.level == "large" and not run.ship_unlocked:
+        elif run.coding and not run.ship_unlocked:
             prefer = _large_tool_prefer(agent)
+        elif run.level == "large" and not run.coding:
+            prefer = _review_tool_prefer()
         else:
             prefer = (
                 "The user needs tools. Do not answer with final until you have called the needed tool and seen its result.\n"
@@ -1340,6 +1344,11 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
             )
     else:
         prefer = 'Prefer a direct reply: {"final": "answer for the user"}. Do not call tools.\n'
+        if router.wants_code_agent(f"{run.user_prompt or ''} {run.intent or ''}"):
+            prefer += (
+                "If they asked for a page or snippet, put the complete HTML/CSS/JS in final "
+                "(fenced ```html is fine). Do not describe a sandbox.\n"
+            )
     shipped = blackboard.shipped_keep_paths(run.thread)
     if shipped and not run.summarize_keep:
         prefer += (
@@ -1368,9 +1377,20 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
 
 
 EXECUTE_ROLE_HINT = (
-    "On a coding committee only the tester may run scripts. On a high-stakes review run only the executor may run scripts. "
-    "Builders/coders write the .py; they do not call executeScriptInSandbox."
+    "On a coding committee only the tester may run scripts. "
+    "Coders write the .py; they do not call executeScriptInSandbox."
 )
+
+
+def _review_tool_prefer() -> str:
+    return (
+        "High-stakes review. There is no sandbox. Write the document with write_doc / write_pdf / write_json "
+        "into the keep folder.\n"
+        "Emit exactly one JSON object per reply. Call one tool, wait, then the next.\n"
+        '{"tool": "write_doc", "args": {"directory": "outputs", "name": "review", "type": "md", "content": "..."}}\n'
+        'Post {"tool": "sendMessageToBlackboard", "args": {"kind": "draft", "body": "..."}} then vote ship or reject.\n'
+        "Do not call sandbox tools. Do not execute scripts.\n"
+    )
 
 
 def _run_ship_summary(run: Run, exec_name: str) -> None:
@@ -1539,7 +1559,11 @@ def _coding_rules_text() -> str:
 
 
 def _writers_open(run: Run) -> bool:
-    return run.level != "large" or run.ship_unlocked
+    if run.level != "large":
+        return True
+    if not run.coding:
+        return True
+    return run.ship_unlocked
 
 
 def _committee_agents(run: Run) -> list[Agent]:
@@ -1547,7 +1571,9 @@ def _committee_agents(run: Run) -> list[Agent]:
 
 
 def _ship_ready(run: Run) -> bool:
-    if run.level != "large" or not run.sandbox_executed:
+    if run.level != "large":
+        return False
+    if run.coding and not run.sandbox_executed:
         return False
     voters = _committee_agents(run)
     if not voters:
@@ -1564,7 +1590,8 @@ def _refresh_ship_lock(run: Run) -> None:
         return
     if _ship_ready(run):
         run.ship_unlocked = True
-        _copy_sandbox_out(run)
+        if run.coding:
+            _copy_sandbox_out(run)
 
 
 def _committee_meta(run: Run) -> dict[str, Any] | None:
