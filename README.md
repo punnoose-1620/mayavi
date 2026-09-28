@@ -12,9 +12,9 @@ Release history lives in [`CHANGELOG.md`](CHANGELOG.md), newest version **first*
 ## What it does
 
 1. A **router** inspects the prompt and emits effort/stakes fields (not a tier name). It does not answer the user, does not call tools, and does not decide whether the job is a coding task.
-2. The script maps those fields to `small` | `medium` | `large`. The operator’s **coding** flag (CLI `--code` / UI checkbox) selects the sequential coding committee. High stakes without that flag selects the review committee.
-3. A **factory** (`executor.py`) creates agents, optional blackboard, optional sandbox, and (if requested) mail/calendar OAuth. File and web tools are **gated** from the router counts: `file_ops=0` hides writers/readers; `web_ops=0` hides scrape tools.
-4. Workers prefer a direct `{"final": "..."}`. They only get a tool if the router counted that family and the user asked for a file, URL, mail, or sandbox code.
+2. The script maps those fields to `small` | `medium` | `large`. The operator’s **coding** flag (CLI `--code` / UI checkbox) selects the sequential coding committee. High stakes without that flag selects the review committee. Operator **web** (`--web` / UI checkbox) is the only live-search switch; it does not pick a committee and does not jump the job to medium.
+3. A **factory** (`executor.py`) creates agents, optional blackboard, optional sandbox, and (if requested) mail/calendar OAuth. If operator web is on, it searches first (CSE, then SerpAPI, then ScraperAPI) and pins a page digest. File tools are **gated** from the router counts (`file_ops=0` hides writers/readers). Live web tools are **gated by the operator Web control**, not by `web_ops`.
+4. Workers prefer a direct `{"final": "..."}`. They only get a file or mail tool if the router counted that family. Live URL tools exist only when the operator marked **web**.
 5. The CLI prints **one** user-facing answer (Prompt / Response / Meta). Tokens are not streamed. On medium/large, that answer comes from blackboard `vote` then `draft`. Factory `rules`, sandbox `debug`, and bare `ship` / `reject` / `saved` / `shipped` pointers are never the answer. After a large run ships, the answer is a summary of the keep folder; artifacts land in `outputs/<YYYY-MM-DD>_<intent-slug>/`. If they do not ship, the factory says so (and lists jail files / stdout when it has them) instead of the word `saved`. If the model only emits `final`, the script copies it onto the board.
 6. A daily binary **audit log** records who spawned and which exported functions ran. It does not store transcripts, file bodies, mail bodies, or tokens.
 
@@ -26,16 +26,16 @@ The router never outputs `small` / `medium` / `large`. Mapping is:
 | --- | --- |
 | Operator **coding** is on | **large** sequential coding committee (even if stakes are high) |
 | else `stakes` is `high` | **large** review committee (builders + executor) |
-| else `file_ops` is `3+` **or** `web_ops` is `2+` | **medium** |
+| else `file_ops` is `3+` | **medium** |
 | else | **small** |
 
-`mail_cal` does not pick the tier. Coding tasks force `mail_cal` to `off`. The router does not emit `needs_code_exec`; that flag is set from the operator coding control.
+`mail_cal` does not pick the tier. Coding tasks force `mail_cal` to `off`. The router does not emit `needs_code_exec`; that flag is set from the operator coding control. The operator **web** checkbox / `--web` is the only way to run live search (CSE, then SerpAPI, then ScraperAPI). It does **not** jump a job to medium. `web_ops` from the router is forced to `0` unless that control is on.
 
 If the router is **unsure**, fields default **cheap**: `stakes=low`, `file_ops=0`, `web_ops=0` → **small** unless the operator marked coding. The factory then **clamps** `stakes=high` unless the prompt clearly matches legal/official/medical/financial (or similar). Greetings, chat, how-to, HTML pages, and summaries stay low even if the 1.5B router marked high. A write counts toward `file_ops` only if the user asked to create or save a file. Summarizing or reading code already under `outputs/` is a file read (`file_ops` at least 1), not a new sandbox build. Missing or garbage router JSON uses those same cheap defaults (it does **not** round up to large).
 
 | Tier | Agents | Blackboard | Sandbox | Typical use |
 | --- | --- | --- | --- | --- |
-| Small | 1 drafter (code-tagged GGUF when the prompt is HTML/JS/snippet work) | no | no | cheap Q&A, light file/web, a flashy HTML page |
+| Small | 1 drafter (code-tagged GGUF when the prompt is HTML/JS/snippet work) | no | no | cheap Q&A, light file/web, a flashy HTML page (untested unless Coding is on) |
 | Medium | drafter + 2 checkers | yes + durable thread | no | more file/web work, review |
 | Large (coding) | sequential committee (manager, coder, tester, critique, evaluator; documenter after commit) | sectioned board | **always** | operator marked coding |
 | Large (review) | executor + builders | blackboard ship vote | **no** | high stakes, not coding |
@@ -43,6 +43,8 @@ If the router is **unsure**, fields default **cheap**: `stakes=low`, `file_ops=0
 Large **coding** always creates a sandbox and a keep folder, and injects `coding-rules.md`. Phase 0 is planning only. Then each round is coder → tester → critique → evaluator → manager → vote. ≥4/5 yes commits; push every 5 commits if a valid GitHub URL was given. Tester executes; coder writes. If the USB library is present, `use` tags pick `manage` / `code` / `test` / `critique` / `evaluate` / `document`. If not, thinner backups (router / 3B) are used when RAM is short.
 
 Large **review** (high stakes, coding off) uses the older committee: builders and the executor write `write_doc` / PDF / JSON into the keep folder. No sandbox, no git tools. A majority blackboard **ship** vote records that the keep folder shipped.
+
+Without the operator **coding** flag, a snippet request still gets the code in the answer and a note that it is not tested. A request to run, test, or use the sandbox says that is unavailable until Coding / `--code` is selected.
 
 ## Requirements
 
@@ -109,7 +111,7 @@ python main.py --thread thr_abc123def4 "tweak the third bullet"
 python app.py
 ```
 
-`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `GET /profile`, `GET /html`, `POST /profile`, `POST /turns`). Double-click `run-id10t.bat` to start it on port **9001** and open the browser. The dropdown lists durable notebooks (`thr_…`) from medium and large runs. A **Coding** checkbox sits above the prompt; when it is on, a GitHub URL field appears (`https://github.com/owner/repo` only). Empty or invalid URLs hide git tools. Bot replies render as Markdown (raw HTML in the text is escaped). Fenced `html` blocks and full HTML documents get a **View HTML page** button on that reply (new tab, CSP, no scripts). PDFs the run wrote appear under that reply (icon, filename, **Save to PDF**). If the worker emitted a structured `profile_update`, that reply gets **Save to board**. Each browser stores a UUID in `localStorage` and hydrates from `state/ui-session/<uuid>/session.jsonl`. Starting the server does not wipe those tapes. Peer IP, User-Agent, and language are appended to `meta.jsonl` in that folder for later analytics; they are not used to look up a session. `python app.py --no-model` uses the same stubs as the CLI.
+`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `GET /profile`, `GET /html`, `GET /web-status`, `POST /profile`, `POST /turns`). Double-click `run-id10t.bat` to start it on port **9001** and open the browser. The dropdown lists durable notebooks (`thr_…`) from medium and large runs. A **Web** checkbox sits left of **Coding**. Web is disabled when `GET /web-status` reports no network or no search keys (the JSON never includes keys). When **Coding** is on, a GitHub URL field appears (`https://github.com/owner/repo` only). Empty or invalid URLs hide git tools. Bot replies render as Markdown (raw HTML in the text is escaped). Fenced `html` blocks and full HTML documents get a **View HTML page** button on that reply (new tab, CSP, no scripts). PDFs the run wrote appear under that reply (icon, filename, **Save to PDF**). If the worker emitted a structured `profile_update`, that reply gets **Save to board**. Each browser stores a UUID in `localStorage` and hydrates from `state/ui-session/<uuid>/session.jsonl`. Starting the server does not wipe those tapes. Peer IP, User-Agent, and language are appended to `meta.jsonl` in that folder for later analytics; they are not used to look up a session. `python app.py --no-model` uses the same stubs as the CLI.
 
 Double-clickable live checks (open a cmd window, show Prompt / Response / Meta, pause):
 
@@ -145,8 +147,8 @@ Copy `.env.example` to `.env`. **Never put secrets in `.env.example`.** `.env` i
 | `ID10T_VERIFY_MODEL_HASH` | `1` to sha256 every GGUF on load and pin the digest in `models.json`. Default `0`, because re-hashing multi-GB weights on every load is slow; downloads are hashed either way, and loads always check the recorded file size. |
 | `N_GPU_LAYERS` | llama.cpp GPU offload. `auto` (default) uses GPU only if driver, device, GPU wheel, and dedicated VRAM beat this GGUF, and only for the working agents — the router always stays on CPU. `0` = CPU everywhere. A positive integer forces that many layers for every role, router included. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_LOGIN_HINT` | Gmail + Calendar OAuth (browser Allow). |
-| `SERPAPI_API_KEY` / `SCRAPERAPI_API_KEY` | Web search (`search_web`). SerpAPI first, ScraperAPI if Serp is missing or fails. Keys never logged. |
-| `GOOGLE_CLOUD_API_KEY` / `GOOGLE_CSE_ID` | Unused Custom Search JSON leftovers (closed to new projects). |
+| `SERPAPI_API_KEY` / `SCRAPERAPI_API_KEY` | Web search backends. Keys never logged. |
+| `GOOGLE_CLOUD_API_KEY` / `GOOGLE_CSE_ID` | Google Custom Search JSON. Used first when both are set; then SerpAPI; then ScraperAPI. Keys never logged. |
 | `MS_CLIENT_ID` / `MS_TENANT` / `MS_LOGIN_HINT` | Microsoft Graph mail + calendar OAuth. |
 | `ID10T_DATA_DIR` | Private state (logs, tokens, createdIndex). Default `state/`. |
 | `ID10T_SANDBOX_ROOT` | Coding-run jails. Default `sandboxes/`. |
@@ -171,7 +173,8 @@ Writes aimed at `input/` or anywhere else are denied.
 
 ```text
 python main.py PROMPT
-python main.py --code PROMPT
+python main.py --web PROMPT
+python main.py --code --web PROMPT
 python main.py --code --repo https://github.com/owner/repo PROMPT
 python main.py --no-model PROMPT
 python main.py --json PROMPT
@@ -182,6 +185,7 @@ python main.py --provider microsoft PROMPT
 | Flag | Meaning |
 | --- | --- |
 | `--code` | Run the sequential coding committee. Without this flag the router never maps a job to that loop. |
+| `--web` | Factory live search (CSE → SerpAPI → ScraperAPI). The only way workers get `search_web` / `get_url`. Does not pick the coding committee and does not jump the job to medium. Coding + web searches first, then pins a digest for the committee. |
 | `--repo URL` | Coding only. `https://github.com/owner/repo` enables git tools; empty or invalid hides them. Local keep commits still happen. |
 | `--no-model` | Heuristic routing + stub replies. Does not load GGUFs. Use this before weights exist. |
 | `--json` | Print the full run record instead of the Prompt/Response block. |
@@ -257,7 +261,8 @@ The worker system prompt tells them to **answer directly** unless the user asked
 | Router field | Tools exposed |
 | --- | --- |
 | `file_ops` is `0` | No `search_dir` / `read_file` / `write_doc` / `write_pdf` / `write_json` / `append_file` / `mkdir` |
-| `web_ops` is `0` | No `search_web` / `get_url` / `post_url` / `resetSession` |
+| Operator **web** is off | No `search_web` / `get_url` / `post_url` / `resetSession` (even on medium/large, even if the prompt has URLs) |
+| Operator **web** is on | Factory live-search pass, plus those scrape tools |
 | `mail_cal` is `off` | No mail/calendar tools |
 | not coding | No sandbox tools |
 | coding before the ship vote | No durable writers; the sandbox is the only place to build |
@@ -273,9 +278,10 @@ A model that still calls a hidden tool gets `unknown_tool` and can finish with `
 - Created files are tracked in `state/createdIndex.json` (agents cannot read that index).
 - Reads/writes are paged (max 5 pages per call).
 
-**Web** (`web_scrape.py`, backends in `search.py`): `search_web`, `get_url`, `post_url`, `resetSession` (only if `web_ops` ≠ `0`).
+**Web** (`web_scrape.py`, backends in `search.py`, factory pipeline in `web_research.py`): `search_web`, `get_url`, `post_url`, `resetSession` only if the operator marked **Web** / `--web`. Medium and large jobs do not get scrape tools from a router `web_ops` count.
 
-- `search_web` calls `search.webSearch` with `SERPAPI_API_KEY` (first) then `SCRAPERAPI_API_KEY`, and returns `{title, url, snippet}` rows. Then `get_url` fetches a chosen URL. Do not scrape `google.com/search`.
+- The factory asks the small router GGUF for a query, calls `search.webSearch` (CSE if `GOOGLE_CLOUD_API_KEY` + `GOOGLE_CSE_ID`, else SerpAPI, else ScraperAPI), picks up to three result URLs, and `get_url`s pages 1–2 of each. A larger worker then answers from that digest in chunks. Medium/review/coding runs pin the digest on the blackboard instead.
+- Agent `search_web` uses the same `search.webSearch` backends and returns `{title, url, snippet}` rows. Do not scrape `google.com/search`.
 - http/https only on fetches. Loopback, private, and link-local IPs are rejected (SSRF).
 - No captcha solving, no contacts, no places lookups — see [`docs/v2-scope.md`](docs/v2-scope.md). The public tool name stays `search_web`.
 
@@ -330,7 +336,8 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `runtime.py` | Agent committee + sandbox tools (blackboard send/view are wrappers)
 | `file_tools.py` | Public file API |
 | `web_scrape.py` | HTTP GET/POST + `search_web` |
-| `search.py` | Private SerpAPI / ScraperAPI backend for `search_web` |
+| `search.py` | Private CSE / SerpAPI / ScraperAPI backend for `search_web` and the operator Web control |
+| `web_research.py` | Factory live-search pipeline (query → search → fetch → digest). Agents never import this. |
 | `mailAndCalendar.py` | Agent-facing mail/calendar door |
 | `google_backend.py` / `microsoft.py` | Private OAuth backends (the Google file **cannot** be named `google.py`: it would shadow Google's own `google` package) |
 | `models.py` | Resolve / RAM check / load / generate / pin refresh |

@@ -118,6 +118,10 @@ class Run:
     git_remote: str | None = None
     shape: str = ""
     coding: bool = False
+    web: bool = False
+    web_digest: str = ""
+    web_hits: list[dict[str, Any]] = field(default_factory=list)
+    web_stage: str = ""
     profile_updates: list[dict[str, Any]] = field(default_factory=list)
 
 

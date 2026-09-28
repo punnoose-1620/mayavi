@@ -21,6 +21,7 @@ import logger
 import main
 import profile
 import router
+import search
 
 HOST = "127.0.0.1"
 PORT = 8765
@@ -313,9 +314,16 @@ def _stage_detail(summary: str) -> str:
     return match.group(1) if match else ""
 
 
-def run_turn(prompt: str, thread_id: str | None, *, coding: Any = False, git_remote: str | None = None) -> dict[str, Any]:
+def run_turn(
+    prompt: str,
+    thread_id: str | None,
+    *,
+    coding: Any = False,
+    git_remote: str | None = None,
+    web: Any = False,
+) -> dict[str, Any]:
     fields = main._route_fields(prompt, NO_MODEL)
-    fields = router.apply_user_controls(fields, coding=coding, git_remote=git_remote)
+    fields = router.apply_user_controls(fields, coding=coding, git_remote=git_remote, web=web)
     generate_fn = main.stub_generate if NO_MODEL else None
     return executor.run_session(prompt, fields, generate_fn=generate_fn, thread_id=thread_id)
 
@@ -380,6 +388,9 @@ class Handler(BaseHTTPRequestHandler):
             board = profile.public_board()
             self._send_json(200, {"ok": True, **board})
             return
+        if path == "/web-status":
+            self._send_json(200, search.status())
+            return
         self._send_json(404, {"ok": False, "error": "not_found"})
 
     def do_POST(self) -> None:
@@ -411,6 +422,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         wanted = str((body or {}).get("thread_id") or "").strip() or None
         coding = (body or {}).get("coding")
+        web = (body or {}).get("web")
         git_remote = str((body or {}).get("git_remote") or "").strip() or None
         user_agent = str((body or {}).get("user_agent") or "")
         language = str((body or {}).get("language") or "")
@@ -423,6 +435,7 @@ class Handler(BaseHTTPRequestHandler):
                 wanted,
                 coding=coding,
                 git_remote=git_remote,
+                web=web,
                 device_id=device,
                 user_agent=user_agent,
                 language=language,
@@ -437,6 +450,7 @@ class Handler(BaseHTTPRequestHandler):
         *,
         coding: Any = False,
         git_remote: str | None = None,
+        web: Any = False,
         device_id: str,
         user_agent: str = "",
         language: str = "",
@@ -459,7 +473,7 @@ class Handler(BaseHTTPRequestHandler):
         logger.add_listener(on_log)
         try:
             try:
-                result = run_turn(prompt, thread_id, coding=coding, git_remote=git_remote)
+                result = run_turn(prompt, thread_id, coding=coding, git_remote=git_remote, web=web)
             except Exception as exc:
                 text = main._failure_text(exc)
                 update_active_progress(text)
@@ -479,6 +493,7 @@ class Handler(BaseHTTPRequestHandler):
                 "shape": result.get("shape"),
                 "coding": result.get("coding"),
                 "git_remote": result.get("git_remote"),
+                "web": result.get("web"),
                 "pdfs": list(result.get("pdfs") or []),
                 "profile_update": result.get("profile_update"),
                 "notices": list(result.get("notices") or []),
@@ -505,6 +520,7 @@ class Handler(BaseHTTPRequestHandler):
                     "shape": painted.get("shape"),
                     "coding": painted.get("coding"),
                     "git_remote": painted.get("git_remote"),
+                    "web": painted.get("web"),
                     "pdfs": painted.get("pdfs") or [],
                     "profile_update": painted.get("profile_update"),
                     "notices": notices,

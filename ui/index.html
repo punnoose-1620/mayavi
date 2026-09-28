@@ -165,7 +165,9 @@
       font-size: 13px;
     }
     #task-row { margin-top: 0; margin-bottom: 8px; flex-wrap: wrap; }
-    #coding-label { display: flex; align-items: center; gap: 6px; margin-top: 10px; cursor: pointer; white-space: nowrap; }
+    #coding-label, #web-label { display: flex; align-items: center; gap: 6px; margin-top: 10px; cursor: pointer; white-space: nowrap; }
+    #web-label.disabled { opacity: 0.45; cursor: not-allowed; }
+    #web-label.disabled input { pointer-events: none; }
     #repo-wrap {
       display: none;
       flex: 1;
@@ -264,6 +266,7 @@
   <h1>ID10T - Your personal AI Assistant</h1>
   <div id="log" aria-live="polite"></div>
   <div id="task-row">
+    <label id="web-label" for="web" title="Live web search"><input type="checkbox" id="web"> Web</label>
     <label id="coding-label" for="coding"><input type="checkbox" id="coding"> Coding</label>
     <div id="repo-wrap">
       <label for="repo">GitHub</label>
@@ -294,6 +297,8 @@
     const sendEl = document.getElementById("send");
     const threadEl = document.getElementById("thread");
     const codingEl = document.getElementById("coding");
+    const webEl = document.getElementById("web");
+    const webLabel = document.getElementById("web-label");
     const repoEl = document.getElementById("repo");
     const repoWrap = document.getElementById("repo-wrap");
 
@@ -394,6 +399,7 @@
       if (turn.shape) bits.push("shape=" + turn.shape);
       if (turn.run_id) bits.push("run_id=" + turn.run_id);
       if (turn.git_remote) bits.push("git=" + turn.git_remote);
+      if (turn.web) bits.push("web");
       if (turn.thread_id) bits.push("thread_id=" + turn.thread_id);
       addCommittee(bits, turn.committee);
       if (bits.length) add("meta", bits.join("  "));
@@ -637,6 +643,7 @@
             prompt,
             thread_id: threadEl.value || null,
             coding: codingEl.checked,
+            web: webEl.checked && !webEl.disabled,
             git_remote: codingEl.checked ? (repoEl.value || "").trim() : "",
           })),
         });
@@ -680,6 +687,7 @@
               if (payload.shape) bits.push("shape=" + payload.shape);
               if (payload.run_id) bits.push("run_id=" + payload.run_id);
               if (payload.git_remote) bits.push("git=" + payload.git_remote);
+              if (payload.web) bits.push("web");
               if (payload.thread_id) bits.push("thread_id=" + payload.thread_id);
               addCommittee(bits, payload.committee);
               for (const notice of payload.notices || []) bits.push(notice);
@@ -704,8 +712,32 @@
       }
     });
 
+    async function loadWebStatus() {
+      try {
+        const res = await fetch("/web-status");
+        const data = await res.json().catch(() => ({}));
+        const on = Boolean(data.available);
+        webEl.disabled = !on;
+        webEl.checked = on ? webEl.checked : false;
+        webLabel.classList.toggle("disabled", !on);
+        if (!on) {
+          webLabel.title = data.reason === "offline"
+            ? "Web search is off — no network"
+            : "Web search is off — no search API keys";
+        } else {
+          webLabel.title = "Live web search";
+        }
+      } catch {
+        webEl.disabled = true;
+        webEl.checked = false;
+        webLabel.classList.add("disabled");
+        webLabel.title = "Web search is off — status unavailable";
+      }
+    }
+
     loadHistory().catch((err) => add("progress", String(err)));
     loadThreads().catch((err) => add("progress", String(err)));
+    loadWebStatus().catch(() => {});
   </script>
 </body>
 </html>

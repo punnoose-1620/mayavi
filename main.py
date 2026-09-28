@@ -26,6 +26,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--code", action="store_true", help="Run the sequential coding committee")
     parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Live web search (CSE, then SerpAPI, then ScraperAPI). Does not pick the coding committee.",
+    )
+    parser.add_argument(
         "--repo",
         default=None,
         metavar="URL",
@@ -38,12 +43,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     generate_fn = stub_generate if args.no_model else None
     fields = _route_fields(prompt, args.no_model)
-    fields = router.apply_user_controls(fields, coding=args.code, git_remote=args.repo)
+    fields = router.apply_user_controls(fields, coding=args.code, git_remote=args.repo, web=args.web)
     if not args.json:
         if fields.get("coding"):
             print("working (coding committee) — sequential models, this can take a while…", flush=True)
         elif str(fields.get("stakes") or "") == "high":
             print("working (review committee) — sequential models, this can take a while…", flush=True)
+        elif fields.get("web"):
+            print("working (web search) — fetching live pages…", flush=True)
     try:
         result = executor.run_session(
             prompt, fields, generate_fn=generate_fn, provider=args.provider, thread_id=args.thread
@@ -89,6 +96,7 @@ def _print_run(prompt: str, result: dict[str, Any]) -> None:
         f"run_id={result.get('run_id')}"
         + (f" shape={result.get('shape')}" if result.get("shape") else "")
         + (f" git={result.get('git_remote')}" if result.get("git_remote") else "")
+        + (" web=on" if result.get("web") else "")
         + (f" thread_id={result.get('thread_id')}" if result.get("thread_id") else ""),
         flush=True,
     )
@@ -108,6 +116,10 @@ NOTICE_TEXT = {
     "mail_connect_failed": "Mail/calendar consent did not complete, so this run had no inbox access.",
     "thread_not_found": "That thread id was not found under state/threads/, so this run did not attach a notebook.",
     "model_unavailable": "The worker GGUF did not load; the answer names the reason.",
+    "web_not_configured": "Web search is off because no CSE, SerpAPI, or ScraperAPI keys are set.",
+    "web_offline": "Web search is off because this machine has no network.",
+    "web_search_failed": "Live search did not return results, so the answer used what the model already knew.",
+    "web_fetch_empty": "Search found pages, but none of them could be fetched.",
 }
 
 GENERATE_TEXT = {
@@ -150,8 +162,23 @@ def _route_fields(prompt: str, no_model: bool) -> dict[str, Any]:
 
 
 def stub_generate(run: Any, agent: Any, history: list[dict[str, str]]) -> str:
+    stage = str(getattr(run, "web_stage", "") or "")
+    if stage == "query":
+        return json.dumps({"query": (run.user_prompt or run.intent or "search")[:80]})
+    if stage == "urls":
+        urls = [str(row.get("url") or "") for row in (getattr(run, "web_hits", None) or []) if isinstance(row, dict)]
+        return json.dumps({"urls": [u for u in urls if u][:3]})
+    if stage == "notes":
+        return json.dumps({"notes": "stub live-search notes"})
+    if stage == "answer":
+        return json.dumps({"final": f"web: {run.intent or run.user_prompt}"})
     if getattr(run, "committee", None) is not None:
         return _stub_committee(run, agent, history)
+    if not getattr(run, "coding", False) and (
+        router.wants_execute(f"{run.user_prompt or ''} {run.intent or ''}")
+        or router.wants_code_agent(f"{run.user_prompt or ''} {run.intent or ''}")
+    ):
+        return json.dumps({"final": executor.off_coding_draft(run)})
     tool_turns = sum(1 for m in history if m.get("role") == "tool")
     if run.level in {"medium", "large"}:
         body = f"{agent.role}: {run.intent}"

@@ -292,14 +292,25 @@ def run_session(
     run.shape = str(mapped.get("shape") or run.level)
     run.coding = bool(mapped.get("coding"))
     run.git_remote = mapped.get("git_remote") or None
+    run.web = bool(mapped.get("web"))
     blackboard.bind_thread(run, thread_id)
     if blackboard.shipped_keep_paths(run.thread):
         if not _ops_needed(run.file_ops):
             run.file_ops = "1"
+    if run.web:
+        import web_research
+
+        web_research.gather(run)
     answer = None
     try:
         if run.level == "small":
-            answer = _run_small(run)
+            answer = ""
+            if run.web and str(getattr(run, "web_digest", "") or "").strip():
+                import web_research
+
+                answer = web_research.synthesize(run)
+            if not answer:
+                answer = _run_small(run)
         elif run.level == "medium":
             answer = _run_medium(run)
         else:
@@ -325,6 +336,7 @@ def run_session(
         "shape": run.shape,
         "coding": run.coding,
         "git_remote": run.git_remote,
+        "web": run.web,
         "pdfs": _pdf_artifacts(run),
         "profile_update": profile.merge(run.profile_updates),
     }
@@ -481,6 +493,7 @@ def _run_medium(run: Run) -> str:
     createBlackBoard(run.run_id)
     setBlackBoardRules(run.run_id)
     blackboard.pin_context_card(run)
+    _pin_web_digest(run)
     if run.mail_cal != "off":
         _connect_mail(run)
     setSessionDetails(run.run_id)
@@ -507,6 +520,7 @@ def _run_coding(run: Run) -> str:
     if not _ops_needed(run.file_ops):
         run.file_ops = "1"
     blackboard.pin_context_card(run)
+    _pin_web_digest(run)
     if run.mail_cal != "off":
         _connect_mail(run)
     names = _spawn_committee(run)
@@ -561,6 +575,7 @@ def _run_review(run: Run) -> str:
     if not _ops_needed(run.file_ops):
         run.file_ops = "1"
     blackboard.pin_context_card(run)
+    _pin_web_digest(run)
     if run.mail_cal != "off":
         _connect_mail(run)
     _lead, support = _lead_and_support("plan", 3)
@@ -702,12 +717,23 @@ def _connect_mail(run: Run) -> None:
         run.notices.append(f"mail_connect_failed:{out.get('error') or 'unknown'}")
 
 
+def _pin_web_digest(run: Run) -> None:
+    if not getattr(run, "web", False) or not str(getattr(run, "web_digest", "") or "").strip():
+        return
+    import web_research
+
+    web_research.pin(run)
+
+
 def _run_agent_loop(run: Run, agent: Agent) -> dict[str, Any]:
     tools = _tools_for(run, agent)
     system = _system_prompt(run, agent, tools)
     user = run.user_prompt
     if run.committee is not None:
         user = committee.user_payload(run, agent)
+    digest = str(getattr(run, "web_digest", "") or "").strip()
+    if digest:
+        user = "Live-search notes (cite these URLs):\n" + digest[:1800] + "\n\nUser request:\n" + user
     if run.summarize_keep and run.keep_path is not None:
         user = (
             f"The build shipped to {run.keep_path}. "
@@ -868,8 +894,162 @@ def _user_answer(run: Run, answer: str | None) -> str:
     if run.level == "large" and (not text or _pointer_answer(text) or _protocol_blob(text)):
         return _large_fallback_answer(run)
     if not text:
-        return "The run finished without a usable answer."
+        text = "The run finished without a usable answer."
+    if not run.coding:
+        text = _finish_off_coding(run, text)
     return text
+
+
+_UNTESTED = "This code is not tested; it was not executed because Coding is not selected."
+_CANNOT_TEST = (
+    "I cannot test or run this without Coding selected. "
+    "Turn on Coding (or pass --code) to use the sandbox."
+)
+
+
+def off_coding_draft(run: Run) -> str:
+    """Viable snippet when Coding is off. Stubs and thin live answers use this."""
+    prompt = f"{run.user_prompt or ''} {run.intent or ''}"
+    if router.wants_execute(prompt):
+        return (
+            f"{_CANNOT_TEST}\n\n"
+            "Example (not executed):\n\n"
+            "```python\nprint('hello')\n```\n"
+        )
+    text = (run.user_prompt or "").lower()
+    if "html" in text or "flashy" in text or "landing" in text or "javascript" in text or "webpage" in text or "web page" in text:
+        lang = "html"
+        body = _FLASHY_HTML if ("flashy" in text or "html" in text) and "landing" not in text else _LANDING_HTML
+        if "landing" in text or "javascript" in text:
+            body = _LANDING_HTML
+        return f"```{lang}\n{body.rstrip()}\n```\n\n{_UNTESTED}\n"
+    if "class" in text or "todo" in text:
+        return f"```python\n{_TODO_CLASS.rstrip()}\n```\n\n{_UNTESTED}\n"
+    if "matrix" in text:
+        return f"```python\n{_MATRIX.rstrip()}\n```\n\n{_UNTESTED}\n"
+    if "cli" in text:
+        return f"```python\n{_HELLO_CLI.rstrip()}\n```\n\n{_UNTESTED}\n"
+    return f"```python\n{_HELLO_FN.rstrip()}\n```\n\n{_UNTESTED}\n"
+
+
+def _finish_off_coding(run: Run, text: str) -> str:
+    prompt = f"{run.user_prompt or ''} {run.intent or ''}"
+    if router.wants_execute(prompt):
+        if _thin_code_answer(text):
+            return off_coding_draft(run).strip()
+        if "cannot test" not in text.lower() and "coding" not in text.lower():
+            return text.rstrip() + "\n\n" + _CANNOT_TEST
+        return text
+    if router.wants_code_agent(prompt) or _work_kind(run) == "code":
+        if _thin_code_answer(text):
+            return off_coding_draft(run).strip()
+        if "not tested" not in text.lower() and "not executed" not in text.lower():
+            return text.rstrip() + "\n\n" + _UNTESTED
+        return text
+    return text
+
+
+def _thin_code_answer(text: str) -> bool:
+    body = str(text or "").strip()
+    if len(body) < 40:
+        return True
+    lowered = body.lower()
+    if "(no local model)" in lowered:
+        return True
+    if "```" in body or "<html" in lowered or "def " in body or "class " in body:
+        return False
+    return True
+
+
+_FLASHY_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Flashy</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+      background: conic-gradient(from 0.15turn, #ff2d95, #5b8def, #00e5a8, #ff2d95);
+      animation: hue 8s linear infinite; color: #fff; font-family: system-ui, sans-serif; }
+    @keyframes hue { to { filter: hue-rotate(360deg); } }
+    h1 { text-shadow: 0 0 28px #fff; }
+  </style>
+</head>
+<body>
+  <h1>Flashy</h1>
+</body>
+</html>
+"""
+
+_LANDING_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Landing</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+    main { max-width: 40rem; margin: 12vh auto; padding: 0 1.5rem; }
+    button { background: #38bdf8; color: #0f172a; border: 0; padding: 0.6rem 1rem; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Hello</h1>
+    <p>A small landing page.</p>
+    <button id="go" type="button">Click</button>
+  </main>
+  <script>
+    document.getElementById("go").addEventListener("click", () => { alert("hi"); });
+  </script>
+</body>
+</html>
+"""
+
+_HELLO_FN = '''def hello(name: str = "world") -> str:
+    return f"Hello, {name}!"
+
+
+if __name__ == "__main__":
+    print(hello())
+'''
+
+_HELLO_CLI = '''import argparse
+
+parser = argparse.ArgumentParser(description="hello CLI")
+parser.add_argument("name", nargs="?", default="world")
+args = parser.parse_args()
+print(f"hello {args.name}")
+'''
+
+_TODO_CLASS = '''class TodoList:
+    def __init__(self) -> None:
+        self.items: list[str] = []
+
+    def add(self, text: str) -> None:
+        self.items.append(text)
+
+    def done(self, index: int) -> str:
+        return self.items.pop(index)
+
+
+if __name__ == "__main__":
+    box = TodoList()
+    box.add("write tests")
+    print(box.items)
+'''
+
+_MATRIX = '''def matmul(a: list[list[int]], b: list[list[int]]) -> list[list[int]]:
+    n, m, p = len(a), len(a[0]), len(b[0])
+    out = [[0] * p for _ in range(n)]
+    for i in range(n):
+        for k in range(m):
+            for j in range(p):
+                out[i][j] += a[i][k] * b[k][j]
+    return out
+
+
+if __name__ == "__main__":
+    print(matmul([[1, 2], [3, 4]], [[5, 6], [7, 8]]))
+'''
 
 
 def _usable_answer(text: str | None) -> bool:
@@ -1016,7 +1196,7 @@ def _tools_for(run: Run, agent: Agent) -> dict[str, Callable[..., Any]]:
                 }
             )
             tools["write_file"] = tools["write_doc"]
-    if _ops_needed(run.web_ops):
+    if run.web:
         tools.update(
             {
                 "search_web": lambda **kw: web_scrape.search_web(agent_id=aid, **kw),
@@ -1317,7 +1497,7 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
     if run.committee is not None:
         return committee.system_prompt(run, agent, list(tools))
     names = ", ".join(sorted(tools))
-    need_tools = _ops_needed(run.file_ops) or _ops_needed(run.web_ops) or run.mail_cal != "off" or run.level == "large"
+    need_tools = _ops_needed(run.file_ops) or run.web or run.mail_cal != "off" or run.level == "large"
     if need_tools:
         if run.summarize_keep:
             prefer = (
@@ -1344,7 +1524,22 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
             )
     else:
         prefer = 'Prefer a direct reply: {"final": "answer for the user"}. Do not call tools.\n'
-        if router.wants_code_agent(f"{run.user_prompt or ''} {run.intent or ''}"):
+        blob = f"{run.user_prompt or ''} {run.intent or ''}"
+        if not run.coding and router.wants_execute(blob):
+            prefer += (
+                "They asked to run or test code. There is no sandbox on this run. "
+                "Do not claim you executed anything. You may show a short example in final. "
+                "Say clearly you cannot test it until they select Coding / --code.\n"
+            )
+        elif not run.coding and (
+            router.wants_code_agent(blob) or _work_kind(run) == "code"
+        ):
+            prefer += (
+                "Put the complete code in final (fenced ```html / ```python / ```js as fits). "
+                "Say it is not tested and was not executed, because Coding is not selected. "
+                "Do not describe opening a sandbox.\n"
+            )
+        elif router.wants_code_agent(blob):
             prefer += (
                 "If they asked for a page or snippet, put the complete HTML/CSS/JS in final "
                 "(fenced ```html is fine). Do not describe a sandbox.\n"

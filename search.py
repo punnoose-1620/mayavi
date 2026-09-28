@@ -1,7 +1,8 @@
-"""Private SerpAPI / ScraperAPI web search. Agents never import this file."""
+"""Private CSE / SerpAPI / ScraperAPI web search. Agents never import this file."""
 
 from __future__ import annotations
 
+import socket
 from typing import Any
 from urllib.parse import urlparse
 
@@ -9,13 +10,46 @@ import requests
 
 import config
 
+CSE_ENDPOINT = "https://www.googleapis.com/customsearch/v1"
 SERP_ENDPOINT = "https://serpapi.com/search.json"
 SCRAPER_ENDPOINT = "https://api.scraperapi.com/structured/google/search"
 _TIMEOUT = 30
+_PROBE_HOSTS = (("1.1.1.1", 443), ("8.8.8.8", 53))
+
+
+def search_configured() -> bool:
+    key = (config.GOOGLE_CLOUD_API_KEY or "").strip()
+    cx = (config.GOOGLE_CSE_ID or "").strip()
+    serp = (config.SERPAPI_API_KEY or "").strip()
+    scraper = (config.SCRAPERAPI_API_KEY or "").strip()
+    return bool((key and cx) or serp or scraper)
+
+
+def net_ok() -> bool:
+    for host, port in _PROBE_HOSTS:
+        try:
+            sock = socket.create_connection((host, port), timeout=2)
+            sock.close()
+            return True
+        except OSError:
+            continue
+    return False
+
+
+def status() -> dict[str, Any]:
+    """Whether the operator Web control can run. Never includes keys."""
+    configured = search_configured()
+    online = net_ok() if configured else False
+    reason = ""
+    if not configured:
+        reason = "not_configured"
+    elif not online:
+        reason = "offline"
+    return {"ok": True, "configured": configured, "online": online, "available": bool(configured and online), "reason": reason}
 
 
 def webSearch(query: str, *, num: int = 10, start: int = 1) -> dict[str, Any]:
-    """SerpAPI first, ScraperAPI if Serp is missing or fails. Never log the API key or request URL."""
+    """CSE, then SerpAPI, then ScraperAPI. Never log the API key or request URL."""
     q = str(query or "").strip()[:200]
     if not q:
         return {"ok": False, "error": "empty_query"}
@@ -24,20 +58,51 @@ def webSearch(query: str, *, num: int = 10, start: int = 1) -> dict[str, Any]:
         index = max(1, int(start or 1))
     except (TypeError, ValueError):
         count, index = 10, 1
-    serp_key = (config.SERPAPI_API_KEY or "").strip()
-    scraper_key = (config.SCRAPERAPI_API_KEY or "").strip()
-    if not serp_key and not scraper_key:
+    if not search_configured():
         return {"ok": False, "error": "not_configured"}
     last: dict[str, Any] = {"ok": False, "error": "not_configured"}
+    empty: dict[str, Any] | None = None
+    cse_key = (config.GOOGLE_CLOUD_API_KEY or "").strip()
+    cse_cx = (config.GOOGLE_CSE_ID or "").strip()
+    if cse_key and cse_cx:
+        last = _cse_search(q, key=cse_key, cx=cse_cx, num=count, start=index)
+        if last.get("ok") and last.get("items"):
+            return last
+        if last.get("ok"):
+            empty = last
+    serp_key = (config.SERPAPI_API_KEY or "").strip()
     if serp_key:
         last = _serp_search(q, key=serp_key, num=count, start=index)
-        if last.get("ok"):
+        if last.get("ok") and last.get("items"):
             return last
+        if last.get("ok"):
+            empty = last
+    scraper_key = (config.SCRAPERAPI_API_KEY or "").strip()
     if scraper_key:
         last = _scraper_search(q, key=scraper_key, num=count, start=index)
-        if last.get("ok"):
+        if last.get("ok") and last.get("items"):
             return last
-    return last
+        if last.get("ok"):
+            empty = last
+    return empty or last
+
+
+def _cse_search(query: str, *, key: str, cx: str, num: int, start: int) -> dict[str, Any]:
+    try:
+        resp = requests.get(
+            CSE_ENDPOINT,
+            params={"key": key, "cx": cx, "q": query, "num": num, "start": start},
+            timeout=_TIMEOUT,
+        )
+    except Exception as exc:
+        return {"ok": False, "error": type(exc).__name__}
+    err = _http_error(resp)
+    if err:
+        return err
+    blob = _json_blob(resp)
+    if blob is None:
+        return {"ok": False, "error": "bad_json"}
+    return {"ok": True, "items": _organic_items(blob.get("items"), num)}
 
 
 def _serp_search(query: str, *, key: str, num: int, start: int) -> dict[str, Any]:

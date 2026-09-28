@@ -14,17 +14,17 @@ You are the smallest model in the system. Stay cheap and strict. If unsure about
 
 Prefer a direct spoken answer. Count a tool family only when the user clearly needs it. Do not count file or web tools just because they exist. "hi", chat, and questions that can be answered from the model's own knowledge are file_ops 0, web_ops 0.
 
-Output only these fields. Do not output small, medium, or large. Do not invent tools that are not listed. Do not output needs_code_exec. The operator chooses whether this is a coding task.
+Output only these fields. Do not output small, medium, or large. Do not invent tools that are not listed. Do not output needs_code_exec. The operator chooses whether this is a coding task and whether live web search is allowed.
 
 - file_ops: 0 | 1 | 2 | 3+
-- web_ops: 0 | 1 | 2+
+- web_ops: 0
 - mail_cal: off | read | write
 - stakes: low | high
 - intent: one short sentence of what the user wants
 
 file_ops is how many file tool calls the job needs (read, discovery, or write). Count a write only if the user asked to create, save, edit, or build a file (doc, pdf, csv, json, and similar). A folder discovery sweep that stays under the safety cap counts as one file op, not one op per file inside it. Do not count write_doc for a greeting or a spoken answer.
 
-web_ops is how many web tool calls the job needs. v1 calls are search_web, get_url, and post_url. Count web if they asked to search the web, google something, look up a live fact, or fetch/scrape a URL. Search then one page fetch is 1. Several pages is 2+. Casual "how do I" questions that the model can answer from training are 0. Do not count web because the word search appears in a file-search or code-search request.
+web_ops is always 0. Live search (search_web, get_url, post_url) is an operator control, not yours. A URL in the prompt is not permission to fetch it. Do not count web because they said search, google, look up, or pasted a link.
 
 mail_cal is off unless the user clearly needs inbox or calendar. Use read for list/open/search/free-busy only. Use write only for send, reply, create, update, or cancel events.
 
@@ -68,6 +68,11 @@ CODE_AGENT_MARKS = (
     "write a class",
     "write a program",
     "code snippet",
+    " python",
+    "python ",
+    "matrix",
+    "todo",
+    " cli",
     "```html",
     "```css",
     "```js",
@@ -75,14 +80,23 @@ CODE_AGENT_MARKS = (
 )
 
 
-def apply_user_controls(fields: dict[str, Any], *, coding: Any = None, git_remote: str | None = None) -> dict[str, Any]:
-    """Operator coding flag and GitHub URL win over the router."""
+def apply_user_controls(
+    fields: dict[str, Any],
+    *,
+    coding: Any = None,
+    git_remote: str | None = None,
+    web: Any = None,
+) -> dict[str, Any]:
+    """Operator coding flag, GitHub URL, and web-search flag win over the router."""
     import git_tools
 
     out = dict(fields)
     flag = coding if coding is not None else out.get("coding")
     is_coding = _flag(flag)
     out["coding"] = is_coding
+    out["web"] = _flag(web if web is not None else out.get("web"))
+    if not out["web"]:
+        out["web_ops"] = "0"
     if is_coding:
         out["needs_code_exec"] = "yes"
         out["mail_cal"] = "off"
@@ -104,17 +118,38 @@ def looks_high_stakes(prompt: str) -> bool:
     return any(mark in text for mark in HIGH_STAKES_MARKS)
 
 
+EXECUTE_MARKS = (
+    "sandbox",
+    "run python",
+    "run the code",
+    "run this",
+    "execute",
+    "unit test",
+    "test this",
+    "in the jail",
+)
+
+
 def wants_code_agent(prompt: str) -> bool:
     """Hobby HTML/JS/snippet work. Does not select the coding committee."""
     text = str(prompt or "").lower()
     return any(mark in text for mark in CODE_AGENT_MARKS)
 
 
+def wants_execute(prompt: str) -> bool:
+    """They asked to run or test code. Still does not select the coding committee."""
+    text = str(prompt or "").lower()
+    return any(mark in text for mark in EXECUTE_MARKS)
+
+
 def mapRoute(fields: dict[str, Any], run_id: str, agent_name: str) -> dict[str, Any]:
     controlled = apply_user_controls(fields)
     cleaned = normalize_fields(controlled)
     coding = bool(controlled.get("coding"))
+    web = bool(controlled.get("web"))
     git_remote = controlled.get("git_remote") if coding else None
+    if not web:
+        cleaned["web_ops"] = "0"
     if coding:
         cleaned["needs_code_exec"] = "yes"
         cleaned["mail_cal"] = "off"
@@ -124,7 +159,7 @@ def mapRoute(fields: dict[str, Any], run_id: str, agent_name: str) -> dict[str, 
         cleaned["needs_code_exec"] = "no"
         level = "large"
         shape = "review"
-    elif cleaned["file_ops"] == "3+" or cleaned["web_ops"] == "2+":
+    elif cleaned["file_ops"] == "3+":
         cleaned["needs_code_exec"] = "no"
         level = "medium"
         shape = "medium"
@@ -139,6 +174,7 @@ def mapRoute(fields: dict[str, Any], run_id: str, agent_name: str) -> dict[str, 
         "shape": shape,
         "coding": coding,
         "git_remote": git_remote,
+        "web": web,
     }
     return logger.finish(
         event="route",
@@ -236,14 +272,17 @@ def lift_ops_from_prompt(prompt: str, fields: dict[str, Any]) -> dict[str, Any]:
         out["file_ops"] = "1"
     if "three" in text and ("resume" in text or "files" in text):
         out["file_ops"] = "3+"
-    if "https://example.com" in text and "https://example.org" in text:
-        out["web_ops"] = "2+"
-    if "https://" in text or "http://" in text or "get_url" in text:
-        if str(out.get("web_ops", "0")) == "0":
-            out["web_ops"] = "1"
-    if any(mark in text for mark in ("search the web", "google ", "look up")):
-        if str(out.get("web_ops", "0")) == "0":
-            out["web_ops"] = "1"
+    if _flag(out.get("web")):
+        if "https://example.com" in text and "https://example.org" in text:
+            out["web_ops"] = "2+"
+        if "https://" in text or "http://" in text or "get_url" in text:
+            if str(out.get("web_ops", "0")) == "0":
+                out["web_ops"] = "1"
+        if any(mark in text for mark in ("search the web", "google ", "look up")):
+            if str(out.get("web_ops", "0")) == "0":
+                out["web_ops"] = "1"
+    else:
+        out["web_ops"] = "0"
     if str(out.get("needs_code_exec", "no")).lower() == "yes":
         if "sandbox" not in text and "run python" not in text and "execute" not in text and "matrix" not in text:
             if any(mark in text for mark in ("write_json", "write_doc", "write_pdf", "append_file")):
@@ -328,8 +367,6 @@ def heuristic_route(prompt: str) -> dict[str, Any]:
         if file_ops == "0":
             file_ops = "1"
     web_ops = "0"
-    if any(mark in text for mark in ("http://", "https://", "website", "scrape", "url", "google", "look up", "search the web")):
-        web_ops = "2+" if "several" in text or "multiple" in text else "1"
     return normalize_fields(
         {
             "file_ops": file_ops,

@@ -12,11 +12,18 @@ Large runs split into two loops. **Coding** is an operator control (CLI `--code`
 
 ### Routing
 
-- The router no longer emits `needs_code_exec`. It still decides `stakes`, `file_ops`, `web_ops`, `mail_cal`, and `intent`.
-- Operator coding → sequential committee (`shape=coding`). Else high stakes → review (`shape=review`). Else `file_ops=3+` or `web_ops=2+` → medium. Else small.
-- Coding forces `mail_cal=off`. File/web gating is unchanged.
+- The router no longer emits `needs_code_exec`. It still decides `stakes`, `file_ops`, `web_ops`, `mail_cal`, and `intent`. It is told to keep `web_ops` at 0; live search is an operator control.
+- Operator coding → sequential committee (`shape=coding`). Else high stakes → review (`shape=review`). Else `file_ops=3+` → medium. Else small. Router `web_ops` never picks the tier.
+- Coding forces `mail_cal=off`. File gating is unchanged. Live web tools and the factory search pass run only when operator **web** is on, including medium and large.
 - The factory clamps router `stakes=high` unless the prompt matches legal/official/medical/financial marks. A flashy HTML page stays **small**.
-- Small/medium HTML/JS/snippet prompts pick a **code-tagged** drafter. They do not open a sandbox. The operator coding flag is still the only way into the sequential committee.
+- Small/medium HTML/JS/snippet prompts pick a **code-tagged** drafter. They do not open a sandbox. The operator coding flag is still the only way into the sequential committee. Without that flag the factory still returns the snippet and says it is not tested; a run/test/sandbox ask says it cannot test until Coding is selected.
+
+### Operator web search
+
+- UI **Web** checkbox (left of Coding) and CLI `--web`. `GET /web-status` reports `{configured, online, available}` and never includes keys. The checkbox is disabled when search is unavailable.
+- Factory pipeline: small router GGUF writes a query → CSE, then SerpAPI, then ScraperAPI → pick up to three URLs → `get_url` pages 1–2 → digest. Small runs have a larger worker answer that digest in chunks. Coding and review pin the digest, then run as before.
+- Medium and large do not get `search_web` / `get_url` unless that Web control is on. Router `web_ops` is ignored for tools and for picking medium.
+- `search.py` skips `google.com` result rows. Keys are never logged.
 
 ### Coding committee
 
