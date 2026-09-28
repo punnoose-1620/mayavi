@@ -7,4 +7,12 @@ logs/
 notes.md
 *.gguf
 *.pdf
+!README.pdf
+!REQUIREMENTS.pdf
+!CHANGELOG.pdf
 bin/
+/outputs
+/sandboxes
+/docs
+/state
+/tests

@@ -13,6 +13,8 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
+import committee
+import formatter
 import usbchat
 
 
@@ -83,6 +85,8 @@ class UsbChatApp:
         self._ui_font = ("Segoe UI", 11) if sys.platform == "win32" else ("sans-serif", 11)
         self._title_font = (self._ui_font[0], 11, "bold")
         self.web_visible = False
+        self.coding_var = tk.BooleanVar(value=False)
+        self.github_var = tk.StringVar(value="")
         self._turn_prompt_tokens = 0
         self._turn_completion_tokens = 0
         self._spin_angle = 0
@@ -156,6 +160,9 @@ class UsbChatApp:
         self.transcript.tag_configure("title_user", foreground="#0b57d0", font=self._title_font)
         self.transcript.tag_configure("title_assistant", foreground="#1a7f37", font=self._title_font)
         self.transcript.tag_configure("title_system", foreground="#5f6368", font=self._title_font)
+        self.transcript.tag_configure("heading1", foreground="#1a7f37", font=(self._ui_font[0], 16, "bold"), spacing1=8, spacing3=4)
+        self.transcript.tag_configure("heading2", foreground="#1a7f37", font=(self._ui_font[0], 13, "bold"), spacing1=6, spacing3=4)
+        self.transcript.tag_configure("heading3", foreground="#1a7f37", font=self._title_font, spacing1=4, spacing3=2)
         self.transcript.tag_configure("empty", foreground="#8a8a8a", font=(self._ui_font[0], 11, "italic"))
         self.transcript.bind("<Button-3>", self._reply_menu)
         self.transcript.bind("<Control-c>", lambda e: None)
@@ -175,6 +182,30 @@ class UsbChatApp:
         ttk.Button(self.attach_row, text="Attach…", command=self.attach).pack(side="right", padx=(gap, 0))
         ttk.Button(self.attach_row, text="Clear file", command=self.clear_attach).pack(side="right")
 
+        self.coding_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
+        self.coding_row.grid(row=5, column=0, sticky="ew")
+        coding_box = ttk.Checkbutton(
+            self.coding_row,
+            text="Coding",
+            variable=self.coding_var,
+            command=self._on_coding,
+        )
+        coding_box.pack(side="left", padx=(0, 10))
+        _HoverTip(
+            coding_box,
+            "Runs a sequential coding committee and may execute Python in a local folder. "
+            "Leave off for snippets (not tested).",
+        )
+
+        self.github_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
+        ttk.Label(self.github_row, text="GitHub URL").pack(side="left")
+        self.github_entry = ttk.Entry(self.github_row, textvariable=self.github_var)
+        self.github_entry.pack(side="left", fill="x", expand=True, padx=(10, 0))
+        _HoverTip(
+            self.github_entry,
+            "Optional public https://github.com/owner/repo. Used only while Coding is on.",
+        )
+
         self.web_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
         self.web_search_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(self.web_row, text="Web Search", variable=self.web_search_var).pack(side="left")
@@ -186,10 +217,10 @@ class UsbChatApp:
         )
 
         ttk.Label(self._page, text="Message", font=self._title_font, padding=(pad, 16, pad, 6)).grid(
-            row=6, column=0, sticky="w"
+            row=8, column=0, sticky="w"
         )
         input_row = ttk.Frame(self._page, padding=(pad, 0, pad, 16))
-        input_row.grid(row=7, column=0, sticky="ew")
+        input_row.grid(row=9, column=0, sticky="ew")
         self.input = tk.Text(
             input_row,
             height=4,
@@ -218,16 +249,16 @@ class UsbChatApp:
         self._restore_input_hint()
 
         buttons = ttk.Frame(self._page, padding=(pad, 0, pad, 12))
-        buttons.grid(row=8, column=0, sticky="ew")
+        buttons.grid(row=10, column=0, sticky="ew")
         ttk.Button(buttons, text="Stop", command=self.stop).pack(side="left")
         ttk.Button(buttons, text="New session", command=self.new_session).pack(side="left", padx=(gap, 0))
-        ttk.Button(buttons, text="Save PDF", command=self.save_pdf).pack(side="right")
+        ttk.Button(buttons, text="Save transcript PDF", command=self.save_pdf).pack(side="right")
         ttk.Button(buttons, text="Print", command=self.print_pdf).pack(side="right", padx=(0, gap))
         ttk.Button(buttons, text="Notes…", command=self.notes_dialog).pack(side="right", padx=(0, gap))
 
         self.status_var = tk.StringVar(value="")
         ttk.Label(self._page, textvariable=self.status_var, padding=(pad, 0, pad, 16)).grid(
-            row=9, column=0, sticky="ew"
+            row=11, column=0, sticky="ew"
         )
 
         self._page.bind("<Configure>", self._sync_page)
@@ -277,11 +308,18 @@ class UsbChatApp:
 
     def _set_web_row(self, online: bool) -> None:
         if online:
-            self.web_row.grid(row=5, column=0, sticky="ew")
+            self.web_row.grid(row=7, column=0, sticky="ew")
             self.web_visible = True
         elif not self.web_search_var.get():
             self.web_row.grid_remove()
             self.web_visible = False
+        self._sync_page()
+
+    def _on_coding(self) -> None:
+        if self.coding_var.get():
+            self.github_row.grid(row=6, column=0, sticky="ew")
+        else:
+            self.github_row.grid_remove()
         self._sync_page()
 
     def _probe_web_search(self) -> None:
@@ -425,6 +463,132 @@ class UsbChatApp:
         _HoverTip(btn, "Reply to this message")
         return btn
 
+    def _action_bar(self, body: str, extras: dict | None) -> ttk.Frame:
+        extras = extras or {}
+        pages = extras.get("html_pages")
+        if pages is None:
+            pages = formatter.html_pages(formatter.format_blocks(body))
+        pdfs = [p for p in (extras.get("pdf_paths") or []) if p]
+        profile = extras.get("profile_update") or {}
+        frame = ttk.Frame(self.transcript)
+        save = ttk.Button(
+            frame,
+            text="Save to notes",
+            command=lambda b=body, p=profile: self._save_turn_notes(b, p),
+        )
+        save.pack(side="left")
+        _HoverTip(save, "Append this reply, or the saved personal details, to notes.md")
+        if pages:
+            view = ttk.Button(frame, text="View HTML", command=lambda ps=pages: self._view_html(ps))
+            view.pack(side="left", padx=(8, 0))
+        if pdfs:
+            pdf_btn = ttk.Button(frame, text="Save PDF", command=lambda paths=pdfs: self._save_turn_pdf(paths))
+            pdf_btn.pack(side="left", padx=(8, 0))
+        return frame
+
+    def _save_turn_notes(self, body: str, profile: dict | None) -> None:
+        snippet = committee.profile_snippet(profile or {}) or str(body or "").strip()
+        if not snippet:
+            messagebox.showinfo("notes.md", "Nothing to save from this reply.")
+            return
+        if not messagebox.askyesno("notes.md", "Append this to notes.md?"):
+            return
+        usbchat.append_notes(self.notes_file, snippet)
+        self._status("Saved to notes.md")
+
+    def _view_html(self, pages: list) -> None:
+        if not pages:
+            return
+        try:
+            usbchat.open_html_document(pages[0].html)
+            extra = f" ({len(pages)} pages)" if len(pages) > 1 else ""
+            self._status("Opened HTML in the browser" + extra)
+        except Exception as exc:
+            messagebox.showerror("View HTML", str(exc))
+
+    def _save_turn_pdf(self, paths: list[str]) -> None:
+        src = Path(paths[0])
+        if not src.is_file():
+            messagebox.showerror("Save PDF", "That PDF is no longer on this stick.")
+            return
+        dest = filedialog.asksaveasfilename(
+            title="Save this PDF",
+            defaultextension=".pdf",
+            initialfile=src.name,
+            filetypes=[("PDF", "*.pdf")],
+        )
+        if not dest:
+            return
+        Path(dest).write_bytes(src.read_bytes())
+        self._status(f"Saved {dest}")
+
+    def _insert_blocks(self, index: str, text: str) -> None:
+        blocks = formatter.format_blocks(text)
+        if index == "end":
+            for block in blocks:
+                self._write_block("end", block)
+            return
+        for block in reversed(blocks):
+            self._write_block(index, block)
+
+    def _write_block(self, index: str, block) -> None:
+        kind = block.kind
+        if kind == "heading":
+            level = 3 if block.level > 3 else max(1, block.level)
+            self.transcript.insert(index, block.text + "\n", f"heading{level}")
+            return
+        if kind == "code":
+            lines = max(2, min(14, block.text.count("\n") + 1))
+            mono = ("Consolas", 10) if sys.platform == "win32" else ("monospace", 10)
+            box = tk.Text(
+                self.transcript,
+                height=lines,
+                wrap="word",
+                font=mono,
+                background="#ececec",
+                padx=8,
+                pady=6,
+                highlightthickness=0,
+                borderwidth=0,
+            )
+            box.insert("1.0", block.text)
+            box.configure(state="disabled")
+            if index == "end":
+                self.transcript.window_create("end", window=box)
+                self.transcript.insert("end", "\n")
+            else:
+                self.transcript.insert(index, "\n")
+                self.transcript.window_create(index, window=box)
+            return
+        if kind == "list":
+            rows = [
+                (f"{i}. " if block.ordered else "• ") + item
+                for i, item in enumerate(block.items, 1)
+            ]
+            self.transcript.insert(index, "\n".join(rows) + "\n", "assistant")
+            return
+        if kind == "quote":
+            self.transcript.insert(index, block.text + "\n", "system")
+            return
+        if kind == "rule":
+            self.transcript.insert(index, "—\n", "system")
+            return
+        if kind == "html_doc":
+            self.transcript.insert(index, f"HTML page: {block.name}\n", "system")
+            return
+        self.transcript.insert(index, (block.text or "") + "\n", "assistant")
+
+    def _embed_actions(self, index: str, body: str, extras: dict | None) -> None:
+        bar = self._action_bar(body, extras)
+        if index == "end":
+            self.transcript.insert("end", "\n")
+            self.transcript.window_create("end", window=bar)
+            self.transcript.insert("end", "\n")
+            return
+        self.transcript.insert(index, "\n")
+        self.transcript.window_create(index, window=bar)
+        self.transcript.insert(index, "\n")
+
     def _insert_header(self, role: str, body: str) -> dict:
         icon, title, title_tag = self._role_look(role)
         holder = {"text": body}
@@ -440,11 +604,15 @@ class UsbChatApp:
         self.transcript.configure(state="disabled")
         return holder
 
-    def _append(self, role: str, text: str, *, remember: bool = True) -> None:
+    def _append(self, role: str, text: str, *, remember: bool = True, extras: dict | None = None) -> None:
         self._clear_history_empty()
         holder = self._insert_header(role, text)
         self.transcript.configure(state="normal")
-        self.transcript.insert("end", f"{text}\n", role)
+        if role == "assistant":
+            self._insert_blocks("end", text)
+            self._embed_actions("end", text, extras)
+        else:
+            self.transcript.insert("end", f"{text}\n", role)
         self.transcript.configure(state="disabled")
         if remember:
             self.messages.append((role, text))
@@ -563,7 +731,11 @@ class UsbChatApp:
             self._clear_history_empty()
             for turn in reversed(turns):
                 if turn.get("response"):
-                    self._prepend_message("assistant", str(turn["response"]))
+                    extras = {
+                        "pdf_paths": list(turn.get("pdf_paths") or []),
+                        "profile_update": turn.get("profile_update") or {},
+                    }
+                    self._prepend_message("assistant", str(turn["response"]), extras)
                     self.messages.insert(0, ("assistant", str(turn["response"])))
                 user_line = usbchat.display_user_prompt(turn)
                 if user_line:
@@ -611,6 +783,18 @@ class UsbChatApp:
                 return
         attachments = [self.attachment] if self.attachment else []
         quote = self.quote
+        coding = bool(self.coding_var.get())
+        github = ""
+        if coding:
+            github_raw = self.github_var.get().strip()
+            if github_raw:
+                github = committee.public_github_remote(github_raw) or ""
+                if not github:
+                    messagebox.showerror(
+                        "GitHub",
+                        "Use a public https://github.com/owner/repo URL, or leave the field empty.",
+                    )
+                    return
         notes = usbchat.read_notes(self.notes_file)
         messages = usbchat.build_chat_messages(
             notes=notes,
@@ -635,7 +819,7 @@ class UsbChatApp:
         self._status(f"Loading {choice.label}…" if self.loaded_path != choice.path else "Thinking…")
         threading.Thread(
             target=self._generate,
-            args=(choice, messages, text, attachments, quote, use_web),
+            args=(choice, messages, text, attachments, quote, use_web, coding, github),
             daemon=True,
         ).start()
 
@@ -660,12 +844,14 @@ class UsbChatApp:
         self.loaded_path = choice.path
         self._ui_status(f"Loaded {choice.label}. Thinking…")
 
-    def _generate(self, choice, messages, user_text, attachments, quote, use_web) -> None:
+    def _generate(self, choice, messages, user_text, attachments, quote, use_web, coding, github) -> None:
         err = ""
         reply_parts: list[str] = []
+        streamed = False
         self._turn_prompt_tokens = 0
         self._turn_completion_tokens = 0
-        web_meta = {"used": False, "query": "", "urls": [], "log": ""}
+        web_meta = {"used": False, "query": "", "urls": [], "log": "", "digest": ""}
+        extras: dict = {"pdf_paths": [], "profile_update": {}, "keep_dir": ""}
         try:
             self._ensure_engine(choice)
             if use_web:
@@ -683,6 +869,11 @@ class UsbChatApp:
                 web_meta["query"] = str(web.get("query") or "")
                 web_meta["urls"] = list(web.get("urls") or [])
                 web_meta["used"] = bool(web.get("ok"))
+                if web.get("ok"):
+                    web_meta["digest"] = usbchat.format_web_excerpts(
+                        web_meta["query"],
+                        web.get("excerpts") or [],
+                    )
                 usbchat.append_web_event(
                     web_path,
                     {
@@ -695,7 +886,7 @@ class UsbChatApp:
                 )
                 if web.get("stopped"):
                     err = "stopped"
-                elif web.get("ok"):
+                elif web.get("ok") and not coding and not committee.looks_high_stakes(user_text):
                     messages, stopped = usbchat.fit_web_answer_messages(
                         complete=self._complete,
                         chat_messages=messages,
@@ -711,15 +902,57 @@ class UsbChatApp:
                         err = "stopped"
                     else:
                         self._ui_status("Web Search: writing the answer…")
-                else:
+                elif not web.get("ok"):
                     self._ui_status("Search failed; answering without the web.")
-            if not err:
+            if not err and coding:
+                keep = usbchat.new_keep_dir(self.data_root, user_text)
+                self._ui_status("Coding committee…")
+                result = committee.run_coding(
+                    complete=self._complete,
+                    user_text=user_text,
+                    keep_dir=keep,
+                    github_url=github or None,
+                    web_digest=str(web_meta.get("digest") or ""),
+                    stop_event=self.stop_event,
+                    status=self._ui_status,
+                    build_pdf=usbchat.build_text_pdf,
+                )
+                reply_parts.append(str(result.get("reply") or "").strip())
+                extras = {
+                    "pdf_paths": list(result.get("pdf_paths") or []),
+                    "profile_update": result.get("profile_update") or {},
+                    "keep_dir": str(result.get("keep_dir") or keep),
+                }
+                if result.get("stopped"):
+                    err = "stopped"
+            elif not err and committee.looks_high_stakes(user_text):
+                keep = usbchat.new_keep_dir(self.data_root, user_text)
+                self._ui_status("Review committee…")
+                result = committee.run_review(
+                    complete=self._complete,
+                    user_text=user_text,
+                    keep_dir=keep,
+                    web_digest=str(web_meta.get("digest") or ""),
+                    stop_event=self.stop_event,
+                    status=self._ui_status,
+                    build_pdf=usbchat.build_text_pdf,
+                )
+                reply_parts.append(str(result.get("reply") or "").strip())
+                extras = {
+                    "pdf_paths": list(result.get("pdf_paths") or []),
+                    "profile_update": result.get("profile_update") or {},
+                    "keep_dir": str(result.get("keep_dir") or keep),
+                }
+                if result.get("stopped"):
+                    err = "stopped"
+            elif not err:
                 if usbchat.messages_tokens(messages) > usbchat.token_budget(self.n_ctx) and messages:
                     last = dict(messages[-1])
                     cap = usbchat._blob_char_budget(self.n_ctx, user_text, str((messages[0] or {}).get("content") or ""))
                     last["content"] = str(last.get("content") or "")[:cap]
                     messages = [dict(m) for m in messages[:-1]] + [last]
                 self.root.after(0, self._begin_assistant)
+                streamed = True
                 for piece in self.engine.stream(messages, self.stop_event):
                     reply_parts.append(piece)
                     self.root.after(0, lambda p=piece: self._stream_piece(p))
@@ -737,20 +970,19 @@ class UsbChatApp:
         completion_tokens = self._turn_completion_tokens
         reply = "".join(reply_parts).strip()
         if err and not reply:
-            reply = "Web Search stopped." if err == "stopped" else f"(error: {err})"
+            reply = "Stopped." if err == "stopped" else f"(error: {err})"
+        elif not coding and not committee.looks_high_stakes(user_text) and not reply.startswith("(error:"):
+            reply = committee.finish_off_coding(user_text, reply)
 
         def finish() -> None:
             self._set_busy(False)
             if err and not reply_parts:
                 self._append("system", reply)
             elif reply:
-                if self._stream_holder is not None:
-                    self._stream_holder["text"] = reply
-                self.messages.append(("assistant", reply))
-                self.transcript.configure(state="normal")
-                self.transcript.insert("end", "\n", "assistant")
-                self.transcript.configure(state="disabled")
-                self._stream_holder = None
+                if streamed:
+                    self._finish_stream(reply, extras)
+                else:
+                    self._append("assistant", reply, extras=extras)
             shown = user_text
             if quote:
                 shown = f"> {quote[: usbchat.QUOTE_CAP]}\n\n{user_text}"
@@ -771,6 +1003,11 @@ class UsbChatApp:
                 "web_query": web_meta["query"],
                 "web_urls": web_meta["urls"],
                 "web_log": web_meta["log"],
+                "coding": bool(coding),
+                "github": github,
+                "pdf_paths": list(extras.get("pdf_paths") or []),
+                "profile_update": extras.get("profile_update") or {},
+                "keep_dir": extras.get("keep_dir") or "",
             }
             usbchat.append_turn(self.session_path, turn)
             self.session_turns.append(turn)
@@ -783,9 +1020,13 @@ class UsbChatApp:
 
         self.root.after(0, finish)
 
-    def _prepend_message(self, role: str, text: str) -> None:
+    def _prepend_message(self, role: str, text: str, extras: dict | None = None) -> None:
         self.transcript.configure(state="normal")
-        self.transcript.insert("1.0", f"{text}\n\n", role)
+        if role == "assistant":
+            self._embed_actions("1.0", text, extras)
+            self._insert_blocks("1.0", text)
+        else:
+            self.transcript.insert("1.0", f"{text}\n\n", role)
         icon, title, title_tag = self._role_look(role)
         self.transcript.insert("1.0", f"{icon}  {title}\n", title_tag)
         if role in {"user", "assistant"}:
@@ -796,6 +1037,25 @@ class UsbChatApp:
     def _begin_assistant(self) -> None:
         self._clear_history_empty()
         self._stream_holder = self._insert_header("assistant", "")
+        self.transcript.configure(state="normal")
+        self.transcript.mark_set("stream_start", "end")
+        self.transcript.mark_gravity("stream_start", "left")
+        self.transcript.configure(state="disabled")
+        self.transcript.see("end")
+
+    def _finish_stream(self, reply: str, extras: dict | None) -> None:
+        self.transcript.configure(state="normal")
+        try:
+            self.transcript.delete("stream_start", "end")
+        except tk.TclError:
+            pass
+        self._insert_blocks("end", reply)
+        self._embed_actions("end", reply, extras)
+        self.transcript.configure(state="disabled")
+        if self._stream_holder is not None:
+            self._stream_holder["text"] = reply
+        self.messages.append(("assistant", reply))
+        self._stream_holder = None
         self.transcript.see("end")
 
     def _stream_piece(self, piece: str) -> None:
@@ -853,21 +1113,8 @@ class UsbChatApp:
             win.destroy()
             self._status(f"Wrote {self.notes_file}")
 
-        def append_last() -> None:
-            last = next((t for t in reversed(self.session_turns) if t.get("response")), None)
-            if last is None:
-                messagebox.showinfo("notes.md", "No assistant reply in this session yet.")
-                return
-            snippet = str(last["response"]).strip()
-            if not messagebox.askyesno("notes.md", "Append the last model reply to notes.md?"):
-                return
-            usbchat.append_notes(self.notes_file, snippet)
-            win.destroy()
-            self._status("Appended last reply to notes.md")
-
         ttk.Button(row, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(row, text="Save notes", command=save).pack(side="right", padx=(0, 6))
-        ttk.Button(row, text="Append last reply", command=append_last).pack(side="left")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

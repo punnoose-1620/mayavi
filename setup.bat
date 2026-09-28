@@ -4,6 +4,7 @@ cd /d "%~dp0"
 
 echo USB chat setup
 echo Needs Python 3.11 or newer. Will not replace or upgrade the system interpreter.
+echo Creates logs and outputs on the stick. Git is optional. See REQUIREMENTS.md.
 echo.
 
 set "PY="
@@ -25,9 +26,9 @@ if defined PY (
 )
 
 if /I "!FOUND!"=="none" (
-  set "USBCHAT_MSG=USB chat needs Python 3.11 or newer to run. This PC has no Python on PATH. The setup will not install or replace a system Python. Install Python 3.11 or newer alongside any existing projects, then run setup.bat again."
+  set "USBCHAT_MSG=USB chat needs Python 3.11 or newer to run. This PC has no Python on PATH. The setup will not install or replace a system Python. Install Python 3.11 or newer alongside any existing projects, then run setup.bat again. See REQUIREMENTS.md or REQUIREMENTS.pdf in this folder."
 ) else (
-  set "USBCHAT_MSG=USB chat needs Python 3.11 or newer to run. This PC has Python !FOUND!. That interpreter will not be replaced or upgraded, so other projects keep using it. Install Python 3.11 or newer alongside, then run setup.bat again."
+  set "USBCHAT_MSG=USB chat needs Python 3.11 or newer to run. This PC has Python !FOUND!. That interpreter will not be replaced or upgraded, so other projects keep using it. Install Python 3.11 or newer alongside, then run setup.bat again. See REQUIREMENTS.md or REQUIREMENTS.pdf in this folder."
 )
 echo !USBCHAT_MSG!
 echo.

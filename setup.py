@@ -58,6 +58,21 @@ def show_alert(message: str, title: str = "USB chat setup") -> None:
         subprocess.run(["kdialog", "--title", title, "--error", message], check=False)
 
 
+def show_info(message: str, title: str = "USB chat setup") -> None:
+    print(message)
+    if sys.platform == "win32":
+        ctypes.windll.user32.MessageBoxW(0, message, title, 0x40)
+        return
+    if shutil.which("zenity"):
+        subprocess.run(
+            ["zenity", "--info", "--title", title, "--width", "420", "--text", message],
+            check=False,
+        )
+        return
+    if shutil.which("kdialog"):
+        subprocess.run(["kdialog", "--title", title, "--msgbox", message], check=False)
+
+
 def incompatible_message(found: str) -> str:
     have = "no Python on PATH" if found in {"", "none"} else f"Python {found}"
     return (
@@ -65,7 +80,8 @@ def incompatible_message(found: str) -> str:
         f"This PC has {have}.\n\n"
         "The existing interpreter will not be replaced or upgraded, "
         "so other projects keep using it.\n\n"
-        f"Install Python {MIN_LABEL} or newer alongside, then run setup again."
+        f"Install Python {MIN_LABEL} or newer alongside, then run setup again.\n\n"
+        "See REQUIREMENTS.md or REQUIREMENTS.pdf in this folder."
     )
 
 
@@ -191,17 +207,69 @@ def have_llama_cli() -> bool:
     return usbchat.find_llama_cli(HERE) is not None
 
 
+def prepare_stick() -> None:
+    import usbchat
+
+    models = usbchat.default_models_root(HERE)
+    root = usbchat.usb_root(models, HERE)
+    logs, outputs = usbchat.ensure_stick_dirs(root)
+    print(f"Stick folders ready: {logs} and {outputs}")
+
+
+def stick_unwritable_message(exc: BaseException) -> str:
+    return (
+        "USB chat could not create logs or outputs on this stick.\n\n"
+        "The stick must be writable. logs and outputs sit next to the GGUFs, "
+        "not inside the chat folder.\n\n"
+        f"{exc}\n\n"
+        "See REQUIREMENTS.md or REQUIREMENTS.pdf in this folder."
+    )
+
+
+def warn_if_no_git() -> None:
+    if shutil.which("git"):
+        print("git is on PATH (optional; used only for Coding + a public GitHub URL).")
+        return
+    show_info(
+        "Git is not on PATH. Chat still works.\n\n"
+        "Coding with a public GitHub URL needs git. "
+        "Leave the GitHub field empty, or install git later.\n\n"
+        "See REQUIREMENTS.md or REQUIREMENTS.pdf in this folder."
+    )
+
+
+def refresh_guide_pdfs() -> None:
+    import usbchat
+
+    try:
+        written = usbchat.write_guide_pdfs(HERE)
+    except OSError as exc:
+        print(f"Could not write guide PDFs: {exc}")
+        return
+    if written:
+        print("Guide PDFs: " + ", ".join(path.name for path in written))
+
+
 def main(argv: list[str] | None = None) -> int:
     del argv
     print("USB chat host setup")
     print(f"Needs Python {MIN_LABEL}+. Will not change the system interpreter.")
     print("Deps go in a host venv (%LOCALAPPDATA%\\usb-chat\\venv or ~/.local/share/usb-chat/venv).")
+    print("Creates logs and outputs on the stick. Git is optional.")
     print()
 
     current = Path(sys.executable)
     if sys.version_info[:2] < MIN_VERSION:
         show_alert(incompatible_message(sys.version.split()[0]))
         return 1
+
+    try:
+        prepare_stick()
+    except OSError as exc:
+        show_alert(stick_unwritable_message(exc))
+        return 1
+
+    refresh_guide_pdfs()
 
     try:
         vpy = ensure_host_venv(current)
@@ -229,6 +297,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
+    warn_if_no_git()
     print("Done. Run chat.bat / chat.sh (it uses the host venv).")
     return 0
 

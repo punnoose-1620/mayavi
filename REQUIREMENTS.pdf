@@ -1,0 +1,574 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [7 0 R 9 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+8 0 obj
+<< /Length 5524 >>
+stream
+BT
+1 0 0 1 54.0 746.0 Tm
+0.08 0.16 0.36 rg
+/F2 22 Tf
+(USB ) Tj
+(chat ) Tj
+(requirements) Tj
+ET
+BT
+1 0 0 1 54.0 706.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(What ) Tj
+(this ) Tj
+(PC ) Tj
+(and ) Tj
+(this ) Tj
+(stick ) Tj
+(need. ) Tj
+(Setup ) Tj
+(does ) Tj
+(not ) Tj
+(replace ) Tj
+(system ) Tj
+(Python.) Tj
+ET
+BT
+1 0 0 1 54.0 683.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(A ) Tj
+(visual ) Tj
+(copy ) Tj
+(is ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(REQUIREMENTS.pdf) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(in ) Tj
+(the ) Tj
+(same ) Tj
+(folder. ) Tj
+(Chat ) Tj
+(and ) Tj
+(setup ) Tj
+(do ) Tj
+(not ) Tj
+(open ) Tj
+(it.) Tj
+ET
+BT
+1 0 0 1 54.0 642.0 Tm
+0.10 0.22 0.42 rg
+/F2 15 Tf
+(Hard ) Tj
+(minimum) Tj
+ET
+BT
+1 0 0 1 76.0 613.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Windows ) Tj
+(or ) Tj
+(Ubuntu) Tj
+ET
+BT
+1 0 0 1 76.0 595.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Python ) Tj
+/F2 11 Tf
+(3.11 ) Tj
+(or ) Tj
+(newer) Tj
+/F1 11 Tf
+( ) Tj
+(already ) Tj
+(on ) Tj
+(PATH ) Tj
+(\(install ) Tj
+/F3 11 Tf
+(alongside) Tj
+/F1 11 Tf
+( ) Tj
+(3.9 ) Tj
+(/ ) Tj
+(2.7; ) Tj
+(setup ) Tj
+(will ) Tj
+(not ) Tj
+ET
+BT
+1 0 0 1 76.0 580.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(upgrade ) Tj
+(them\)) Tj
+ET
+BT
+1 0 0 1 76.0 562.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(A ) Tj
+/F2 11 Tf
+(writable) Tj
+/F1 11 Tf
+( ) Tj
+(USB ) Tj
+(stick: ) Tj
+(setup ) Tj
+(creates ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(logs/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(and ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(outputs/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(next ) Tj
+(to ) Tj
+(the ) Tj
+(GGUFs ) Tj
+(\(not ) Tj
+ET
+BT
+1 0 0 1 76.0 547.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(inside ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(chat/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(\)) Tj
+ET
+BT
+1 0 0 1 76.0 529.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(llama-cpp-python) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(in ) Tj
+(the ) Tj
+(host ) Tj
+(venv, ) Tj
+/F2 11 Tf
+(or) Tj
+/F1 11 Tf
+( ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(llama-cli) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(in ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(chat/bin/) Tj
+ET
+BT
+1 0 0 1 76.0 511.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Host ) Tj
+(venv ) Tj
+(libraries ) Tj
+(\(setup ) Tj
+(installs ) Tj
+(these\): ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(pypdf) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(\(attached ) Tj
+(PDFs\), ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(requests) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(and ) Tj
+ET
+BT
+1 0 0 1 76.0 496.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(beautifulsoup4) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(\(Web ) Tj
+(Search\)) Tj
+ET
+BT
+1 0 0 1 54.0 473.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(If ) Tj
+(Python ) Tj
+(is ) Tj
+(missing ) Tj
+(or ) Tj
+(older ) Tj
+(than ) Tj
+(3.11, ) Tj
+(setup ) Tj
+(names ) Tj
+(the ) Tj
+(version ) Tj
+(it ) Tj
+(found ) Tj
+(and ) Tj
+(stops. ) Tj
+(If ) Tj
+(a ) Tj
+ET
+BT
+1 0 0 1 54.0 458.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(library ) Tj
+(cannot ) Tj
+(be ) Tj
+(installed, ) Tj
+(setup ) Tj
+(names ) Tj
+(that ) Tj
+(library. ) Tj
+(System ) Tj
+(Python ) Tj
+(is ) Tj
+(never ) Tj
+(changed.) Tj
+ET
+BT
+1 0 0 1 54.0 435.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Host ) Tj
+(venv ) Tj
+(location:) Tj
+ET
+BT
+1 0 0 1 76.0 411.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Windows: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(%LOCALAPPDATA%/usb-chat/venv) Tj
+ET
+BT
+1 0 0 1 76.0 393.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Ubuntu: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(~/.local/share/usb-chat/venv) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(\(or ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+($XDG_DATA_HOME/usb-chat/venv) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(\)) Tj
+ET
+BT
+1 0 0 1 54.0 352.0 Tm
+0.10 0.22 0.42 rg
+/F2 15 Tf
+(Optional) Tj
+ET
+BT
+1 0 0 1 76.0 323.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+(git) Tj
+/F1 11 Tf
+( ) Tj
+(on ) Tj
+(PATH  ) Tj
+(-  ) Tj
+(only ) Tj
+(if ) Tj
+(you ) Tj
+(turn ) Tj
+(on ) Tj
+/F2 11 Tf
+(Coding) Tj
+/F1 11 Tf
+( ) Tj
+(and ) Tj
+(paste ) Tj
+(a ) Tj
+(public ) Tj
+ET
+BT
+1 0 0 1 76.0 308.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(https://github.com/owner/repo) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(URL. ) Tj
+(Chat ) Tj
+(still ) Tj
+(runs ) Tj
+(without ) Tj
+(git.) Tj
+ET
+BT
+1 0 0 1 76.0 290.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Internet  ) Tj
+(-  ) Tj
+(only ) Tj
+(for ) Tj
+/F2 11 Tf
+(Web ) Tj
+(Search) Tj
+/F1 11 Tf
+(. ) Tj
+(Google ) Tj
+(HTML ) Tj
+(can ) Tj
+(still ) Tj
+(block; ) Tj
+(that ) Tj
+(is ) Tj
+(expected.) Tj
+ET
+BT
+1 0 0 1 76.0 272.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(GPU ) Tj
+(offload  ) Tj
+(-  ) Tj
+(off ) Tj
+(unless ) Tj
+(you ) Tj
+(set ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(USB_CHAT_N_GPU_LAYERS) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(\(or ) Tj
+(a ) Tj
+(numeric ) Tj
+ET
+BT
+1 0 0 1 76.0 257.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(N_GPU_LAYERS) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(\) ) Tj
+(on ) Tj
+(the ) Tj
+(host.) Tj
+ET
+BT
+1 0 0 1 54.0 216.0 Tm
+0.10 0.22 0.42 rg
+/F2 15 Tf
+(Not ) Tj
+(required) Tj
+ET
+BT
+1 0 0 1 76.0 187.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(No ) Tj
+(SerpAPI ) Tj
+(/ ) Tj
+(ScraperAPI ) Tj
+(keys) Tj
+ET
+BT
+1 0 0 1 76.0 169.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(No ) Tj
+(mail ) Tj
+(accounts) Tj
+ET
+BT
+1 0 0 1 76.0 151.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(No ) Tj
+(second ) Tj
+(GGUF) Tj
+ET
+BT
+1 0 0 1 76.0 133.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(notes.md) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(is ) Tj
+(created ) Tj
+(when ) Tj
+(you ) Tj
+(save ) Tj
+(notes, ) Tj
+(not ) Tj
+(by ) Tj
+(setup) Tj
+ET
+BT
+1 0 0 1 54.0 92.0 Tm
+0.10 0.22 0.42 rg
+/F2 15 Tf
+(Run ) Tj
+(setup ) Tj
+(then ) Tj
+(chat) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 10 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+10 0 obj
+<< /Length 576 >>
+stream
+BT
+1 0 0 1 54.0 746.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(From ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(chat/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(on ) Tj
+(the ) Tj
+(stick:) Tj
+ET
+BT
+1 0 0 1 54.0 723.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Windows: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(setup.bat) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(then ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(chat.bat) Tj
+ET
+BT
+1 0 0 1 54.0 700.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Ubuntu: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(./setup.sh) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(then ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(./chat.sh) Tj
+ET
+endstream
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000191 00000 n 
+0000000266 00000 n 
+0000000344 00000 n 
+0000000412 00000 n 
+0000000568 00000 n 
+0000006144 00000 n 
+0000006301 00000 n 
+trailer
+<< /Size 11 /Root 1 0 R >>
+startxref
+6929
+%%EOF

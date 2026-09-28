@@ -5,6 +5,7 @@ cd "$HERE"
 
 echo "USB chat setup"
 echo "Needs Python 3.11 or newer. Will not replace or upgrade the system interpreter."
+echo "Creates logs and outputs on the stick. Git is optional. See REQUIREMENTS.md."
 echo
 
 FOUND="none"
@@ -47,8 +48,8 @@ if [[ -n "$PY" ]]; then
 fi
 
 if [[ "$FOUND" == "none" ]]; then
-  dialog "USB chat needs Python 3.11 or newer to run. This PC has no Python on PATH. Setup will not install or replace a system Python. Install Python 3.11 or newer alongside any existing projects, then run setup.sh again."
+  dialog "USB chat needs Python 3.11 or newer to run. This PC has no Python on PATH. Setup will not install or replace a system Python. Install Python 3.11 or newer alongside any existing projects, then run setup.sh again. See REQUIREMENTS.md or REQUIREMENTS.pdf in this folder."
 else
-  dialog "USB chat needs Python 3.11 or newer to run. This PC has Python ${FOUND}. That interpreter will not be replaced or upgraded, so other projects keep using it. Install Python 3.11 or newer alongside, then run setup.sh again."
+  dialog "USB chat needs Python 3.11 or newer to run. This PC has Python ${FOUND}. That interpreter will not be replaced or upgraded, so other projects keep using it. Install Python 3.11 or newer alongside, then run setup.sh again. See REQUIREMENTS.md or REQUIREMENTS.pdf in this folder."
 fi
 exit 1

@@ -191,6 +191,71 @@ def logs_dir(root: Path) -> Path:
     return root / "logs"
 
 
+def outputs_dir(root: Path) -> Path:
+    path = root / "outputs"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def ensure_stick_dirs(root: Path) -> tuple[Path, Path]:
+    """Create logs and outputs on the stick. Raises OSError if they are not writable."""
+    logs = logs_dir(root)
+    logs.mkdir(parents=True, exist_ok=True)
+    outputs = outputs_dir(root)
+    for folder in (logs, outputs):
+        probe = folder / ".usb-chat-write"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+    return logs, outputs
+
+
+def build_markdown_pdf(title: str, markdown: str) -> bytes:
+    return build_guide_pdf(title, markdown)
+
+
+def write_guide_pdfs(folder: Path | None = None) -> list[Path]:
+    folder = (folder or Path(__file__).resolve().parent).resolve()
+    written: list[Path] = []
+    for stem in ("README", "REQUIREMENTS", "CHANGELOG"):
+        src = folder / f"{stem}.md"
+        if not src.is_file():
+            continue
+        dest = folder / f"{stem}.pdf"
+        dest.write_bytes(build_markdown_pdf(stem, src.read_text(encoding="utf-8", errors="replace")))
+        written.append(dest)
+    return written
+
+
+def new_keep_dir(root: Path, slug: str = "run") -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", str(slug or "run")).strip("-.")[:40] or "run"
+    when = datetime.now()
+    path = outputs_dir(root) / f"{when:%Y-%m-%d_%H%M%S}_{safe}"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def build_text_pdf(title: str, body: str) -> bytes:
+    return build_transcript_pdf(title, [("Document", body)])
+
+
+def open_local_file(path: Path) -> Path:
+    if sys.platform == "win32":
+        os.startfile(path)  # type: ignore[attr-defined]
+        return path
+    opener = shutil.which("xdg-open") or shutil.which("open")
+    if opener is None:
+        raise RuntimeError("no opener for this file")
+    subprocess.Popen([opener, str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return path
+
+
+def open_html_document(html_text: str) -> Path:
+    handle = tempfile.NamedTemporaryFile(prefix="usb-chat-", suffix=".html", delete=False)
+    handle.write(str(html_text or "").encode("utf-8"))
+    handle.close()
+    return open_local_file(Path(handle.name))
+
+
 def read_notes(path: Path, cap: int = NOTES_CAP) -> str:
     if not path.is_file():
         return ""
@@ -1029,6 +1094,400 @@ def extract_document(path: Path, cap: int = DOC_CAP) -> str:
 def _pdf_escape(text: str) -> str:
     safe = text.encode("latin-1", "replace").decode("latin-1")
     return safe.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _guide_ascii(text: str) -> str:
+    """Fold Markdown into PDF-safe ASCII. Em-dashes before dates become ': '."""
+    body = str(text or "")
+    body = re.sub(r"\s*[\u2014\u2013]\s+(?=\d{4}-\d{2}-\d{2})", ": ", body)
+    for src, dst in (
+        ("\u2014", " - "),
+        ("\u2013", "-"),
+        ("\u2212", "-"),
+        ("\u2018", "'"),
+        ("\u2019", "'"),
+        ("\u201c", '"'),
+        ("\u201d", '"'),
+        ("\u2026", "..."),
+        ("\u00d7", "x"),
+        ("\u2265", ">="),
+        ("\u2264", "<="),
+        ("\u2192", "->"),
+        ("\u00a0", " "),
+        ("\u2022", "-"),
+        ("\\", "/"),
+    ):
+        body = body.replace(src, dst)
+    return "".join(ch if ord(ch) < 128 else " " for ch in body)
+
+
+_GUIDE_PAGE = (612, 792)
+_GUIDE_LEFT = 54
+_GUIDE_RIGHT = 558
+_GUIDE_TOP = 746
+_GUIDE_BOTTOM = 48
+_GUIDE_WIDTH = _GUIDE_RIGHT - _GUIDE_LEFT
+_H1 = {"font": "F2", "size": 22, "lead": 26, "before": 0, "after": 14, "color": (0.08, 0.16, 0.36)}
+_H2 = {"font": "F2", "size": 15, "lead": 20, "before": 18, "after": 8, "color": (0.10, 0.22, 0.42)}
+_H3 = {"font": "F2", "size": 12.5, "lead": 17, "before": 12, "after": 6, "color": (0.12, 0.12, 0.14)}
+_P = {"font": "F1", "size": 11, "lead": 15, "before": 0, "after": 8, "color": (0.16, 0.16, 0.18)}
+_CODE = {"font": "F4", "size": 9, "lead": 12, "before": 6, "after": 10, "color": (0.18, 0.18, 0.20)}
+_QUOTE = {"font": "F3", "size": 11, "lead": 15, "before": 4, "after": 8, "color": (0.32, 0.32, 0.34)}
+_LI = {"font": "F1", "size": 11, "lead": 15, "before": 1, "after": 2, "color": (0.16, 0.16, 0.18)}
+_INLINE_CODE_COLOR = (0.62, 0.13, 0.23)
+_BODY_COLOR = (0.16, 0.16, 0.18)
+
+
+def _guide_width(text: str, font: str, size: float) -> float:
+    unit = 0.60 if font == "F4" else 0.50
+    return len(text) * size * unit
+
+
+def _guide_inline(text: str, size: float) -> list[tuple[str, str, float, tuple[float, float, float]]]:
+    """Split Markdown inline markup into (font, text, size, rgb) runs."""
+    runs: list[tuple[str, str, float, tuple[float, float, float]]] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if text.startswith("**", i):
+            end = text.find("**", i + 2)
+            if end >= 0:
+                runs.append(("F2", text[i + 2 : end], size, _BODY_COLOR))
+                i = end + 2
+                continue
+        if text.startswith("`", i):
+            end = text.find("`", i + 1)
+            if end > i:
+                runs.append(("F4", text[i + 1 : end], max(9.0, size - 1), _INLINE_CODE_COLOR))
+                i = end + 1
+                if i < n and not text[i].isspace() and text[i] not in ",.;:!?)]":
+                    runs.append(("F1", " ", size, _BODY_COLOR))
+                continue
+        if text.startswith("[", i):
+            match = re.match(r"\[([^\]]+)\]\(([^)]+)\)", text[i:])
+            if match:
+                runs.append(("F2", match.group(1), size, (0.10, 0.35, 0.72)))
+                runs.append(("F1", " (" + match.group(2) + ")", size, (0.40, 0.40, 0.42)))
+                i += match.end()
+                continue
+        if text[i] == "*" and (i + 1 >= n or text[i + 1] != "*"):
+            end = text.find("*", i + 1)
+            if end > i:
+                runs.append(("F3", text[i + 1 : end], size, _BODY_COLOR))
+                i = end + 1
+                continue
+        nxt = n
+        for tok in ("**", "`", "[", "*"):
+            found = text.find(tok, i + 1)
+            if found >= 0:
+                nxt = min(nxt, found)
+        chunk = text[i:nxt]
+        if chunk:
+            runs.append(("F1", chunk, size, _BODY_COLOR))
+        i = nxt
+    return [(f, t, s, c) for f, t, s, c in runs if t]
+
+
+def _guide_pieces(text: str) -> list[str]:
+    if not text:
+        return []
+    lead = re.match(r"^\s+", text)
+    rest = text
+    parts: list[str] = []
+    if lead:
+        parts.append(lead.group(0))
+        rest = text[lead.end() :]
+    parts.extend(re.findall(r"\S+\s*", rest) or ([rest] if rest else []))
+    return parts
+
+
+def _wrap_guide_runs(
+    runs: list[tuple[str, str, float, tuple[float, float, float]]],
+    max_width: float,
+) -> list[list[tuple[str, str, float, tuple[float, float, float]]]]:
+    lines: list[list[tuple[str, str, float, tuple[float, float, float]]]] = []
+    current: list[tuple[str, str, float, tuple[float, float, float]]] = []
+    width = 0.0
+    for font, text, size, color in runs:
+        for piece in _guide_pieces(text):
+            w = _guide_width(piece, font, size)
+            if current and width + w > max_width:
+                lines.append(current)
+                piece = piece.lstrip()
+                current = [(font, piece, size, color)] if piece else []
+                width = _guide_width(piece, font, size) if piece else 0.0
+                continue
+            current.append((font, piece, size, color))
+            width += w
+    if current:
+        lines.append(current)
+    return lines or [[]]
+
+
+def _parse_guide_blocks(markdown: str) -> list[dict]:
+    lines = _guide_ascii(markdown).replace("\r\n", "\n").split("\n")
+    blocks: list[dict] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if line.strip().startswith("```"):
+            i += 1
+            body: list[str] = []
+            while i < len(lines) and not lines[i].strip().startswith("```"):
+                body.append(lines[i].replace("\t", "    "))
+                i += 1
+            if i < len(lines):
+                i += 1
+            blocks.append({"kind": "code", "lines": body or [""], **_CODE})
+            continue
+        if re.match(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$", line):
+            blocks.append({"kind": "rule"})
+            i += 1
+            continue
+        heading = re.match(r"^(#{1,3})\s+(.*)$", line)
+        if heading:
+            level = len(heading.group(1))
+            style = _H1 if level == 1 else _H2 if level == 2 else _H3
+            blocks.append(
+                {
+                    "kind": "heading",
+                    "runs": _guide_inline(heading.group(2).strip(), style["size"]),
+                    **style,
+                }
+            )
+            i += 1
+            continue
+        quote = re.match(r"^>\s?(.*)$", line)
+        if quote:
+            bits = [quote.group(1)]
+            i += 1
+            while i < len(lines):
+                nxt = re.match(r"^>\s?(.*)$", lines[i])
+                if not nxt:
+                    break
+                bits.append(nxt.group(1))
+                i += 1
+            blocks.append(
+                {
+                    "kind": "quote",
+                    "runs": _guide_inline(" ".join(bits), _QUOTE["size"]),
+                    **_QUOTE,
+                }
+            )
+            continue
+        ul = re.match(r"^[-*+]\s+(.*)$", line)
+        ol = re.match(r"^(\d+)\.\s+(.*)$", line)
+        if ul or ol:
+            ordered = ol is not None
+            while i < len(lines):
+                m_ol = re.match(r"^(\d+)\.\s+(.*)$", lines[i])
+                m_ul = re.match(r"^[-*+]\s+(.*)$", lines[i])
+                if ordered and m_ol:
+                    marker = m_ol.group(1) + ". "
+                    item_body = m_ol.group(2)
+                elif not ordered and m_ul:
+                    marker = "-  "
+                    item_body = m_ul.group(1)
+                else:
+                    break
+                blocks.append(
+                    {
+                        "kind": "li",
+                        "runs": [("F2", marker, _LI["size"], _BODY_COLOR)]
+                        + _guide_inline(item_body, _LI["size"]),
+                        **_LI,
+                    }
+                )
+                i += 1
+            blocks.append({"kind": "gap", "after": 6})
+            continue
+        if not line.strip():
+            i += 1
+            continue
+        para = [line]
+        i += 1
+        while i < len(lines) and lines[i].strip():
+            if (
+                lines[i].startswith("#")
+                or lines[i].strip().startswith("```")
+                or re.match(r"^[-*+]\s+", lines[i])
+                or re.match(r"^\d+\.\s+", lines[i])
+                or re.match(r"^>\s?", lines[i])
+                or re.match(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$", lines[i])
+            ):
+                break
+            para.append(lines[i])
+            i += 1
+        blocks.append(
+            {
+                "kind": "p",
+                "runs": _guide_inline(" ".join(p.strip() for p in para), _P["size"]),
+                **_P,
+            }
+        )
+    return blocks
+
+
+def _guide_line_ops(
+    runs: list[tuple[str, str, float, tuple[float, float, float]]],
+    x: float,
+    y: float,
+) -> list[str]:
+    ops = ["BT", f"1 0 0 1 {x:.1f} {y:.1f} Tm"]
+    last_font = ""
+    last_size = 0.0
+    last_color = None
+    for font, text, size, color in runs:
+        if last_color != color:
+            ops.append(f"{color[0]:.2f} {color[1]:.2f} {color[2]:.2f} rg")
+            last_color = color
+        if font != last_font or size != last_size:
+            ops.append(f"/{font} {size:g} Tf")
+            last_font = font
+            last_size = size
+        ops.append(f"({_pdf_escape(text)}) Tj")
+    ops.append("ET")
+    return ops
+
+
+def build_guide_pdf(title: str, markdown: str) -> bytes:
+    """Markdown-ish guide PDF: headings, bold, code, lists. Not the transcript dump."""
+    del title
+    blocks = _parse_guide_blocks(markdown)
+    page_w, page_h = _GUIDE_PAGE
+    pages: list[list[str]] = []
+    ops: list[str] = []
+    y = _GUIDE_TOP
+    first_on_page = True
+
+    def flush_page() -> None:
+        nonlocal ops, y, first_on_page
+        pages.append(ops)
+        ops = []
+        y = _GUIDE_TOP
+        first_on_page = True
+
+    def need(space: float) -> None:
+        if y - space < _GUIDE_BOTTOM:
+            flush_page()
+
+    for block in blocks:
+        kind = block["kind"]
+        if kind == "gap":
+            y -= float(block.get("after") or 0)
+            continue
+        if kind == "rule":
+            need(16)
+            y -= 8
+            ops.extend(
+                [
+                    "q",
+                    "0.75 0.78 0.82 RG",
+                    "0.8 w",
+                    f"{_GUIDE_LEFT:.1f} {y:.1f} m {_GUIDE_RIGHT:.1f} {y:.1f} l S",
+                    "Q",
+                ]
+            )
+            y -= 10
+            first_on_page = False
+            continue
+        if kind == "code":
+            code_lines = list(block["lines"])
+            lead = float(block["lead"])
+            y -= 4
+            for raw in code_lines:
+                need(lead + 4)
+                ops.extend(
+                    [
+                        "q",
+                        "0.96 0.96 0.97 rg",
+                        f"{_GUIDE_LEFT:.1f} {y - 3:.1f} {_GUIDE_WIDTH:.1f} {lead + 2:.1f} re f",
+                        "Q",
+                    ]
+                )
+                ops.extend(
+                    _guide_line_ops(
+                        [("F4", raw if raw else " ", 9, block["color"])],
+                        _GUIDE_LEFT + 10,
+                        y,
+                    )
+                )
+                y -= lead
+            y -= float(block["after"])
+            first_on_page = False
+            continue
+        indent = 22 if kind in {"li", "quote"} else 0
+        max_w = _GUIDE_WIDTH - indent - (10 if kind == "quote" else 0)
+        runs = list(block.get("runs") or [])
+        if kind == "heading":
+            runs = [(block["font"], text, block["size"], block["color"]) for _f, text, _s, _c in runs]
+        wrapped = _wrap_guide_runs(runs, max_w)
+        before = 0.0 if first_on_page else float(block.get("before") or 0)
+        need(before + float(block["lead"]) * max(1, len(wrapped)) + 4)
+        y -= before
+        if kind == "quote":
+            bar_top = y + 2
+            bar_bot = y - float(block["lead"]) * max(1, len(wrapped)) - 2
+            ops.extend(
+                [
+                    "q",
+                    "0.75 0.80 0.88 rg",
+                    f"{_GUIDE_LEFT:.1f} {bar_bot:.1f} 3 {bar_top - bar_bot:.1f} re f",
+                    "Q",
+                ]
+            )
+        for line in wrapped:
+            need(float(block["lead"]))
+            ops.extend(_guide_line_ops(line, _GUIDE_LEFT + indent, y))
+            y -= float(block["lead"])
+        y -= float(block.get("after") or 0)
+        first_on_page = False
+    if ops:
+        pages.append(ops)
+    if not pages:
+        pages = [_guide_line_ops([("F1", "USB chat", 12, _BODY_COLOR)], _GUIDE_LEFT, _GUIDE_TOP)]
+
+    objects: list[bytes] = [b""]
+    objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
+    objects.append(b"")
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>")
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>")
+    font_res = "/F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R"
+    page_ids: list[int] = []
+    for page_ops in pages:
+        stream = "\n".join(page_ops).encode("latin-1", "replace")
+        page_id = len(objects)
+        page_ids.append(page_id)
+        objects.append(b"")
+        objects.append(f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream")
+        objects[page_id] = (
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {page_w} {page_h}] "
+            f"/Contents {page_id + 1} 0 R /Resources << /Font << {font_res} >> >> >>"
+        ).encode("ascii")
+    kids = " ".join(f"{pid} 0 R" for pid in page_ids)
+    objects[2] = f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode("ascii")
+
+    chunks = [b"%PDF-1.4\n"]
+    offsets = [0]
+    for i, obj in enumerate(objects):
+        if i == 0:
+            continue
+        offsets.append(sum(len(c) for c in chunks))
+        chunks.append(f"{i} 0 obj\n".encode("ascii") + obj + b"\nendobj\n")
+    xref_at = sum(len(c) for c in chunks)
+    xref = [f"xref\n0 {len(objects)}\n", "0000000000 65535 f \n"]
+    for off in offsets[1:]:
+        xref.append(f"{off:010d} 00000 n \n")
+    chunks.append("".join(xref).encode("ascii"))
+    chunks.append(
+        (
+            f"trailer\n<< /Size {len(objects)} /Root 1 0 R >>\n"
+            f"startxref\n{xref_at}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    return b"".join(chunks)
 
 
 def _wrap_pdf_line(text: str, width: int = 92) -> list[str]:

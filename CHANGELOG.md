@@ -2,6 +2,20 @@
 
 Newest first. Hand-written. Update when a set of files is copied onto the USB, not on every save.
 
+## 1.2.1 — 2026-09-28
+
+Setup creates `logs\` and `outputs\` on the stick and stops if they are not writable. Missing **git** is a notice only. `REQUIREMENTS.md` lists the hard minimum. `README.pdf`, `REQUIREMENTS.pdf`, and `CHANGELOG.pdf` sit next to the Markdown with headings, bold, lists, and code styling (same files on Windows and Ubuntu). Setup and chat do not open them.
+
+## 1.2.0 — 2026-09-28
+
+Coding committee, formatted History, and per-reply save buttons.
+
+- **Coding** checkbox (always visible). Optional **GitHub URL** (`https://github.com/owner/repo` only) appears while Coding is on. The committee never starts unless that checkbox is on.
+- Coding on: sequential roles on the **picked GGUF** (manager → coder → tester → critique → evaluator → vote). Sandbox execute is tester-only. Clone only when a public GitHub URL is set and `git` exists on the PC. Work lands in `outputs\` on the stick. Status names the role; Stop still cancels between steps. History shows one finished reply, not each JSON pass.
+- Coding off: the picked model still answers. Simple code requests keep a snippet plus “not tested.” Asks to run or sandbox say it cannot test without Coding. High-stakes wording (legal / official / medical / …) uses a short review pass with **no** sandbox.
+- History paints Markdown as widgets (headings, lists, code boxes) via `formatter.py`. **View HTML** opens a sanitized page in the OS browser. **Save to notes** is on each Model reply (replaces Append last reply). **Save PDF** on a turn appears only if that turn wrote a PDF. Footer **Save transcript PDF** still exports the whole chat.
+- Web Search is unchanged and still operator-gated.
+
 ## 1.1.3 — 2026-09-26
 
 If the loaded GGUF template rejects a `system` role, that text is folded into the first user message and the turn is retried. Fixes `(error: System role not supported)` on models such as Gemma, including the extra Web Search JSON passes.

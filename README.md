@@ -2,9 +2,9 @@
 
 Backup of the **standalone USB chat** (`chat\` on the stick). This git branch is not a runnable app. Edit the files here, then copy them onto the USB when it is plugged in. If the stick is lost, copy this branch onto a new drive next to the GGUFs.
 
-It is **not** the id10t committee. The stick does not need a Python venv.
+It is **not** the id10t factory (no mail, no Serp/Scraper keys, no second GGUF). Coding uses the model you picked, one at a time.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for what landed in each version. Features below are what **1.1.3** can do.
+See [`CHANGELOG.md`](CHANGELOG.md) / [`CHANGELOG.pdf`](CHANGELOG.pdf) for what landed in each version. Features below are what **1.2.1** can do. Visual copies of this file, the changelog, and the host requirements sit next to the Markdown (`README.pdf`, `CHANGELOG.pdf`, `REQUIREMENTS.pdf`). Setup and chat do not open them.
 
 ## Features
 
@@ -14,12 +14,21 @@ See [`CHANGELOG.md`](CHANGELOG.md) for what landed in each version. Features bel
 - Read-only attach: `pdf`, `docx`, `xlsx`, `txt`, `md`, `csv`. History shows a document icon and the full path (older logs: icon and the stored name).
 - Session logs in `logs/` (JSONL with prompt, optional `shown` / `attached`, reply, token counts, and Web Search fields when used). Scroll the transcript to the top to load an older log as earlier llama.cpp turns. When none remain, History says nothing is stored before this.
 - Logs older than 30 days are deleted by the `YYYY-MM-DD_` prefix in the filename (session `.log` and `web_*.jsonl`).
-- `notes.md` is included (first 4000 characters). The model cannot write it; you confirm in **Notes…**.
-- **Save PDF** / **Print** build the transcript in memory. Nothing is written unless you pick a save path or the OS print spooler needs a temp file.
-- Optional **Web Search** — see below.
-- Host `setup.bat` / `setup.sh`: require **Python 3.11+**. Compatible interpreters only seed a **private host venv** (`%LOCALAPPDATA%\usb-chat\venv` or `~/.local/share/usb-chat/venv`); installs `llama-cpp-python` (CPU wheel), **`pypdf`**, **`requests`**, and **`beautifulsoup4`**. A failed install names the missing library in the popup. System Python is never replaced. If the PC has no 3.11+ (or only 2.7 / 3.9), a dialog names the version we need and the version we found. `chat.bat` / `chat.sh` boot that venv.
+- `notes.md` is included (first 4000 characters). The model cannot write it. **Notes…** edits the file; each Model reply has **Save to notes** (you confirm).
+- History paints headings, lists, and code as widgets (`formatter.py`). **View HTML** on a reply opens a sanitized temp file in the OS browser. Footer **Save transcript PDF** / **Print** still export the whole chat. A per-reply **Save PDF** appears only when that turn wrote a PDF into `outputs\`.
+- **Coding** checkbox above Message. Optional **GitHub URL** shows only while Coding is on (public `https://github.com/owner/repo`). See Coding below.
+- Optional **Web Search** — see below. Still off unless you turn it on.
+- Host `setup.bat` / `setup.sh`: require **Python 3.11+** (see [`REQUIREMENTS.md`](REQUIREMENTS.md)). They create `logs\` and `outputs\` on the stick (and stop if the stick is not writable). Compatible interpreters only seed a **private host venv** (`%LOCALAPPDATA%\usb-chat\venv` or `~/.local/share/usb-chat/venv`); installs `llama-cpp-python` (CPU wheel), **`pypdf`**, **`requests`**, and **`beautifulsoup4`**. A failed install names that library. Missing **git** is a notice, not a failure. System Python is never replaced. If the PC has no 3.11+ (or only 2.7 / 3.9), a dialog names the version we need and the version we found. `chat.bat` / `chat.sh` boot that venv.
 - Windows first; same scripts on Ubuntu.
-- No committee, mail, or factory. No SerpAPI / ScraperAPI keys.
+- No mail and no SerpAPI / ScraperAPI keys.
+
+## Coding
+
+Leave **Coding** off for chat and for simple snippets. The picked model still writes code; it is marked **not tested**. If you ask it to run tests or use a sandbox with Coding off, it says it cannot test.
+
+Turn **Coding** on to run a sequential committee on that same GGUF (one role at a time, a few rounds). Only the tester may execute `.py` files in a folder under `outputs\` on the stick. A GitHub URL is cloned only when Coding is on, the URL is a public GitHub repo, and `git` is on the PC. No tokens. Stop cancels between roles.
+
+High-stakes wording (legal, official, medical, and similar) without Coding uses a short review pass that may write a document or PDF. It does not execute code.
 
 ## Web Search
 
@@ -53,11 +62,18 @@ GGUFs stay at the stick root. This branch is the contents of `chat\`.
   logs\
     YYYY-MM-DD_HHMMSS.log
     web_YYYY-MM-DD_HHMMSS.jsonl   (Web Search side log; not History)
+  outputs\             (coding/review work folders; not git)
   chat\                ← copy the files from this branch here
     README.md
+    README.pdf
+    REQUIREMENTS.md
+    REQUIREMENTS.pdf
     CHANGELOG.md
+    CHANGELOG.pdf
     chat.py
     usbchat.py
+    formatter.py
+    committee.py
     search.py
     setup.py
     chat.bat
@@ -67,20 +83,17 @@ GGUFs stay at the stick root. This branch is the contents of `chat\`.
     bin\               (optional llama-cli; not required in git)
 ```
 
-`models.json` on the stick is unused by this chat (committee leftover). `logs\` and `notes.md` stay on the USB only.
+`models.json` on the stick is unused by this chat. `logs\`, `outputs\`, and `notes.md` stay on the USB only.
 
 ## Copy onto the stick
 
-Overwrite `chat\` on the stick with the files from this branch root. Do not copy `.venv`, `logs\`, `notes.md`, or `*.gguf` into git.
+Overwrite `chat\` on the stick with the files from this branch root. Do not copy `.venv`, `logs\`, `outputs\`, `notes.md`, or `*.gguf` into git.
 
 On a **new** stick: put the GGUFs at the USB root, copy this backup into `chat\`, then run setup on the host.
 
 ## What the host needs (runtime, on the USB)
 
-- Windows or Ubuntu
-- Python **3.11 or newer** already on the machine (install *alongside* an older system Python; setup will not upgrade 3.9 / 2.7)
-- `llama-cpp-python` in the host venv, **or** `llama-cli` in `chat/bin/`
-- `requests` and `beautifulsoup4` in that venv for Web Search (setup installs them)
+See [`REQUIREMENTS.md`](REQUIREMENTS.md) (and `REQUIREMENTS.pdf`) for the full list. Short version: Python **3.11+**, a writable stick, `llama-cpp-python` or `llama-cli`, plus `pypdf` / `requests` / `beautifulsoup4` from setup. **git** is optional.
 
 From `chat\` on the stick:
 
