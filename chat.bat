@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 set "VPY=%LOCALAPPDATA%\usb-chat\venv\Scripts\python.exe"
 if exist "%VPY%" (
-  "%VPY%" "%~dp0chat.py" %*
+  "%VPY%" "%~dp0scripts\chat.py" %*
   exit /b %ERRORLEVEL%
 )
 

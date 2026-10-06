@@ -17,8 +17,8 @@ bin/
 /sandboxes
 /docs
 /state
-/tests
-/frozen
-/seeds
-bench.py
+/scripts/tests
+/scripts/frozen
+/scripts/seeds
+/scripts/bench.py
 /_tmp_write_box

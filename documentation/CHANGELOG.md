@@ -2,6 +2,12 @@
 
 Newest first. Hand-written. Update when a set of files is copied onto the USB, not on every save.
 
+## 1.2.20 — 2026-10-06
+
+Stick layout. Home holds `chat.bat`, `setup.bat`, `chat.sh`, `setup.sh`, `README.pdf`, `CHANGELOG.pdf`, `REQUIREMENTS.pdf`, `TestResults.pdf`, `notes.md`, and the GGUFs. No Markdown at the stick root: systems that open the stick often have no Markdown viewer, so only those PDFs are exposed there. `scripts\` holds the Python (and `seeds\`, `frozen\`, optional `bin\`). `documentation\` holds the Markdown. `LICENSE`, `.git`, and `.gitignore` stay at the repository root and are not copied to the stick. `logs\`, `coding-logs\`, and `outputs\` stay at the root. Run products go in `outputs\` only. Copies onto the USB must use this tree. There is no `chat\` folder. The git repo keeps `README.md` at the repository root for GitHub and the other notes in `documentation\`. Setup writes the guide PDFs at the root from that Markdown.
+
+**Attach folder…** reads accepted documents in a folder before the model loads. A folder that does not fit the context window is walked in parts.
+
 ## 1.2.19 — 2026-10-05
 
 After the seed copy, the host builds a one-time **data card** from non-script documents (csv/txt/json/md, not PROMPT.md). Phase 0 gets that card with the request. The manager may write `test_plan` from those cell values; then the plan is locked. Coder `main.py` and tester literals must match the card (CSV numbers stay strings). Later rounds do not re-read the files.

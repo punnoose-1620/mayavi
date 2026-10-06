@@ -1,24 +1,32 @@
 # USB chat
 
-Backup of the **standalone USB chat** (`chat\` on the stick). This git branch is not a runnable app. Edit the files here, then copy them onto the USB when it is plugged in. If the stick is lost, copy this branch onto a new drive next to the GGUFs.
+This file stays at the **repository root** so GitHub can show it. The other project notes live in [`documentation/`](documentation/):
+
+- [Changelog](documentation/CHANGELOG.md)
+- [Requirements](documentation/REQUIREMENTS.md)
+- [Bench results](documentation/TestResults.md)
+
+The license is [`LICENSE`](LICENSE) in this folder, next to `.git` and `.gitignore`. Those stay at the repository root. They are not copied to the USB.
+
+The folder layout below is for the **USB**, not a second copy of this repository. On the stick, do not leave Markdown at the root. Systems that open the stick often have no Markdown viewer, so the root exposes the PDFs only (`README.pdf`, `CHANGELOG.pdf`, `REQUIREMENTS.pdf`, `TestResults.pdf`). The Markdown, including a copy of this file, goes in `documentation\`. Setup rebuilds the guide PDFs from that Markdown. Setup and chat do not open the PDFs.
 
 It is **not** the id10t factory (no mail, no Serp/Scraper keys, no second GGUF). Coding uses the model you picked, one at a time.
 
-See [`CHANGELOG.md`](CHANGELOG.md) / [`CHANGELOG.pdf`](CHANGELOG.pdf) for what landed in each version. Features below are what **1.2.19** can do. Visual copies of this file, the changelog, and the host requirements sit next to the Markdown (`README.pdf`, `CHANGELOG.pdf`, `REQUIREMENTS.pdf`). Setup and chat do not open them.
+Features below are what **1.2.20** can do.
 
 ## Features
 
 - One GGUF at a time. The picker lists only files that fit **free RAM ≥ file size × 1.2 + 2 GB**, largest first, labeled like `Qwen2.5 Coder 14B (8.4 GB)`. If the file’s chat template rejects a system role, that text is folded into the first user message.
 - Chat window: labeled History (empty-state hint) and Message (placeholder + Send on the right). While the model is working (including a long Web Search), the box is locked and Send becomes a spinner; Stop stays on.
 - Quote a turn with the ↩ control on each **You** / **Model** line (hover: *Reply to this message*). **Clear quote** and **Replying to:** appear only while a quote is pending.
-- Read-only attach: `pdf`, `docx`, `xlsx`, `txt`, `md`, `csv`. History shows a document icon and the full path (older logs: icon and the stored name).
+- Read-only attach of one file, or **Attach folder…** for a folder of `pdf`, `docx`, `xlsx`, `txt`, `md`, and `csv`. Other files in that folder are skipped. The folder is read before the model loads, and a long folder is walked in parts so it fits the context window. History shows a document icon and the full path (older logs: icon and the stored name).
 - Session logs in `logs/` (JSONL with prompt, optional `shown` / `attached`, reply, token counts, and Web Search fields when used). Scroll the transcript to the top to load an older log as earlier llama.cpp turns. When none remain, History says nothing is stored before this.
 - Logs older than 30 days are deleted by the `YYYY-MM-DD_` prefix in the filename (session `.log` and `web_*.jsonl`).
 - `notes.md` is included (first 4000 characters). The model cannot write it. **Notes…** edits the file; each Model reply has **Save to notes** (you confirm).
 - History paints headings, lists, and code as widgets (`formatter.py`). **View HTML** on a reply opens a sanitized temp file in the OS browser. Footer **Save transcript PDF** / **Print** still export the whole chat. A per-reply **Save PDF** appears only when that turn wrote a PDF into `outputs\`.
 - **Coding** checkbox above Message. Optional **GitHub URL** and **Folder…** show only while Coding is on (public `https://github.com/owner/repo`, or a local folder copied into `outputs\`; not both). See Coding below.
 - Optional **Web Search** — see below. Still off unless you turn it on.
-- Host `setup.bat` / `setup.sh`: require **Python 3.11+** (see [`REQUIREMENTS.md`](REQUIREMENTS.md)). They create `logs\`, `coding-logs\`, and `outputs\` on the stick (and stop if the stick is not writable). Compatible interpreters only seed a **private host venv** (`%LOCALAPPDATA%\usb-chat\venv` or `~/.local/share/usb-chat/venv`); installs `llama-cpp-python` (CPU wheel), **`pypdf`**, **`requests`**, and **`beautifulsoup4`**. A failed install names that library. Missing **git** is a notice, not a failure. System Python is never replaced. If the PC has no 3.11+ (or only 2.7 / 3.9), a dialog names the version we need and the version we found. `chat.bat` / `chat.sh` boot that venv.
+- Host `setup.bat` / `setup.sh`: require **Python 3.11+** (see [`documentation/REQUIREMENTS.md`](documentation/REQUIREMENTS.md)). They create `logs\`, `coding-logs\`, and `outputs\` on the stick (and stop if the stick is not writable). Compatible interpreters only seed a **private host venv** (`%LOCALAPPDATA%\usb-chat\venv` or `~/.local/share/usb-chat/venv`); installs `llama-cpp-python` (CPU wheel), **`pypdf`**, **`requests`**, and **`beautifulsoup4`**. A failed install names that library. Missing **git** is a notice, not a failure. System Python is never replaced. If the PC has no 3.11+ (or only 2.7 / 3.9), a dialog names the version we need and the version we found. `chat.bat` / `chat.sh` boot that venv.
 - Windows first; same scripts on Ubuntu.
 - No mail and no SerpAPI / ScraperAPI keys.
 
@@ -53,12 +61,38 @@ GPU offload is off unless you set `USB_CHAT_N_GPU_LAYERS` (or a numeric `N_GPU_L
 
 ## Layout on the USB
 
-GGUFs stay at the stick root. This branch is the contents of `chat\`.
+Copies onto the USB must follow this tree. The stick root is home. There is no `chat\` folder. Markdown is not part of that home directory; only the PDFs are.
 
 ```
 <USB>\
-  *.gguf
+  chat.bat
+  setup.bat
+  chat.sh
+  setup.sh
+  README.pdf
+  CHANGELOG.pdf
+  REQUIREMENTS.pdf
+  TestResults.pdf
   notes.md             (created on the stick; do not put in git)
+  *.gguf
+  scripts\
+    chat.py
+    usbchat.py
+    setup.py
+    committee.py
+    formatter.py
+    search.py
+    bench.py
+    download_models_local.py
+    bin\               (optional llama-cli)
+    seeds\             (bench tasks)
+    frozen\            (frozen bench snapshot)
+    tests\
+  documentation\
+    README.md
+    CHANGELOG.md
+    REQUIREMENTS.md
+    TestResults.md
   logs\
     YYYY-MM-DD_HHMMSS.log
     web_YYYY-MM-DD_HHMMSS.jsonl   (Web Search side log; not History)
@@ -68,40 +102,24 @@ GGUFs stay at the stick root. This branch is the contents of `chat\`.
       planner.jsonl    (phase0 + each manager plan; append)
       critique.jsonl   (each critique round; append)
       test.jsonl       (writes, executes, qualify, ballot; append)
-  outputs\             (coding/review work folders; not git)
-  chat\                ← copy the files from this branch here
-    README.md
-    README.pdf
-    REQUIREMENTS.md
-    REQUIREMENTS.pdf
-    CHANGELOG.md
-    CHANGELOG.pdf
-    chat.py
-    usbchat.py
-    formatter.py
-    committee.py
-    search.py
-    setup.py
-    chat.bat
-    chat.sh
-    setup.bat
-    setup.sh
-    bin\               (optional llama-cli; not required in git)
+  outputs\             (coding/review work folders and bench run folders; not git)
 ```
 
-`models.json` on the stick is unused by this chat. `logs\`, `coding-logs\`, `outputs\`, and `notes.md` stay on the USB only.
+`models.json` on the stick is unused by this chat. `logs\`, `coding-logs\`, `outputs\`, and `notes.md` stay on the USB only. Run products go in `outputs\` only. On the stick, project Markdown stays in `documentation\` and the four PDFs stay at the root.
+
+This repository is not that tree. `README.md`, `LICENSE`, `.git`, and `.gitignore` stay at this repo root. `documentation\` holds the other Markdown. `scripts\` holds the Python that gets copied into `scripts\` on the stick. Do not copy `LICENSE`, `.git`, or `.gitignore` onto the stick.
 
 ## Copy onto the stick
 
-Overwrite `chat\` on the stick with the files from this branch root. Do not copy `.venv`, `logs\`, `coding-logs\`, `outputs\`, `notes.md`, or `*.gguf` into git.
+Copy `scripts\` and `documentation\` onto the stick, and copy the four PDFs plus `chat.bat`, `setup.bat`, `chat.sh`, and `setup.sh` to the stick root, beside the GGUFs. Put this `README.md` in `documentation\` on the stick, not at the stick root. Leave `LICENSE`, `.git`, and `.gitignore` in the repo only. Do not copy `.venv`, `logs\`, `coding-logs\`, `outputs\`, `notes.md`, or `*.gguf` into git. Do not put the scripts back into a `chat\` folder.
 
-On a **new** stick: put the GGUFs at the USB root, copy this backup into `chat\`, then run setup on the host.
+On a **new** stick: put the GGUFs at the USB root, copy the folders as above, then run setup from the stick root.
 
 ## What the host needs (runtime, on the USB)
 
-See [`REQUIREMENTS.md`](REQUIREMENTS.md) (and `REQUIREMENTS.pdf`) for the full list. Short version: Python **3.11+**, a writable stick, `llama-cpp-python` or `llama-cli`, plus `pypdf` / `requests` / `beautifulsoup4` from setup. **git** is optional.
+See [`documentation/REQUIREMENTS.md`](documentation/REQUIREMENTS.md). On the stick, the visual copy is `REQUIREMENTS.pdf` at the root. Short version: Python **3.11+**, a writable stick, `llama-cpp-python` or `llama-cli`, plus `pypdf` / `requests` / `beautifulsoup4` from setup. **git** is optional.
 
-From `chat\` on the stick:
+From the stick root:
 
 ```powershell
 .\setup.bat
@@ -114,4 +132,4 @@ chmod +x setup.sh chat.sh
 ./chat.sh
 ```
 
-Optional: `--models D:\` if the GGUFs are not next to `chat\` and not on `E:\`…`P:\`.
+Optional: `--models D:\` if the GGUFs are not at the stick root and not on `E:\`…`P:\`.

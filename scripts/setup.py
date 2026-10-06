@@ -81,7 +81,7 @@ def incompatible_message(found: str) -> str:
         "The existing interpreter will not be replaced or upgraded, "
         "so other projects keep using it.\n\n"
         f"Install Python {MIN_LABEL} or newer alongside, then run setup again.\n\n"
-        "See REQUIREMENTS.md or REQUIREMENTS.pdf in this folder."
+        "See documentation\\REQUIREMENTS.md or REQUIREMENTS.pdf at the stick root."
     )
 
 
@@ -178,7 +178,7 @@ def upgrade_packages(executable: Path) -> None:
         purpose="required to load GGUF models",
         extra=(
             "Setup tried to download a prebuilt CPU wheel (no local C++ compile). "
-            "You can also put llama-cli in chat\\bin\\."
+            "You can also put llama-cli in scripts\\bin\\."
         ),
     )
     _pip(
@@ -220,10 +220,10 @@ def prepare_stick() -> None:
 def stick_unwritable_message(exc: BaseException) -> str:
     return (
         "USB chat could not create logs, coding-logs, or outputs on this stick.\n\n"
-        "The stick must be writable. Those folders sit next to the GGUFs, "
-        "not inside the chat folder.\n\n"
+        "The stick must be writable. Those folders sit at the stick root, "
+        "next to the GGUFs.\n\n"
         f"{exc}\n\n"
-        "See REQUIREMENTS.md or REQUIREMENTS.pdf in this folder."
+        "See documentation\\REQUIREMENTS.md or REQUIREMENTS.pdf at the stick root."
     )
 
 
@@ -235,7 +235,7 @@ def warn_if_no_git() -> None:
         "Git is not on PATH. Chat still works.\n\n"
         "Coding with a public GitHub URL needs git. "
         "Leave the GitHub field empty, or install git later.\n\n"
-        "See REQUIREMENTS.md or REQUIREMENTS.pdf in this folder."
+        "See documentation\\REQUIREMENTS.md or REQUIREMENTS.pdf at the stick root."
     )
 
 

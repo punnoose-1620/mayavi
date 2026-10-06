@@ -198,12 +198,29 @@ def default_models_root(here: Path | None = None) -> Path:
     return here
 
 
+def project_home(here: Path | None = None) -> Path:
+    """Stick root. Scripts live in scripts\\; logs, PDFs, and GGUFs sit beside that folder."""
+    here = (here or Path(__file__).resolve().parent).resolve()
+    if here.name.lower() == "scripts":
+        return here.parent
+    return here
+
+
+def documentation_dir(here: Path | None = None) -> Path:
+    home = project_home(here)
+    docs = home / "documentation"
+    if docs.is_dir():
+        return docs
+    return home
+
+
 def usb_root(models_root: Path, here: Path | None = None) -> Path:
     here = (here or Path(__file__).resolve().parent).resolve()
+    home = project_home(here)
     if not discover_ggufs(models_root):
-        return here
+        return home
     if models_root.name.lower() == "models":
-        return here
+        return home
     return models_root
 
 
@@ -255,14 +272,29 @@ def build_markdown_pdf(title: str, markdown: str) -> bytes:
     return build_guide_pdf(title, markdown)
 
 
+def guide_markdown(home: Path, docs: Path, stem: str) -> Path | None:
+    """README.md is at the repo root for GitHub. On the USB every Markdown file is in documentation\\."""
+    if stem == "README":
+        candidates = (home / "README.md", docs / "README.md")
+    else:
+        candidates = (docs / f"{stem}.md", home / f"{stem}.md")
+    for src in candidates:
+        if src.is_file():
+            return src
+    return None
+
+
 def write_guide_pdfs(folder: Path | None = None) -> list[Path]:
-    folder = (folder or Path(__file__).resolve().parent).resolve()
+    """Write the guide PDFs at the project root. Markdown sources stay in documentation\\, except README.md at the repo root."""
+    here = (folder or Path(__file__).resolve().parent).resolve()
+    home = project_home(here)
+    docs = documentation_dir(here)
     written: list[Path] = []
-    for stem in ("README", "REQUIREMENTS", "CHANGELOG"):
-        src = folder / f"{stem}.md"
-        if not src.is_file():
+    for stem in ("README", "REQUIREMENTS", "CHANGELOG", "TestResults"):
+        src = guide_markdown(home, docs, stem)
+        if src is None:
             continue
-        dest = folder / f"{stem}.pdf"
+        dest = home / f"{stem}.pdf"
         dest.write_bytes(build_markdown_pdf(stem, src.read_text(encoding="utf-8", errors="replace")))
         written.append(dest)
     return written
@@ -2015,7 +2047,7 @@ def make_engine(model_path: Path, n_ctx: int = N_CTX_DEFAULT, here: Path | None 
     cli = find_llama_cli(here)
     if cli is None:
         raise RuntimeError(
-            "Need llama-cpp-python on this machine, or llama-cli in chat/bin/."
+            "Need llama-cpp-python on this machine, or llama-cli in scripts/bin/."
         )
     return LlamaCliEngine(cli, model_path, n_ctx=n_ctx)
 

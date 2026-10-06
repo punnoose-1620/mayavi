@@ -10,7 +10,7 @@ else
 fi
 
 if [[ -x "$VPY" ]]; then
-  exec "$VPY" "$HERE/chat.py" "$@"
+  exec "$VPY" "$HERE/scripts/chat.py" "$@"
 fi
 
 MSG="USB chat is not set up on this PC. Run setup.sh first. It will use Python 3.11 or newer in a private host venv and will not change the system Python."

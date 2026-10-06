@@ -21,7 +21,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
 endobj
 8 0 obj
-<< /Length 6244 >>
+<< /Length 7338 >>
 stream
 BT
 1 0 0 1 54.0 746.0 Tm
@@ -61,11 +61,343 @@ BT
 1 0 0 1 54.0 650.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
+(1.2.20: ) Tj
+(2026-10-06) Tj
+ET
+BT
+1 0 0 1 54.0 622.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Stick ) Tj
+(layout. ) Tj
+(Home ) Tj
+(holds ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(chat.bat) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(setup.bat) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(chat.sh) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(setup.sh) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(README.pdf) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+ET
+BT
+1 0 0 1 54.0 607.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(CHANGELOG.pdf) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(REQUIREMENTS.pdf) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(TestResults.pdf) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(notes.md) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+(and ) Tj
+(the ) Tj
+(GGUFs. ) Tj
+(No ) Tj
+ET
+BT
+1 0 0 1 54.0 592.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Markdown ) Tj
+(at ) Tj
+(the ) Tj
+(stick ) Tj
+(root: ) Tj
+(systems ) Tj
+(that ) Tj
+(open ) Tj
+(the ) Tj
+(stick ) Tj
+(often ) Tj
+(have ) Tj
+(no ) Tj
+(Markdown ) Tj
+(viewer, ) Tj
+(so ) Tj
+ET
+BT
+1 0 0 1 54.0 577.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(only ) Tj
+(those ) Tj
+(PDFs ) Tj
+(are ) Tj
+(exposed ) Tj
+(there. ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(scripts/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(holds ) Tj
+(the ) Tj
+(Python ) Tj
+(\(and ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(seeds/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(frozen/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+ET
+BT
+1 0 0 1 54.0 562.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(optional ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(bin/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(\). ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(documentation/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(holds ) Tj
+(the ) Tj
+(Markdown. ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(LICENSE) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(.git) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+(and ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(.gitignore) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(stay ) Tj
+ET
+BT
+1 0 0 1 54.0 547.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(at ) Tj
+(the ) Tj
+(repository ) Tj
+(root ) Tj
+(and ) Tj
+(are ) Tj
+(not ) Tj
+(copied ) Tj
+(to ) Tj
+(the ) Tj
+(stick. ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(logs/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(coding-logs/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
+(and ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(outputs/) Tj
+ET
+BT
+1 0 0 1 54.0 532.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(stay ) Tj
+(at ) Tj
+(the ) Tj
+(root. ) Tj
+(Run ) Tj
+(products ) Tj
+(go ) Tj
+(in ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(outputs/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(only. ) Tj
+(Copies ) Tj
+(onto ) Tj
+(the ) Tj
+(USB ) Tj
+(must ) Tj
+(use ) Tj
+(this ) Tj
+ET
+BT
+1 0 0 1 54.0 517.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(tree. ) Tj
+(There ) Tj
+(is ) Tj
+(no ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(chat/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(folder. ) Tj
+(The ) Tj
+(git ) Tj
+(repo ) Tj
+(keeps ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(README.md) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(at ) Tj
+(the ) Tj
+(repository ) Tj
+(root ) Tj
+(for ) Tj
+ET
+BT
+1 0 0 1 54.0 502.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(GitHub ) Tj
+(and ) Tj
+(the ) Tj
+(other ) Tj
+(notes ) Tj
+(in ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(documentation/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(. ) Tj
+(Setup ) Tj
+(writes ) Tj
+(the ) Tj
+(guide ) Tj
+(PDFs ) Tj
+(at ) Tj
+(the ) Tj
+(root ) Tj
+ET
+BT
+1 0 0 1 54.0 487.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(from ) Tj
+(that ) Tj
+(Markdown.) Tj
+ET
+BT
+1 0 0 1 54.0 464.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(Attach ) Tj
+(folder...) Tj
+/F1 11 Tf
+( ) Tj
+(reads ) Tj
+(accepted ) Tj
+(documents ) Tj
+(in ) Tj
+(a ) Tj
+(folder ) Tj
+(before ) Tj
+(the ) Tj
+(model ) Tj
+(loads. ) Tj
+(A ) Tj
+(folder ) Tj
+ET
+BT
+1 0 0 1 54.0 449.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(that ) Tj
+(does ) Tj
+(not ) Tj
+(fit ) Tj
+(the ) Tj
+(context ) Tj
+(window ) Tj
+(is ) Tj
+(walked ) Tj
+(in ) Tj
+(parts.) Tj
+ET
+BT
+1 0 0 1 54.0 408.0 Tm
+0.10 0.22 0.42 rg
+/F2 15 Tf
 (1.2.19: ) Tj
 (2026-10-05) Tj
 ET
 BT
-1 0 0 1 54.0 622.0 Tm
+1 0 0 1 54.0 380.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (After ) Tj
@@ -87,7 +419,7 @@ BT
 (documents ) Tj
 ET
 BT
-1 0 0 1 54.0 607.0 Tm
+1 0 0 1 54.0 365.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (\(csv/txt/json/md, ) Tj
@@ -106,7 +438,7 @@ BT
 (may ) Tj
 ET
 BT
-1 0 0 1 54.0 592.0 Tm
+1 0 0 1 54.0 350.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (write ) Tj
@@ -136,7 +468,7 @@ BT
 (tester ) Tj
 ET
 BT
-1 0 0 1 54.0 577.0 Tm
+1 0 0 1 54.0 335.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (literals ) Tj
@@ -156,20 +488,20 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 54.0 562.0 Tm
+1 0 0 1 54.0 320.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (files.) Tj
 ET
 BT
-1 0 0 1 54.0 521.0 Tm
+1 0 0 1 54.0 279.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.18: ) Tj
 (2026-10-05) Tj
 ET
 BT
-1 0 0 1 54.0 493.0 Tm
+1 0 0 1 54.0 251.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (bench.py) Tj
@@ -189,7 +521,7 @@ BT
 (under ) Tj
 ET
 BT
-1 0 0 1 54.0 478.0 Tm
+1 0 0 1 54.0 236.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (frozen/http-kv/) Tj
@@ -209,14 +541,14 @@ BT
 (it.) Tj
 ET
 BT
-1 0 0 1 54.0 437.0 Tm
+1 0 0 1 54.0 195.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.17: ) Tj
 (2026-10-05) Tj
 ET
 BT
-1 0 0 1 54.0 409.0 Tm
+1 0 0 1 54.0 167.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Tool ) Tj
@@ -248,7 +580,7 @@ BT
 (is ) Tj
 ET
 BT
-1 0 0 1 54.0 394.0 Tm
+1 0 0 1 54.0 152.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (still ) Tj
@@ -277,7 +609,7 @@ BT
 (must ) Tj
 ET
 BT
-1 0 0 1 54.0 379.0 Tm
+1 0 0 1 54.0 137.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (go ) Tj
@@ -294,14 +626,22 @@ BT
 (fence.) Tj
 ET
 BT
-1 0 0 1 54.0 338.0 Tm
+1 0 0 1 54.0 96.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.16: ) Tj
 (2026-10-05) Tj
 ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 10 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+10 0 obj
+<< /Length 7683 >>
+stream
 BT
-1 0 0 1 54.0 310.0 Tm
+1 0 0 1 54.0 746.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Coder ) Tj
@@ -324,7 +664,7 @@ BT
 (and ) Tj
 ET
 BT
-1 0 0 1 54.0 295.0 Tm
+1 0 0 1 54.0 731.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (then ) Tj
@@ -349,7 +689,7 @@ BT
 (of ) Tj
 ET
 BT
-1 0 0 1 54.0 280.0 Tm
+1 0 0 1 54.0 716.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (a ) Tj
@@ -376,7 +716,7 @@ BT
 (longer ) Tj
 ET
 BT
-1 0 0 1 54.0 265.0 Tm
+1 0 0 1 54.0 701.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (treated ) Tj
@@ -387,14 +727,14 @@ BT
 (print\).) Tj
 ET
 BT
-1 0 0 1 54.0 224.0 Tm
+1 0 0 1 54.0 660.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.15: ) Tj
 (2026-10-05) Tj
 ET
 BT
-1 0 0 1 54.0 196.0 Tm
+1 0 0 1 54.0 632.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Host ) Tj
@@ -417,7 +757,7 @@ BT
 (method ) Tj
 ET
 BT
-1 0 0 1 54.0 181.0 Tm
+1 0 0 1 54.0 617.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (it ) Tj
@@ -449,7 +789,7 @@ BT
 (file ) Tj
 ET
 BT
-1 0 0 1 54.0 166.0 Tm
+1 0 0 1 54.0 602.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (first ) Tj
@@ -465,14 +805,14 @@ BT
 (disk.) Tj
 ET
 BT
-1 0 0 1 54.0 125.0 Tm
+1 0 0 1 54.0 561.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.14: ) Tj
 (2026-10-03) Tj
 ET
 BT
-1 0 0 1 54.0 97.0 Tm
+1 0 0 1 54.0 533.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Host ) Tj
@@ -509,7 +849,7 @@ BT
 (, ) Tj
 ET
 BT
-1 0 0 1 54.0 82.0 Tm
+1 0 0 1 54.0 518.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (triple ) Tj
@@ -534,7 +874,7 @@ BT
 (tells ) Tj
 ET
 BT
-1 0 0 1 54.0 67.0 Tm
+1 0 0 1 54.0 503.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (the ) Tj
@@ -551,23 +891,15 @@ BT
 (in ) Tj
 (Python.) Tj
 ET
-endstream
-endobj
-9 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 10 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
-endobj
-10 0 obj
-<< /Length 6479 >>
-stream
 BT
-1 0 0 1 54.0 728.0 Tm
+1 0 0 1 54.0 462.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.13: ) Tj
 (2026-10-03) Tj
 ET
 BT
-1 0 0 1 54.0 700.0 Tm
+1 0 0 1 54.0 434.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Coder ) Tj
@@ -591,7 +923,7 @@ BT
 (inventory ) Tj
 ET
 BT
-1 0 0 1 54.0 685.0 Tm
+1 0 0 1 54.0 419.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (card ) Tj
@@ -615,7 +947,7 @@ BT
 (those ) Tj
 ET
 BT
-1 0 0 1 54.0 670.0 Tm
+1 0 0 1 54.0 404.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (calls ) Tj
@@ -636,7 +968,7 @@ BT
 (hardcodes ) Tj
 ET
 BT
-1 0 0 1 54.0 655.0 Tm
+1 0 0 1 54.0 389.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (a ) Tj
@@ -660,14 +992,14 @@ BT
 (time.) Tj
 ET
 BT
-1 0 0 1 54.0 614.0 Tm
+1 0 0 1 54.0 348.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.12: ) Tj
 (2026-10-03) Tj
 ET
 BT
-1 0 0 1 54.0 586.0 Tm
+1 0 0 1 54.0 320.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Coder ) Tj
@@ -688,7 +1020,7 @@ BT
 (locked ) Tj
 ET
 BT
-1 0 0 1 54.0 571.0 Tm
+1 0 0 1 54.0 305.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (names; ) Tj
@@ -714,7 +1046,7 @@ BT
 (Last ) Tj
 ET
 BT
-1 0 0 1 54.0 556.0 Tm
+1 0 0 1 54.0 290.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (stderr, ) Tj
@@ -739,7 +1071,7 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 54.0 541.0 Tm
+1 0 0 1 54.0 275.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (seed ) Tj
@@ -760,7 +1092,7 @@ BT
 (names, ) Tj
 ET
 BT
-1 0 0 1 54.0 526.0 Tm
+1 0 0 1 54.0 260.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (will ) Tj
@@ -784,7 +1116,7 @@ BT
 (of ) Tj
 ET
 BT
-1 0 0 1 54.0 511.0 Tm
+1 0 0 1 54.0 245.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (a ) Tj
@@ -792,14 +1124,14 @@ BT
 (path.) Tj
 ET
 BT
-1 0 0 1 54.0 470.0 Tm
+1 0 0 1 54.0 204.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.11: ) Tj
 (2026-10-02) Tj
 ET
 BT
-1 0 0 1 54.0 442.0 Tm
+1 0 0 1 54.0 176.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (While ) Tj
@@ -821,7 +1153,7 @@ BT
 (file ) Tj
 ET
 BT
-1 0 0 1 54.0 427.0 Tm
+1 0 0 1 54.0 161.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (dialog\). ) Tj
@@ -846,7 +1178,7 @@ BT
 (is ) Tj
 ET
 BT
-1 0 0 1 54.0 412.0 Tm
+1 0 0 1 54.0 146.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (not ) Tj
@@ -877,7 +1209,7 @@ BT
 (/ ) Tj
 ET
 BT
-1 0 0 1 54.0 397.0 Tm
+1 0 0 1 54.0 131.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (README.md) Tj
@@ -903,7 +1235,7 @@ BT
 (fit ) Tj
 ET
 BT
-1 0 0 1 54.0 382.0 Tm
+1 0 0 1 54.0 116.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (in ) Tj
@@ -929,7 +1261,7 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 54.0 367.0 Tm
+1 0 0 1 54.0 101.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (committee ) Tj
@@ -957,22 +1289,30 @@ BT
 (binaries ) Tj
 ET
 BT
-1 0 0 1 54.0 352.0 Tm
+1 0 0 1 54.0 86.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (are ) Tj
 (not ) Tj
 (copied.) Tj
 ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 12 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+12 0 obj
+<< /Length 6735 >>
+stream
 BT
-1 0 0 1 54.0 311.0 Tm
+1 0 0 1 54.0 728.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.10: ) Tj
 (2026-10-02) Tj
 ET
 BT
-1 0 0 1 54.0 283.0 Tm
+1 0 0 1 54.0 700.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (After ) Tj
@@ -989,7 +1329,7 @@ BT
 (top-level ) Tj
 ET
 BT
-1 0 0 1 54.0 268.0 Tm
+1 0 0 1 54.0 685.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (names/signatures\) ) Tj
@@ -1007,7 +1347,7 @@ BT
 (snapshot, ) Tj
 ET
 BT
-1 0 0 1 54.0 253.0 Tm
+1 0 0 1 54.0 670.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (this-round ) Tj
@@ -1025,7 +1365,7 @@ BT
 (invent ) Tj
 ET
 BT
-1 0 0 1 54.0 238.0 Tm
+1 0 0 1 54.0 655.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (APIs ) Tj
@@ -1046,7 +1386,7 @@ BT
 (that ) Tj
 ET
 BT
-1 0 0 1 54.0 223.0 Tm
+1 0 0 1 54.0 640.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (call ) Tj
@@ -1067,7 +1407,7 @@ BT
 (they ) Tj
 ET
 BT
-1 0 0 1 54.0 208.0 Tm
+1 0 0 1 54.0 625.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (do ) Tj
@@ -1089,7 +1429,7 @@ BT
 (impl ) Tj
 ET
 BT
-1 0 0 1 54.0 193.0 Tm
+1 0 0 1 54.0 610.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (crash ) Tj
@@ -1103,22 +1443,14 @@ BT
 (names.) Tj
 ET
 BT
-1 0 0 1 54.0 152.0 Tm
+1 0 0 1 54.0 569.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.9: ) Tj
 (2026-10-01) Tj
 ET
-endstream
-endobj
-11 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 12 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
-endobj
-12 0 obj
-<< /Length 7517 >>
-stream
 BT
-1 0 0 1 54.0 746.0 Tm
+1 0 0 1 54.0 541.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Host ) Tj
@@ -1137,7 +1469,7 @@ BT
 (manager. ) Tj
 ET
 BT
-1 0 0 1 54.0 731.0 Tm
+1 0 0 1 54.0 526.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (After ) Tj
@@ -1154,7 +1486,7 @@ BT
 (file/function" ) Tj
 ET
 BT
-1 0 0 1 54.0 716.0 Tm
+1 0 0 1 54.0 511.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (claims ) Tj
@@ -1172,7 +1504,7 @@ BT
 (from ) Tj
 ET
 BT
-1 0 0 1 54.0 701.0 Tm
+1 0 0 1 54.0 496.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (next_fix) Tj
@@ -1195,7 +1527,7 @@ BT
 (contract ) Tj
 ET
 BT
-1 0 0 1 54.0 686.0 Tm
+1 0 0 1 54.0 481.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (from ) Tj
@@ -1214,7 +1546,7 @@ BT
 (append ) Tj
 ET
 BT
-1 0 0 1 54.0 671.0 Tm
+1 0 0 1 54.0 466.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (a ) Tj
@@ -1242,7 +1574,7 @@ BT
 ( ) Tj
 ET
 BT
-1 0 0 1 54.0 656.0 Tm
+1 0 0 1 54.0 451.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (\(including ) Tj
@@ -1264,7 +1596,7 @@ BT
 (must ) Tj
 ET
 BT
-1 0 0 1 54.0 641.0 Tm
+1 0 0 1 54.0 436.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (be ) Tj
@@ -1279,14 +1611,14 @@ BT
 (traceback\).) Tj
 ET
 BT
-1 0 0 1 54.0 600.0 Tm
+1 0 0 1 54.0 395.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.8: ) Tj
 (2026-10-01) Tj
 ET
 BT
-1 0 0 1 54.0 572.0 Tm
+1 0 0 1 54.0 367.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Coder ) Tj
@@ -1305,7 +1637,7 @@ BT
 (non-test ) Tj
 ET
 BT
-1 0 0 1 54.0 557.0 Tm
+1 0 0 1 54.0 352.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (.py) Tj
@@ -1332,7 +1664,7 @@ BT
 (\(cap ) Tj
 ET
 BT
-1 0 0 1 54.0 542.0 Tm
+1 0 0 1 54.0 337.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (3\). ) Tj
@@ -1353,7 +1685,7 @@ BT
 (may ) Tj
 ET
 BT
-1 0 0 1 54.0 527.0 Tm
+1 0 0 1 54.0 322.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (execute ) Tj
@@ -1371,7 +1703,7 @@ BT
 (results/) Tj
 ET
 BT
-1 0 0 1 54.0 512.0 Tm
+1 0 0 1 54.0 307.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (next_fix) Tj
@@ -1382,14 +1714,14 @@ BT
 (unchanged.) Tj
 ET
 BT
-1 0 0 1 54.0 471.0 Tm
+1 0 0 1 54.0 266.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.7: ) Tj
 (2026-10-01) Tj
 ET
 BT
-1 0 0 1 54.0 443.0 Tm
+1 0 0 1 54.0 238.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Host ) Tj
@@ -1408,7 +1740,7 @@ BT
 (tester ) Tj
 ET
 BT
-1 0 0 1 54.0 428.0 Tm
+1 0 0 1 54.0 223.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (writes/runs ) Tj
@@ -1431,7 +1763,7 @@ BT
 (prints ) Tj
 ET
 BT
-1 0 0 1 54.0 413.0 Tm
+1 0 0 1 54.0 208.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (n ) Tj
@@ -1457,7 +1789,7 @@ BT
 (re-execute. ) Tj
 ET
 BT
-1 0 0 1 54.0 398.0 Tm
+1 0 0 1 54.0 193.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Critique ) Tj
@@ -1479,7 +1811,7 @@ BT
 (no ) Tj
 ET
 BT
-1 0 0 1 54.0 383.0 Tm
+1 0 0 1 54.0 178.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (test ) Tj
@@ -1506,7 +1838,7 @@ BT
 ( ) Tj
 ET
 BT
-1 0 0 1 54.0 368.0 Tm
+1 0 0 1 54.0 163.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (for ) Tj
@@ -1526,14 +1858,22 @@ BT
 (subset.) Tj
 ET
 BT
-1 0 0 1 54.0 327.0 Tm
+1 0 0 1 54.0 122.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.6: ) Tj
 (2026-09-30) Tj
 ET
+endstream
+endobj
+13 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 14 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+14 0 obj
+<< /Length 8345 >>
+stream
 BT
-1 0 0 1 54.0 299.0 Tm
+1 0 0 1 54.0 746.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Host ) Tj
@@ -1558,7 +1898,7 @@ BT
 (\(or ) Tj
 ET
 BT
-1 0 0 1 54.0 284.0 Tm
+1 0 0 1 54.0 731.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (coder_impl_only) Tj
@@ -1579,7 +1919,7 @@ BT
 (can ) Tj
 ET
 BT
-1 0 0 1 54.0 269.0 Tm
+1 0 0 1 54.0 716.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (write/execute ) Tj
@@ -1604,7 +1944,7 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 54.0 254.0 Tm
+1 0 0 1 54.0 701.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (test ) Tj
@@ -1627,7 +1967,7 @@ BT
 (runs ) Tj
 ET
 BT
-1 0 0 1 54.0 239.0 Tm
+1 0 0 1 54.0 686.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (it. ) Tj
@@ -1659,7 +1999,7 @@ BT
 (every ) Tj
 ET
 BT
-1 0 0 1 54.0 224.0 Tm
+1 0 0 1 54.0 671.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (execute\). ) Tj
@@ -1687,7 +2027,7 @@ BT
 (not. ) Tj
 ET
 BT
-1 0 0 1 54.0 209.0 Tm
+1 0 0 1 54.0 656.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Test ) Tj
@@ -1712,7 +2052,7 @@ BT
 (host ) Tj
 ET
 BT
-1 0 0 1 54.0 194.0 Tm
+1 0 0 1 54.0 641.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (writes ) Tj
@@ -1731,29 +2071,21 @@ BT
 (write ) Tj
 ET
 BT
-1 0 0 1 54.0 179.0 Tm
+1 0 0 1 54.0 626.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (test ) Tj
 (scripts.) Tj
 ET
 BT
-1 0 0 1 54.0 138.0 Tm
+1 0 0 1 54.0 585.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.5: ) Tj
 (2026-09-30) Tj
 ET
-endstream
-endobj
-13 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 14 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
-endobj
-14 0 obj
-<< /Length 7437 >>
-stream
 BT
-1 0 0 1 54.0 746.0 Tm
+1 0 0 1 54.0 557.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Each ) Tj
@@ -1777,7 +2109,7 @@ BT
 (appends ) Tj
 ET
 BT
-1 0 0 1 54.0 731.0 Tm
+1 0 0 1 54.0 542.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (generic.jsonl) Tj
@@ -1800,7 +2132,7 @@ BT
 (plan\), ) Tj
 ET
 BT
-1 0 0 1 54.0 716.0 Tm
+1 0 0 1 54.0 527.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (critique.jsonl) Tj
@@ -1822,7 +2154,7 @@ BT
 (SCORES, ) Tj
 ET
 BT
-1 0 0 1 54.0 701.0 Tm
+1 0 0 1 54.0 512.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (qualify, ) Tj
@@ -1842,7 +2174,7 @@ BT
 (work ) Tj
 ET
 BT
-1 0 0 1 54.0 686.0 Tm
+1 0 0 1 54.0 497.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (folder ) Tj
@@ -1870,7 +2202,7 @@ BT
 (why ) Tj
 ET
 BT
-1 0 0 1 54.0 671.0 Tm
+1 0 0 1 54.0 482.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (the ) Tj
@@ -1882,14 +2214,14 @@ BT
 (test.) Tj
 ET
 BT
-1 0 0 1 54.0 630.0 Tm
+1 0 0 1 54.0 441.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.4: ) Tj
 (2026-09-30) Tj
 ET
 BT
-1 0 0 1 54.0 602.0 Tm
+1 0 0 1 54.0 413.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Tester ) Tj
@@ -1920,7 +2252,7 @@ BT
 ( ) Tj
 ET
 BT
-1 0 0 1 54.0 587.0 Tm
+1 0 0 1 54.0 398.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (or ) Tj
@@ -1946,7 +2278,7 @@ BT
 (owns ) Tj
 ET
 BT
-1 0 0 1 54.0 572.0 Tm
+1 0 0 1 54.0 383.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (the ) Tj
@@ -1966,7 +2298,7 @@ BT
 (qualify ) Tj
 ET
 BT
-1 0 0 1 54.0 557.0 Tm
+1 0 0 1 54.0 368.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (still ) Tj
@@ -1984,14 +2316,14 @@ BT
 (.) Tj
 ET
 BT
-1 0 0 1 54.0 516.0 Tm
+1 0 0 1 54.0 327.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.3: ) Tj
 (2026-09-30) Tj
 ET
 BT
-1 0 0 1 54.0 488.0 Tm
+1 0 0 1 54.0 299.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Coding ) Tj
@@ -2011,7 +2343,7 @@ BT
 (markdown, ) Tj
 ET
 BT
-1 0 0 1 54.0 473.0 Tm
+1 0 0 1 54.0 284.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (truncates ) Tj
@@ -2049,7 +2381,7 @@ BT
 (nests ) Tj
 ET
 BT
-1 0 0 1 54.0 458.0 Tm
+1 0 0 1 54.0 269.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 ({"sandbox_write": ) Tj
@@ -2072,7 +2404,7 @@ BT
 (1024 ) Tj
 ET
 BT
-1 0 0 1 54.0 443.0 Tm
+1 0 0 1 54.0 254.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (tokens ) Tj
@@ -2092,7 +2424,7 @@ BT
 (role ) Tj
 ET
 BT
-1 0 0 1 54.0 428.0 Tm
+1 0 0 1 54.0 239.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (turn ) Tj
@@ -2116,7 +2448,7 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 54.0 413.0 Tm
+1 0 0 1 54.0 224.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (previous ) Tj
@@ -2132,14 +2464,14 @@ BT
 (tool.) Tj
 ET
 BT
-1 0 0 1 54.0 372.0 Tm
+1 0 0 1 54.0 183.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.2: ) Tj
 (2026-09-29) Tj
 ET
 BT
-1 0 0 1 54.0 344.0 Tm
+1 0 0 1 54.0 155.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Coding ) Tj
@@ -2169,7 +2501,7 @@ BT
 (and ) Tj
 ET
 BT
-1 0 0 1 54.0 329.0 Tm
+1 0 0 1 54.0 140.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (outputs/) Tj
@@ -2190,7 +2522,7 @@ BT
 (including ) Tj
 ET
 BT
-1 0 0 1 54.0 314.0 Tm
+1 0 0 1 54.0 125.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (sandbox_write) Tj
@@ -2211,7 +2543,7 @@ BT
 (folder. ) Tj
 ET
 BT
-1 0 0 1 54.0 299.0 Tm
+1 0 0 1 54.0 110.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (It ) Tj
@@ -2232,15 +2564,23 @@ BT
 (it ) Tj
 (gone.) Tj
 ET
+endstream
+endobj
+15 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 16 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+16 0 obj
+<< /Length 6737 >>
+stream
 BT
-1 0 0 1 54.0 258.0 Tm
+1 0 0 1 54.0 728.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.1: ) Tj
 (2026-09-28) Tj
 ET
 BT
-1 0 0 1 54.0 230.0 Tm
+1 0 0 1 54.0 700.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Setup ) Tj
@@ -2271,7 +2611,7 @@ BT
 (Missing ) Tj
 ET
 BT
-1 0 0 1 54.0 215.0 Tm
+1 0 0 1 54.0 685.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (git) Tj
@@ -2299,7 +2639,7 @@ BT
 (, ) Tj
 ET
 BT
-1 0 0 1 54.0 200.0 Tm
+1 0 0 1 54.0 670.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (REQUIREMENTS.pdf) Tj
@@ -2324,7 +2664,7 @@ BT
 (lists, ) Tj
 ET
 BT
-1 0 0 1 54.0 185.0 Tm
+1 0 0 1 54.0 655.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (and ) Tj
@@ -2345,14 +2685,14 @@ BT
 (them.) Tj
 ET
 BT
-1 0 0 1 54.0 144.0 Tm
+1 0 0 1 54.0 614.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.2.0: ) Tj
 (2026-09-28) Tj
 ET
 BT
-1 0 0 1 54.0 116.0 Tm
+1 0 0 1 54.0 586.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Coding ) Tj
@@ -2364,16 +2704,8 @@ BT
 (save ) Tj
 (buttons.) Tj
 ET
-endstream
-endobj
-15 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 16 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
-endobj
-16 0 obj
-<< /Length 7048 >>
-stream
 BT
-1 0 0 1 76.0 745.0 Tm
+1 0 0 1 76.0 562.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -2392,7 +2724,7 @@ BT
 (\() Tj
 ET
 BT
-1 0 0 1 76.0 730.0 Tm
+1 0 0 1 76.0 547.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (https://github.com/owner/repo) Tj
@@ -2410,7 +2742,7 @@ BT
 (never ) Tj
 ET
 BT
-1 0 0 1 76.0 715.0 Tm
+1 0 0 1 76.0 532.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (starts ) Tj
@@ -2421,7 +2753,7 @@ BT
 (on.) Tj
 ET
 BT
-1 0 0 1 76.0 697.0 Tm
+1 0 0 1 76.0 514.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -2445,7 +2777,7 @@ BT
 (-> ) Tj
 ET
 BT
-1 0 0 1 76.0 682.0 Tm
+1 0 0 1 76.0 499.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (critique ) Tj
@@ -2463,7 +2795,7 @@ BT
 (a ) Tj
 ET
 BT
-1 0 0 1 76.0 667.0 Tm
+1 0 0 1 76.0 484.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (public ) Tj
@@ -2495,7 +2827,7 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 76.0 652.0 Tm
+1 0 0 1 76.0 469.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (stick. ) Tj
@@ -2513,7 +2845,7 @@ BT
 (one ) Tj
 ET
 BT
-1 0 0 1 76.0 637.0 Tm
+1 0 0 1 76.0 454.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (finished ) Tj
@@ -2524,7 +2856,7 @@ BT
 (pass.) Tj
 ET
 BT
-1 0 0 1 76.0 619.0 Tm
+1 0 0 1 76.0 436.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -2544,7 +2876,7 @@ BT
 (snippet ) Tj
 ET
 BT
-1 0 0 1 76.0 604.0 Tm
+1 0 0 1 76.0 421.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (plus ) Tj
@@ -2563,7 +2895,7 @@ BT
 (Coding. ) Tj
 ET
 BT
-1 0 0 1 76.0 589.0 Tm
+1 0 0 1 76.0 406.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (High-stakes ) Tj
@@ -2585,13 +2917,13 @@ BT
 (no) Tj
 ET
 BT
-1 0 0 1 76.0 574.0 Tm
+1 0 0 1 76.0 391.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (sandbox.) Tj
 ET
 BT
-1 0 0 1 76.0 556.0 Tm
+1 0 0 1 76.0 373.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -2614,7 +2946,7 @@ BT
 (. ) Tj
 ET
 BT
-1 0 0 1 76.0 541.0 Tm
+1 0 0 1 76.0 358.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (View ) Tj
@@ -2641,7 +2973,7 @@ BT
 (Model ) Tj
 ET
 BT
-1 0 0 1 76.0 526.0 Tm
+1 0 0 1 76.0 343.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (reply ) Tj
@@ -2665,7 +2997,7 @@ BT
 (wrote ) Tj
 ET
 BT
-1 0 0 1 76.0 511.0 Tm
+1 0 0 1 76.0 328.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (a ) Tj
@@ -2684,7 +3016,7 @@ BT
 (chat.) Tj
 ET
 BT
-1 0 0 1 76.0 493.0 Tm
+1 0 0 1 76.0 310.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -2698,14 +3030,14 @@ BT
 (operator-gated.) Tj
 ET
 BT
-1 0 0 1 54.0 452.0 Tm
+1 0 0 1 54.0 269.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.1.3: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 424.0 Tm
+1 0 0 1 54.0 241.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (If ) Tj
@@ -2732,7 +3064,7 @@ BT
 (user ) Tj
 ET
 BT
-1 0 0 1 54.0 409.0 Tm
+1 0 0 1 54.0 226.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (message ) Tj
@@ -2756,7 +3088,7 @@ BT
 (models ) Tj
 ET
 BT
-1 0 0 1 54.0 394.0 Tm
+1 0 0 1 54.0 211.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (such ) Tj
@@ -2771,14 +3103,14 @@ BT
 (passes.) Tj
 ET
 BT
-1 0 0 1 54.0 353.0 Tm
+1 0 0 1 54.0 170.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.1.2: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 325.0 Tm
+1 0 0 1 54.0 142.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (While ) Tj
@@ -2801,7 +3133,7 @@ BT
 (by ) Tj
 ET
 BT
-1 0 0 1 54.0 310.0 Tm
+1 0 0 1 54.0 127.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (a ) Tj
@@ -2811,14 +3143,22 @@ BT
 (available.) Tj
 ET
 BT
-1 0 0 1 54.0 269.0 Tm
+1 0 0 1 54.0 86.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.1.1: ) Tj
 (2026-09-26) Tj
 ET
+endstream
+endobj
+17 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 18 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+18 0 obj
+<< /Length 5548 >>
+stream
 BT
-1 0 0 1 54.0 241.0 Tm
+1 0 0 1 54.0 746.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Web ) Tj
@@ -2839,7 +3179,7 @@ BT
 (excerpts ) Tj
 ET
 BT
-1 0 0 1 54.0 226.0 Tm
+1 0 0 1 54.0 731.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (that ) Tj
@@ -2859,7 +3199,7 @@ BT
 (and ) Tj
 ET
 BT
-1 0 0 1 54.0 211.0 Tm
+1 0 0 1 54.0 716.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (optionally ) Tj
@@ -2874,14 +3214,14 @@ BT
 (History.) Tj
 ET
 BT
-1 0 0 1 54.0 170.0 Tm
+1 0 0 1 54.0 675.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.1.0: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 142.0 Tm
+1 0 0 1 54.0 647.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Optional ) Tj
@@ -2901,7 +3241,7 @@ BT
 (committee\).) Tj
 ET
 BT
-1 0 0 1 76.0 118.0 Tm
+1 0 0 1 76.0 623.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -2923,7 +3263,7 @@ BT
 (off. ) Tj
 ET
 BT
-1 0 0 1 76.0 103.0 Tm
+1 0 0 1 76.0 608.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Asterisk ) Tj
@@ -2935,7 +3275,7 @@ BT
 (slow.) Tj
 ET
 BT
-1 0 0 1 76.0 85.0 Tm
+1 0 0 1 76.0 590.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -2960,7 +3300,7 @@ BT
 (remove-or-keep ) Tj
 ET
 BT
-1 0 0 1 76.0 70.0 Tm
+1 0 0 1 76.0 575.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (class/id ) Tj
@@ -2982,16 +3322,8 @@ BT
 (in ) Tj
 (History.) Tj
 ET
-endstream
-endobj
-17 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 18 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
-endobj
-18 0 obj
-<< /Length 4983 >>
-stream
 BT
-1 0 0 1 76.0 745.0 Tm
+1 0 0 1 76.0 557.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -3007,7 +3339,7 @@ BT
 (to ) Tj
 ET
 BT
-1 0 0 1 76.0 730.0 Tm
+1 0 0 1 76.0 542.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (logs/web_YYYY-MM-DD_HHMMSS.jsonl) Tj
@@ -3033,7 +3365,7 @@ BT
 ( ) Tj
 ET
 BT
-1 0 0 1 76.0 715.0 Tm
+1 0 0 1 76.0 527.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (/ ) Tj
@@ -3052,7 +3384,7 @@ BT
 (.) Tj
 ET
 BT
-1 0 0 1 76.0 697.0 Tm
+1 0 0 1 76.0 509.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -3075,14 +3407,14 @@ BT
 (.) Tj
 ET
 BT
-1 0 0 1 54.0 656.0 Tm
+1 0 0 1 54.0 468.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.11: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 628.0 Tm
+1 0 0 1 54.0 440.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (The ) Tj
@@ -3102,7 +3434,7 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 54.0 613.0 Tm
+1 0 0 1 54.0 425.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (message ) Tj
@@ -3114,14 +3446,14 @@ BT
 (fullscreen.) Tj
 ET
 BT
-1 0 0 1 54.0 572.0 Tm
+1 0 0 1 54.0 384.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.10: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 544.0 Tm
+1 0 0 1 54.0 356.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Looser ) Tj
@@ -3143,7 +3475,7 @@ BT
 (not ) Tj
 ET
 BT
-1 0 0 1 54.0 529.0 Tm
+1 0 0 1 54.0 341.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (flush ) Tj
@@ -3156,14 +3488,14 @@ BT
 (buttons.) Tj
 ET
 BT
-1 0 0 1 54.0 488.0 Tm
+1 0 0 1 54.0 300.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.9: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 460.0 Tm
+1 0 0 1 54.0 272.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (When ) Tj
@@ -3183,7 +3515,7 @@ BT
 (stored ) Tj
 ET
 BT
-1 0 0 1 54.0 445.0 Tm
+1 0 0 1 54.0 257.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (before ) Tj
@@ -3195,14 +3527,14 @@ BT
 (deleted\).) Tj
 ET
 BT
-1 0 0 1 54.0 404.0 Tm
+1 0 0 1 54.0 216.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.8: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 376.0 Tm
+1 0 0 1 54.0 188.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Attach ) Tj
@@ -3227,7 +3559,7 @@ BT
 (that ) Tj
 ET
 BT
-1 0 0 1 54.0 361.0 Tm
+1 0 0 1 54.0 173.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (only ) Tj
@@ -3242,14 +3574,14 @@ BT
 (name.) Tj
 ET
 BT
-1 0 0 1 54.0 320.0 Tm
+1 0 0 1 54.0 132.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.7: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 292.0 Tm
+1 0 0 1 54.0 104.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (shows ) Tj
@@ -3283,7 +3615,7 @@ BT
 (\); ) Tj
 ET
 BT
-1 0 0 1 54.0 277.0 Tm
+1 0 0 1 54.0 89.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (reloaded ) Tj
@@ -3298,15 +3630,23 @@ BT
 ( ) Tj
 (again.) Tj
 ET
+endstream
+endobj
+19 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 20 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+20 0 obj
+<< /Length 4476 >>
+stream
 BT
-1 0 0 1 54.0 236.0 Tm
+1 0 0 1 54.0 728.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.6: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 208.0 Tm
+1 0 0 1 54.0 700.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (History ) Tj
@@ -3325,7 +3665,7 @@ BT
 (sits ) Tj
 ET
 BT
-1 0 0 1 54.0 193.0 Tm
+1 0 0 1 54.0 685.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (on ) Tj
@@ -3348,7 +3688,7 @@ BT
 (control ) Tj
 ET
 BT
-1 0 0 1 54.0 178.0 Tm
+1 0 0 1 54.0 670.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (to ) Tj
@@ -3366,14 +3706,14 @@ BT
 (pending.) Tj
 ET
 BT
-1 0 0 1 54.0 137.0 Tm
+1 0 0 1 54.0 629.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.5: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 109.0 Tm
+1 0 0 1 54.0 601.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Setup ) Tj
@@ -3398,7 +3738,7 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 54.0 94.0 Tm
+1 0 0 1 54.0 586.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (popup ) Tj
@@ -3414,23 +3754,15 @@ BT
 (is ) Tj
 (missing.) Tj
 ET
-endstream
-endobj
-19 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 20 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
-endobj
-20 0 obj
-<< /Length 3137 >>
-stream
 BT
-1 0 0 1 54.0 728.0 Tm
+1 0 0 1 54.0 545.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.4: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 700.0 Tm
+1 0 0 1 54.0 517.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Setup ) Tj
@@ -3451,14 +3783,14 @@ BT
 (fails.) Tj
 ET
 BT
-1 0 0 1 54.0 659.0 Tm
+1 0 0 1 54.0 476.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.3: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 631.0 Tm
+1 0 0 1 54.0 448.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Setup ) Tj
@@ -3482,7 +3814,7 @@ BT
 (try ) Tj
 ET
 BT
-1 0 0 1 54.0 616.0 Tm
+1 0 0 1 54.0 433.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (to ) Tj
@@ -3497,14 +3829,14 @@ BT
 (nmake\).) Tj
 ET
 BT
-1 0 0 1 54.0 575.0 Tm
+1 0 0 1 54.0 392.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.2: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 547.0 Tm
+1 0 0 1 54.0 364.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Setup ) Tj
@@ -3522,7 +3854,7 @@ BT
 (host-only ) Tj
 ET
 BT
-1 0 0 1 54.0 532.0 Tm
+1 0 0 1 54.0 349.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (venv; ) Tj
@@ -3542,21 +3874,21 @@ BT
 (start ) Tj
 ET
 BT
-1 0 0 1 54.0 517.0 Tm
+1 0 0 1 54.0 334.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (that ) Tj
 (venv.) Tj
 ET
 BT
-1 0 0 1 54.0 476.0 Tm
+1 0 0 1 54.0 293.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.1: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 448.0 Tm
+1 0 0 1 54.0 265.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Backup ) Tj
@@ -3581,7 +3913,7 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 54.0 433.0 Tm
+1 0 0 1 54.0 250.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (nested ) Tj
@@ -3603,14 +3935,14 @@ BT
 (.) Tj
 ET
 BT
-1 0 0 1 54.0 392.0 Tm
+1 0 0 1 54.0 209.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (1.0.0: ) Tj
 (2026-09-26) Tj
 ET
 BT
-1 0 0 1 54.0 364.0 Tm
+1 0 0 1 54.0 181.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (First ) Tj
@@ -3622,7 +3954,7 @@ BT
 (chat.) Tj
 ET
 BT
-1 0 0 1 76.0 340.0 Tm
+1 0 0 1 76.0 157.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -3637,7 +3969,7 @@ BT
 (Reply/quote) Tj
 ET
 BT
-1 0 0 1 76.0 322.0 Tm
+1 0 0 1 76.0 139.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -3653,7 +3985,7 @@ BT
 (context) Tj
 ET
 BT
-1 0 0 1 76.0 304.0 Tm
+1 0 0 1 76.0 121.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -3670,7 +4002,7 @@ BT
 (PDF) Tj
 ET
 BT
-1 0 0 1 76.0 286.0 Tm
+1 0 0 1 76.0 103.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -3697,20 +4029,20 @@ xref
 0000000379 00000 n 
 0000000447 00000 n 
 0000000603 00000 n 
-0000006899 00000 n 
-0000007056 00000 n 
-0000013588 00000 n 
-0000013746 00000 n 
-0000021316 00000 n 
-0000021474 00000 n 
-0000028964 00000 n 
-0000029122 00000 n 
-0000036223 00000 n 
-0000036381 00000 n 
-0000041417 00000 n 
-0000041575 00000 n 
+0000007993 00000 n 
+0000008150 00000 n 
+0000015886 00000 n 
+0000016044 00000 n 
+0000022832 00000 n 
+0000022990 00000 n 
+0000031388 00000 n 
+0000031546 00000 n 
+0000038336 00000 n 
+0000038494 00000 n 
+0000044095 00000 n 
+0000044253 00000 n 
 trailer
 << /Size 21 /Root 1 0 R >>
 startxref
-44765
+48782
 %%EOF

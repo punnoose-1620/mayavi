@@ -2,14 +2,14 @@
 
 What this PC and this stick need. Setup does not replace system Python.
 
-A visual copy is `REQUIREMENTS.pdf` in the same folder. Chat and setup do not open it.
+A visual copy is `REQUIREMENTS.pdf` at the stick root. This Markdown file stays in `documentation\`. Chat and setup do not open the PDF.
 
 ## Hard minimum
 
 - Windows or Ubuntu
 - Python **3.11 or newer** already on PATH (install *alongside* 3.9 / 2.7; setup will not upgrade them)
-- A **writable** USB stick: setup creates `logs\`, `coding-logs\`, and `outputs\` next to the GGUFs (not inside `chat\`)
-- `llama-cpp-python` in the host venv, **or** `llama-cli` in `chat/bin/`
+- A **writable** USB stick: setup creates `logs\`, `coding-logs\`, and `outputs\` at the stick root, next to the GGUFs
+- `llama-cpp-python` in the host venv, **or** `llama-cli` in `scripts/bin/`
 - Host venv libraries (setup installs these): `pypdf` (attached PDFs), `requests` and `beautifulsoup4` (Web Search)
 
 If Python is missing or older than 3.11, setup names the version it found and stops. If a library cannot be installed, setup names that library. System Python is never changed.
@@ -34,7 +34,7 @@ Host venv location:
 
 ## Run setup then chat
 
-From `chat\` on the stick:
+From the stick root:
 
 Windows: `setup.bat` then `chat.bat`
 

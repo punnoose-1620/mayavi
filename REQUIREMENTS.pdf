@@ -21,7 +21,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
 endobj
 8 0 obj
-<< /Length 5779 >>
+<< /Length 5806 >>
 stream
 BT
 1 0 0 1 54.0 746.0 Tm
@@ -63,27 +63,42 @@ BT
 0.16 0.16 0.18 rg
 /F1 11 Tf
 ( ) Tj
-(in ) Tj
+(at ) Tj
 (the ) Tj
-(same ) Tj
-(folder. ) Tj
+(stick ) Tj
+(root. ) Tj
+(This ) Tj
+(Markdown ) Tj
+(file ) Tj
+(stays ) Tj
+(in ) Tj
+ET
+BT
+1 0 0 1 54.0 668.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(documentation/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(. ) Tj
 (Chat ) Tj
 (and ) Tj
 (setup ) Tj
 (do ) Tj
 (not ) Tj
 (open ) Tj
-(it.) Tj
+(the ) Tj
+(PDF.) Tj
 ET
 BT
-1 0 0 1 54.0 642.0 Tm
+1 0 0 1 54.0 627.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (Hard ) Tj
 (minimum) Tj
 ET
 BT
-1 0 0 1 76.0 613.0 Tm
+1 0 0 1 76.0 598.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -93,7 +108,7 @@ BT
 (Ubuntu) Tj
 ET
 BT
-1 0 0 1 76.0 595.0 Tm
+1 0 0 1 76.0 580.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -121,14 +136,14 @@ BT
 (not ) Tj
 ET
 BT
-1 0 0 1 76.0 580.0 Tm
+1 0 0 1 76.0 565.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (upgrade ) Tj
 (them\)) Tj
 ET
 BT
-1 0 0 1 76.0 562.0 Tm
+1 0 0 1 76.0 547.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -161,26 +176,22 @@ BT
 0.16 0.16 0.18 rg
 /F1 11 Tf
 ( ) Tj
-(next ) Tj
-(to ) Tj
+(at ) Tj
 (the ) Tj
 ET
 BT
-1 0 0 1 76.0 547.0 Tm
+1 0 0 1 76.0 532.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
-(GGUFs ) Tj
-(\(not ) Tj
-(inside ) Tj
-0.62 0.13 0.23 rg
-/F4 10 Tf
-(chat/) Tj
-0.16 0.16 0.18 rg
-/F1 11 Tf
-(\)) Tj
+(stick ) Tj
+(root, ) Tj
+(next ) Tj
+(to ) Tj
+(the ) Tj
+(GGUFs) Tj
 ET
 BT
-1 0 0 1 76.0 529.0 Tm
+1 0 0 1 76.0 514.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -207,10 +218,10 @@ BT
 (in ) Tj
 0.62 0.13 0.23 rg
 /F4 10 Tf
-(chat/bin/) Tj
+(scripts/bin/) Tj
 ET
 BT
-1 0 0 1 76.0 511.0 Tm
+1 0 0 1 76.0 496.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -238,7 +249,7 @@ BT
 (and ) Tj
 ET
 BT
-1 0 0 1 76.0 496.0 Tm
+1 0 0 1 76.0 481.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (beautifulsoup4) Tj
@@ -249,7 +260,7 @@ BT
 (Search\)) Tj
 ET
 BT
-1 0 0 1 54.0 473.0 Tm
+1 0 0 1 54.0 458.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (If ) Tj
@@ -272,7 +283,7 @@ BT
 (a ) Tj
 ET
 BT
-1 0 0 1 54.0 458.0 Tm
+1 0 0 1 54.0 443.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (library ) Tj
@@ -290,7 +301,7 @@ BT
 (changed.) Tj
 ET
 BT
-1 0 0 1 54.0 435.0 Tm
+1 0 0 1 54.0 420.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Host ) Tj
@@ -298,7 +309,7 @@ BT
 (location:) Tj
 ET
 BT
-1 0 0 1 76.0 411.0 Tm
+1 0 0 1 76.0 396.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -309,7 +320,7 @@ BT
 (%LOCALAPPDATA%/usb-chat/venv) Tj
 ET
 BT
-1 0 0 1 76.0 393.0 Tm
+1 0 0 1 76.0 378.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -330,13 +341,13 @@ BT
 (\)) Tj
 ET
 BT
-1 0 0 1 54.0 352.0 Tm
+1 0 0 1 54.0 337.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (Optional) Tj
 ET
 BT
-1 0 0 1 76.0 323.0 Tm
+1 0 0 1 76.0 308.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -361,7 +372,7 @@ BT
 (public ) Tj
 ET
 BT
-1 0 0 1 76.0 308.0 Tm
+1 0 0 1 76.0 293.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (https://github.com/owner/repo) Tj
@@ -383,7 +394,7 @@ BT
 (Chat ) Tj
 ET
 BT
-1 0 0 1 76.0 293.0 Tm
+1 0 0 1 76.0 278.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (still ) Tj
@@ -392,7 +403,7 @@ BT
 (git.) Tj
 ET
 BT
-1 0 0 1 76.0 275.0 Tm
+1 0 0 1 76.0 260.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -416,7 +427,7 @@ BT
 (expected.) Tj
 ET
 BT
-1 0 0 1 76.0 257.0 Tm
+1 0 0 1 76.0 242.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -439,7 +450,7 @@ BT
 (numeric ) Tj
 ET
 BT
-1 0 0 1 76.0 242.0 Tm
+1 0 0 1 76.0 227.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (N_GPU_LAYERS) Tj
@@ -451,14 +462,14 @@ BT
 (host.) Tj
 ET
 BT
-1 0 0 1 54.0 201.0 Tm
+1 0 0 1 54.0 186.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (Not ) Tj
 (required) Tj
 ET
 BT
-1 0 0 1 76.0 172.0 Tm
+1 0 0 1 76.0 157.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -470,7 +481,7 @@ BT
 (keys) Tj
 ET
 BT
-1 0 0 1 76.0 154.0 Tm
+1 0 0 1 76.0 139.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -480,7 +491,7 @@ BT
 (accounts) Tj
 ET
 BT
-1 0 0 1 76.0 136.0 Tm
+1 0 0 1 76.0 121.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -490,7 +501,7 @@ BT
 (GGUF) Tj
 ET
 BT
-1 0 0 1 76.0 118.0 Tm
+1 0 0 1 76.0 103.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -510,8 +521,16 @@ BT
 (by ) Tj
 (setup) Tj
 ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 10 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+10 0 obj
+<< /Length 603 >>
+stream
 BT
-1 0 0 1 54.0 77.0 Tm
+1 0 0 1 54.0 728.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (Run ) Tj
@@ -519,31 +538,17 @@ BT
 (then ) Tj
 (chat) Tj
 ET
-endstream
-endobj
-9 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 10 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
-endobj
-10 0 obj
-<< /Length 576 >>
-stream
 BT
-1 0 0 1 54.0 746.0 Tm
+1 0 0 1 54.0 700.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (From ) Tj
-0.62 0.13 0.23 rg
-/F4 10 Tf
-(chat/) Tj
-0.16 0.16 0.18 rg
-/F1 11 Tf
-( ) Tj
-(on ) Tj
 (the ) Tj
-(stick:) Tj
+(stick ) Tj
+(root:) Tj
 ET
 BT
-1 0 0 1 54.0 723.0 Tm
+1 0 0 1 54.0 677.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Windows: ) Tj
@@ -559,7 +564,7 @@ BT
 (chat.bat) Tj
 ET
 BT
-1 0 0 1 54.0 700.0 Tm
+1 0 0 1 54.0 654.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Ubuntu: ) Tj
@@ -587,10 +592,10 @@ xref
 0000000344 00000 n 
 0000000412 00000 n 
 0000000568 00000 n 
-0000006399 00000 n 
-0000006556 00000 n 
+0000006426 00000 n 
+0000006583 00000 n 
 trailer
 << /Size 11 /Root 1 0 R >>
 startxref
-7184
+7238
 %%EOF
