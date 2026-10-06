@@ -186,6 +186,19 @@ def pickable_models(root: Path, free: int | None) -> list[ModelChoice]:
     return choices
 
 
+JOB_MODEL_MIN = int(1.8 * 1024**3)
+JOB_MODEL_MAX = 6 * 1024**3
+
+
+def job_model(choices: list[ModelChoice]) -> ModelChoice | None:
+    """Smallest instruct model that still fits, preferring about 3B–7B over 1.5B or 14B."""
+    if not choices:
+        return None
+    band = [item for item in choices if JOB_MODEL_MIN <= item.size <= JOB_MODEL_MAX]
+    pool = band or list(choices)
+    return min(pool, key=lambda item: item.size)
+
+
 def default_models_root(here: Path | None = None) -> Path:
     here = (here or Path(__file__).resolve().parent).resolve()
     env = os.environ.get("MODELS_DIR", "").strip()
@@ -235,6 +248,26 @@ def usb_root(models_root: Path, here: Path | None = None) -> Path:
 
 def notes_path(root: Path) -> Path:
     return root / "notes.md"
+
+
+def profile_path(root: Path) -> Path:
+    return root / "profile.md"
+
+
+PROFILE_TEMPLATE = """# Professional profile
+
+The job application committee uses only this file. Write your real background.
+Include contact details, roles, employers, dates, skills, education, and results you can point to.
+Leave out skills, titles, and numbers you do not have.
+
+"""
+
+
+def read_profile(path: Path, cap: int = 24_000) -> str:
+    if not path.is_file():
+        return ""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    return text[:cap]
 
 
 def logs_dir(root: Path) -> Path:

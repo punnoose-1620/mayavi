@@ -15,6 +15,7 @@ if str(HERE) not in sys.path:
 
 import committee
 import formatter
+import jobapp
 import usbchat
 
 
@@ -65,6 +66,7 @@ class UsbChatApp:
             pass
         self.log_root = usbchat.logs_dir(self.data_root)
         self.notes_file = usbchat.notes_path(self.data_root)
+        self.profile_file = usbchat.profile_path(self.data_root)
         self.n_ctx = args.n_ctx
 
         self.choices: list[usbchat.ModelChoice] = []
@@ -99,6 +101,7 @@ class UsbChatApp:
         self._title_font = (self._ui_font[0], 11, "bold")
         self.web_visible = False
         self.coding_var = tk.BooleanVar(value=False)
+        self.job_var = tk.BooleanVar(value=False)
         self.github_var = tk.StringVar(value="")
         self.seed_dir: Path | None = None
         self.seed_var = tk.StringVar(value="No project folder")
@@ -218,6 +221,18 @@ class UsbChatApp:
             "Runs a sequential coding committee and may execute Python in a local folder. "
             "Leave off for snippets (not tested).",
         )
+        job_box = ttk.Checkbutton(
+            self.coding_row,
+            text="Job application",
+            variable=self.job_var,
+            command=self._on_job,
+        )
+        job_box.pack(side="left", padx=(0, 10))
+        _HoverTip(
+            job_box,
+            "The message is the job description. Writes an English resume and cover letter "
+            "from Profile… only, then a short match summary.",
+        )
 
         self.github_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
         ttk.Label(self.github_row, text="GitHub URL").pack(side="left")
@@ -245,7 +260,12 @@ class UsbChatApp:
 
         self.web_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
         self.web_search_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(self.web_row, text="Web Search", variable=self.web_search_var).pack(side="left")
+        ttk.Checkbutton(
+            self.web_row,
+            text="Web Search",
+            variable=self.web_search_var,
+            command=self._on_web,
+        ).pack(side="left")
         star = ttk.Label(self.web_row, text="*", foreground="#5f6368")
         star.pack(side="left", padx=(2, 0))
         _HoverTip(
@@ -292,6 +312,7 @@ class UsbChatApp:
         ttk.Button(buttons, text="Save transcript PDF", command=self.save_pdf).pack(side="right")
         ttk.Button(buttons, text="Print", command=self.print_pdf).pack(side="right", padx=(0, gap))
         ttk.Button(buttons, text="Notes…", command=self.notes_dialog).pack(side="right", padx=(0, gap))
+        ttk.Button(buttons, text="Profile…", command=self.profile_dialog).pack(side="right", padx=(0, gap))
 
         self.status_var = tk.StringVar(value="")
         ttk.Label(self._page, textvariable=self.status_var, padding=(pad, 0, pad, 16)).grid(
@@ -396,10 +417,22 @@ class UsbChatApp:
 
     def _on_coding(self) -> None:
         if self.coding_var.get():
+            self.job_var.set(False)
             self.github_row.grid(row=6, column=0, sticky="ew")
         else:
             self.github_row.grid_remove()
         self._sync_page()
+
+    def _on_job(self) -> None:
+        if self.job_var.get():
+            self.coding_var.set(False)
+            self.web_search_var.set(False)
+            self.github_row.grid_remove()
+            self._sync_page()
+
+    def _on_web(self) -> None:
+        if self.web_search_var.get():
+            self.job_var.set(False)
 
     def _on_github_edit(self, *_args) -> None:
         if self.github_var.get().strip() and self.seed_dir is not None:
@@ -605,7 +638,14 @@ class UsbChatApp:
         if pages:
             view = ttk.Button(frame, text="View HTML", command=lambda ps=pages: self._view_html(ps))
             view.pack(side="left", padx=(8, 0))
-        if pdfs:
+        saves = [item for item in (extras.get("pdf_saves") or []) if item.get("path")]
+        if saves:
+            for item in saves:
+                path = str(item["path"])
+                label = str(item.get("label") or "Save PDF")
+                pdf_btn = ttk.Button(frame, text=label, command=lambda p=path: self._save_turn_pdf([p]))
+                pdf_btn.pack(side="left", padx=(8, 0))
+        elif pdfs:
             pdf_btn = ttk.Button(frame, text="Save PDF", command=lambda paths=pdfs: self._save_turn_pdf(paths))
             pdf_btn.pack(side="left", padx=(8, 0))
         return frame
@@ -902,6 +942,7 @@ class UsbChatApp:
                 if turn.get("response"):
                     extras = {
                         "pdf_paths": list(turn.get("pdf_paths") or []),
+                        "pdf_saves": list(turn.get("pdf_saves") or []),
                         "profile_update": turn.get("profile_update") or {},
                     }
                     self._prepend_message("assistant", str(turn["response"]), extras)
@@ -927,7 +968,14 @@ class UsbChatApp:
             return
         text = self._input_text()
         coding = bool(self.coding_var.get())
+        job = bool(self.job_var.get())
         seed_dir = self.seed_dir if coding else None
+        if job and coding:
+            messagebox.showerror("Job application", "Use Job application or Coding, not both.")
+            return
+        if job and not text.strip():
+            messagebox.showerror("Job application", "Paste the job description in the message box.")
+            return
         if not text and not seed_dir and not self.attachment and not self.attach_dir:
             return
         user_text = text
@@ -940,7 +988,22 @@ class UsbChatApp:
         if choice is None:
             messagebox.showerror("Send", "Pick a model that fits RAM.")
             return
-        use_web = bool(self.web_visible and self.web_search_var.get())
+        use_web = bool(self.web_visible and self.web_search_var.get()) and not job
+        if job and self.web_search_var.get():
+            messagebox.showerror(
+                "Job application",
+                "Turn Web Search off. The job committee does not search the web.",
+            )
+            return
+        profile = ""
+        if job:
+            profile = usbchat.read_profile(self.profile_file)
+            if not profile.strip():
+                messagebox.showerror(
+                    "Job application",
+                    "Open Profile… and write your professional background first.",
+                )
+                return
         if use_web:
             if not usbchat.web_search_available():
                 messagebox.showerror(
@@ -1020,7 +1083,9 @@ class UsbChatApp:
         self.clear_quote()
         self._set_busy(True)
         self.stop_event.clear()
-        if attach_dir and self.attach_files:
+        if job:
+            self._begin_step("Job application: reading the job description")
+        elif attach_dir and self.attach_files:
             first = self.attach_files[0].name
             self._begin_step(f"Reading 1/{len(self.attach_files)}: {first}")
         elif self.loaded_path != choice.path:
@@ -1029,7 +1094,20 @@ class UsbChatApp:
             self._begin_step("Writing the answer")
         threading.Thread(
             target=self._generate,
-            args=(choice, messages, user_text, attachments, quote, use_web, coding, github, seed_dir, attach_dir),
+            args=(
+                choice,
+                messages,
+                user_text,
+                attachments,
+                quote,
+                use_web,
+                coding,
+                github,
+                seed_dir,
+                attach_dir,
+                job,
+                profile,
+            ),
             daemon=True,
         ).start()
 
@@ -1069,6 +1147,8 @@ class UsbChatApp:
         github,
         seed_dir=None,
         attach_dir="",
+        job=False,
+        profile="",
     ) -> None:
         err = ""
         reply_parts: list[str] = []
@@ -1076,14 +1156,40 @@ class UsbChatApp:
         self._turn_prompt_tokens = 0
         self._turn_completion_tokens = 0
         web_meta = {"used": False, "query": "", "urls": [], "log": "", "digest": ""}
-        extras: dict = {"pdf_paths": [], "profile_update": {}, "keep_dir": ""}
+        extras: dict = {"pdf_paths": [], "pdf_saves": [], "profile_update": {}, "keep_dir": ""}
         stakes = committee.looks_high_stakes(user_text)
         run_text = user_text
         board: list[dict] = []
         file_limit_note = ""
         folder_truncated = False
         try:
-            if attach_dir:
+            if job:
+                picked = usbchat.job_model(self.choices) or choice
+                choice = picked
+                if self.loaded_path != picked.path:
+                    self._ui_status(f"Loading {picked.label}")
+                self._ensure_engine(picked)
+                keep = usbchat.new_keep_dir(self.data_root, "job")
+                result = jobapp.run_job_application(
+                    complete=self._complete,
+                    job_text=user_text,
+                    profile_text=profile,
+                    n_ctx=self.n_ctx,
+                    stop_event=self.stop_event,
+                    status=self._ui_status,
+                    build_pdf=usbchat.build_text_pdf,
+                    out_dir=keep,
+                )
+                reply_parts.append(str(result.get("reply") or "").strip())
+                extras = {
+                    "pdf_paths": list(result.get("pdf_paths") or []),
+                    "pdf_saves": list(result.get("pdf_saves") or []),
+                    "profile_update": {},
+                    "keep_dir": str(keep),
+                }
+                if result.get("stopped"):
+                    err = "stopped"
+            if not job and attach_dir:
                 def on_file(index: int, total: int, name: str) -> None:
                     self._ui_status(f"Reading {index}/{total}: {name}")
 
@@ -1105,10 +1211,11 @@ class UsbChatApp:
                 self._ui_status(f"Read {len(board)} {noun}")
                 if self.stop_event.is_set():
                     raise ValueError("stopped")
-            if self.loaded_path != choice.path:
-                self._ui_status(f"Loading {choice.label}")
-            self._ensure_engine(choice)
-            if use_web:
+            if not job:
+                if self.loaded_path != choice.path:
+                    self._ui_status(f"Loading {choice.label}")
+                self._ensure_engine(choice)
+            if not job and use_web:
                 web_path = usbchat.new_web_log_path(self.log_root)
                 web_meta["log"] = web_path.name
                 web = usbchat.run_web_search(
@@ -1174,7 +1281,7 @@ class UsbChatApp:
                 elif doc_block and (coding or stakes):
                     clip = doc_block if len(doc_block) <= 4000 else doc_block[:4000] + "\n…[truncated]"
                     run_text = (user_text.rstrip() + "\n\nAttached documents (read-only):\n" + clip).strip()
-            if not err and coding:
+            if not job and not err and coding:
                 slug = user_text or (Path(seed_dir).name if seed_dir else "run")
                 keep = usbchat.new_keep_dir(self.data_root, slug)
                 coding_log = usbchat.new_coding_log_path(self.data_root, keep.name)
@@ -1201,7 +1308,7 @@ class UsbChatApp:
                 }
                 if result.get("stopped"):
                     err = "stopped"
-            elif not err and stakes:
+            elif not job and not err and stakes:
                 keep = usbchat.new_keep_dir(self.data_root, user_text)
                 coding_log = usbchat.new_coding_log_path(self.data_root, keep.name)
                 self._ui_status("Review committee…")
@@ -1225,7 +1332,7 @@ class UsbChatApp:
                 }
                 if result.get("stopped"):
                     err = "stopped"
-            elif not err:
+            elif not job and not err:
                 if usbchat.messages_tokens(messages) > usbchat.token_budget(self.n_ctx) and messages:
                     last = dict(messages[-1])
                     cap = usbchat._blob_char_budget(self.n_ctx, user_text, str((messages[0] or {}).get("content") or ""))
@@ -1253,7 +1360,7 @@ class UsbChatApp:
         reply = "".join(reply_parts).strip()
         if err and not reply:
             reply = "Stopped." if err == "stopped" else f"(error: {err})"
-        elif not coding and not stakes and not reply.startswith("(error:"):
+        elif not job and not coding and not stakes and not reply.startswith("(error:"):
             reply = committee.finish_off_coding(user_text, reply)
 
         def finish() -> None:
@@ -1299,6 +1406,8 @@ class UsbChatApp:
                 "github": github,
                 "seed_dir": str(seed_dir) if seed_dir else "",
                 "pdf_paths": list(extras.get("pdf_paths") or []),
+                "pdf_saves": list(extras.get("pdf_saves") or []),
+                "job": bool(job),
                 "profile_update": extras.get("profile_update") or {},
                 "keep_dir": extras.get("keep_dir") or "",
             }
@@ -1408,6 +1517,34 @@ class UsbChatApp:
 
         ttk.Button(row, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(row, text="Save notes", command=save).pack(side="right", padx=(0, 6))
+
+    def profile_dialog(self) -> None:
+        win = tk.Toplevel(self.root)
+        win.title("profile.md")
+        win.geometry("560x420")
+        body = tk.Text(win, wrap="word")
+        body.pack(fill="both", expand=True, padx=8, pady=8)
+        current = usbchat.read_profile(self.profile_file, cap=200_000)
+        body.insert("1.0", current or usbchat.PROFILE_TEMPLATE)
+        hint = ttk.Label(
+            win,
+            text="The job committee reads only this file. notes.md is not used. Writes need your OK.",
+        )
+        hint.pack(fill="x", padx=8)
+        row = ttk.Frame(win, padding=8)
+        row.pack(fill="x")
+
+        def save() -> None:
+            text = body.get("1.0", "end").rstrip() + "\n"
+            if not messagebox.askyesno("profile.md", f"Write {len(text)} characters to {self.profile_file}?"):
+                return
+            self.profile_file.parent.mkdir(parents=True, exist_ok=True)
+            self.profile_file.write_text(text, encoding="utf-8")
+            win.destroy()
+            self._status(f"Wrote {self.profile_file}")
+
+        ttk.Button(row, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(row, text="Save profile", command=save).pack(side="right", padx=(0, 6))
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

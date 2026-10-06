@@ -6,6 +6,7 @@ venv/
 logs/
 coding-logs/
 notes.md
+profile.md
 *.gguf
 *.pdf
 !README.pdf
