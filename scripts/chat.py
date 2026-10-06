@@ -86,6 +86,7 @@ class UsbChatApp:
         self._step_tick = 0
         self._step_after: str | None = None
         self.attach_truncated = False
+        self._doc_resume: dict | None = None
         self.quote = ""
         self.attachment: dict | None = None
         self.attach_dir: Path | None = None
@@ -963,10 +964,65 @@ class UsbChatApp:
         if not any(p.resolve() not in loaded for p in sessions):
             self._show_no_earlier_history()
 
+    def _send_doc_continue(self, text: str) -> None:
+        if not text.strip():
+            messagebox.showerror("Continue", "Answer yes or no to continue reading the folder.")
+            return
+        choice = self._selected()
+        if choice is None and not self.choices:
+            messagebox.showerror("Send", "Pick a model that fits RAM.")
+            return
+        if choice is None:
+            choice = self.choices[0]
+        self._append("user", text.strip())
+        self.input.delete("1.0", "end")
+        self._input_hint = False
+        self._restore_input_hint()
+        self.clear_quote()
+        self._set_busy(True)
+        self.stop_event.clear()
+        self._begin_step("Checking whether to continue")
+        threading.Thread(
+            target=self._generate,
+            args=(choice, [], text.strip(), [], "", False, False, "", None, "", False, "", True),
+            daemon=True,
+        ).start()
+
+    def _choice_by_path(self, path_str: str, fallback):
+        for item in self.choices:
+            if str(item.path) == path_str:
+                return item
+        return fallback
+
+    def _load_choice(self, picked) -> None:
+        if self.loaded_path != picked.path:
+            self._ui_status(f"Loading {picked.label}")
+        self._ensure_engine(picked)
+
+    def _stream_reply(self, messages: list[dict], reply_parts: list[str]) -> None:
+        if usbchat.messages_tokens(messages) > usbchat.token_budget(self.n_ctx) and messages:
+            last = dict(messages[-1])
+            cap = usbchat._blob_char_budget(self.n_ctx, "", str((messages[0] or {}).get("content") or ""))
+            last["content"] = str(last.get("content") or "")[:cap]
+            messages = [dict(item) for item in messages[:-1]] + [last]
+        self._ui_status("Writing the answer")
+        self.root.after(0, self._begin_assistant)
+        for piece in self.engine.stream(messages, self.stop_event):
+            reply_parts.append(piece)
+            self._add_step_chars(len(piece))
+            self.root.after(0, lambda p=piece: self._stream_piece(p))
+        if self.engine is not None:
+            prompt_tokens, completion_tokens = self.engine.last_usage
+            self._turn_prompt_tokens += prompt_tokens
+            self._turn_completion_tokens += completion_tokens
+
     def send(self) -> None:
         if self.busy:
             return
         text = self._input_text()
+        if self._doc_resume is not None:
+            self._send_doc_continue(text)
+            return
         coding = bool(self.coding_var.get())
         job = bool(self.job_var.get())
         seed_dir = self.seed_dir if coding else None
@@ -1135,6 +1191,136 @@ class UsbChatApp:
         self.engine = usbchat.make_engine(choice.path, n_ctx=self.n_ctx, here=HERE)
         self.loaded_path = choice.path
 
+    def _fold_doc_state(self, state: dict, stopped_early: bool):
+        return usbchat.fold_notes_until_fit(
+            complete=self._complete,
+            chat_messages=list(state.get("chat_messages") or []),
+            user_text=str(state.get("user_text") or ""),
+            notes=list(state.get("notes") or []),
+            n_ctx=self.n_ctx,
+            stop_event=self.stop_event,
+            status=self._ui_status,
+            file_cut=bool(state.get("file_cut")),
+            file_limit_note=str(state.get("file_limit_note") or ""),
+            stopped_early=stopped_early,
+        )
+
+    def _run_doc_continue(self, choice, user_text: str, reply_parts: list[str]):
+        state = self._doc_resume or {}
+        parts = list(state.get("parts") or [])
+        cursor = int(state.get("cursor") or 0)
+        intent = usbchat.continue_intent(user_text)
+        if intent is None:
+            small = usbchat.smallest_model(self.choices)
+            if small is None:
+                return "No model is available to read that reply.", False, True, choice
+            self._load_choice(small)
+            choice = small
+            intent = usbchat.classify_continue(self._complete, user_text)
+        if intent is None:
+            reply_parts.append(usbchat.CONTINUE_PROMPT)
+            return "", False, True, choice
+        picked = self._choice_by_path(str(state.get("choice_path") or ""), choice)
+        choice = picked
+        self._load_choice(picked)
+        if intent == "yes" and cursor < len(parts):
+            batch, cursor, stopped = usbchat.take_document_notes(
+                self._complete,
+                self._ui_status,
+                self.stop_event,
+                parts,
+                cursor,
+                str(state.get("user_text") or ""),
+                self.n_ctx,
+            )
+            if stopped:
+                return "stopped", False, True, choice
+            state["notes"] = list(state.get("notes") or []) + batch
+            state["cursor"] = cursor
+            self._doc_resume = state
+            if cursor < len(parts):
+                reply_parts.append(usbchat.CONTINUE_PROMPT)
+                return "", False, True, choice
+        stopped_early = cursor < len(parts)
+        self._doc_resume = None
+        messages, _block, stopped = self._fold_doc_state(state, stopped_early)
+        if stopped:
+            return "stopped", False, True, choice
+        self._stream_reply(messages, reply_parts)
+        return "", True, True, choice
+
+    def _read_document_board_turn(
+        self,
+        choice,
+        messages,
+        user_text: str,
+        board: list[dict],
+        file_limit_note: str,
+        coding: bool,
+        stakes: bool,
+        reply_parts: list[str],
+    ) -> dict:
+        outcome: dict = {"hold": False, "doc_answer": False, "err": "", "messages": None, "block": ""}
+        direct, _full = usbchat.document_board_fits(messages, board, self.n_ctx, file_limit_note)
+        if direct is not None:
+            outcome["messages"] = direct
+            outcome["block"] = _full
+            return outcome
+        parts, file_cut = usbchat.split_document_board(board, self.n_ctx, user_text)
+        notes: list[str] = []
+        cursor = 0
+        read_all = bool(coding or stakes)
+        while cursor < len(parts):
+            batch, cursor, stopped = usbchat.take_document_notes(
+                self._complete,
+                self._ui_status,
+                self.stop_event,
+                parts,
+                cursor,
+                user_text,
+                self.n_ctx,
+                batch=len(parts) if read_all else usbchat.DOC_BOARD_MAX_CHUNKS,
+            )
+            if stopped:
+                outcome["err"] = "stopped"
+                return outcome
+            notes.extend(batch)
+            if not read_all:
+                break
+        outcome["doc_answer"] = True
+        if not read_all and cursor < len(parts):
+            self._doc_resume = {
+                "parts": parts,
+                "notes": notes,
+                "cursor": cursor,
+                "user_text": user_text,
+                "chat_messages": [dict(item) for item in messages],
+                "file_cut": file_cut,
+                "file_limit_note": file_limit_note,
+                "choice_path": str(choice.path),
+                "choice_label": choice.label,
+            }
+            reply_parts.append(usbchat.CONTINUE_PROMPT)
+            outcome["hold"] = True
+            return outcome
+        fitted, block, stopped = usbchat.fold_notes_until_fit(
+            complete=self._complete,
+            chat_messages=messages,
+            user_text=user_text,
+            notes=notes,
+            n_ctx=self.n_ctx,
+            stop_event=self.stop_event,
+            status=self._ui_status,
+            file_cut=file_cut,
+            file_limit_note=file_limit_note,
+        )
+        if stopped:
+            outcome["err"] = "stopped"
+            return outcome
+        outcome["messages"] = fitted
+        outcome["block"] = block
+        return outcome
+
     def _generate(
         self,
         choice,
@@ -1149,6 +1335,7 @@ class UsbChatApp:
         attach_dir="",
         job=False,
         profile="",
+        continuing=False,
     ) -> None:
         err = ""
         reply_parts: list[str] = []
@@ -1162,8 +1349,14 @@ class UsbChatApp:
         board: list[dict] = []
         file_limit_note = ""
         folder_truncated = False
+        doc_answer = False
+        doc_hold = False
+        skip_main = False
         try:
-            if job:
+            if continuing and self._doc_resume:
+                skip_main = True
+                err, streamed, doc_answer, choice = self._run_doc_continue(choice, user_text, reply_parts)
+            if not skip_main and job:
                 picked = usbchat.job_model(self.choices) or choice
                 choice = picked
                 if self.loaded_path != picked.path:
@@ -1189,7 +1382,7 @@ class UsbChatApp:
                 }
                 if result.get("stopped"):
                     err = "stopped"
-            if not job and attach_dir:
+            if not skip_main and not job and attach_dir:
                 def on_file(index: int, total: int, name: str) -> None:
                     self._ui_status(f"Reading {index}/{total}: {name}")
 
@@ -1211,11 +1404,11 @@ class UsbChatApp:
                 self._ui_status(f"Read {len(board)} {noun}")
                 if self.stop_event.is_set():
                     raise ValueError("stopped")
-            if not job:
+            if not skip_main and not job:
                 if self.loaded_path != choice.path:
                     self._ui_status(f"Loading {choice.label}")
                 self._ensure_engine(choice)
-            if not job and use_web:
+            if not skip_main and not job and use_web:
                 web_path = usbchat.new_web_log_path(self.log_root)
                 web_meta["log"] = web_path.name
                 web = usbchat.run_web_search(
@@ -1265,23 +1458,29 @@ class UsbChatApp:
                         self._ui_status("Web Search: writing the answer…")
                 elif not web.get("ok"):
                     self._ui_status("Search failed; answering without the web.")
-            if not err and board:
-                messages, doc_block, stopped = usbchat.fit_document_messages(
-                    complete=self._complete,
-                    chat_messages=messages,
-                    user_text=user_text,
-                    board=board,
-                    n_ctx=self.n_ctx,
-                    stop_event=self.stop_event,
-                    status=self._ui_status,
-                    file_limit_note=file_limit_note,
+            if not skip_main and not err and board:
+                outcome = self._read_document_board_turn(
+                    choice,
+                    messages,
+                    user_text,
+                    board,
+                    file_limit_note,
+                    coding,
+                    stakes,
+                    reply_parts,
                 )
-                if stopped:
-                    err = "stopped"
-                elif doc_block and (coding or stakes):
-                    clip = doc_block if len(doc_block) <= 4000 else doc_block[:4000] + "\n…[truncated]"
-                    run_text = (user_text.rstrip() + "\n\nAttached documents (read-only):\n" + clip).strip()
-            if not job and not err and coding:
+                doc_hold = bool(outcome["hold"])
+                doc_answer = bool(outcome["doc_answer"])
+                if outcome["err"]:
+                    err = str(outcome["err"])
+                elif outcome["messages"] is not None:
+                    messages = outcome["messages"]
+                    if outcome["block"] and (coding or stakes):
+                        clip = outcome["block"]
+                        if len(clip) > 4000:
+                            clip = clip[:4000] + "\n…[truncated]"
+                        run_text = (user_text.rstrip() + "\n\nAttached documents (read-only):\n" + clip).strip()
+            if not skip_main and not doc_hold and not job and not err and coding:
                 slug = user_text or (Path(seed_dir).name if seed_dir else "run")
                 keep = usbchat.new_keep_dir(self.data_root, slug)
                 coding_log = usbchat.new_coding_log_path(self.data_root, keep.name)
@@ -1308,7 +1507,7 @@ class UsbChatApp:
                 }
                 if result.get("stopped"):
                     err = "stopped"
-            elif not job and not err and stakes:
+            elif not skip_main and not doc_hold and not job and not err and stakes:
                 keep = usbchat.new_keep_dir(self.data_root, user_text)
                 coding_log = usbchat.new_coding_log_path(self.data_root, keep.name)
                 self._ui_status("Review committee…")
@@ -1332,7 +1531,7 @@ class UsbChatApp:
                 }
                 if result.get("stopped"):
                     err = "stopped"
-            elif not job and not err:
+            elif not skip_main and not doc_hold and not job and not err:
                 if usbchat.messages_tokens(messages) > usbchat.token_budget(self.n_ctx) and messages:
                     last = dict(messages[-1])
                     cap = usbchat._blob_char_budget(self.n_ctx, user_text, str((messages[0] or {}).get("content") or ""))
@@ -1360,7 +1559,7 @@ class UsbChatApp:
         reply = "".join(reply_parts).strip()
         if err and not reply:
             reply = "Stopped." if err == "stopped" else f"(error: {err})"
-        elif not job and not coding and not stakes and not reply.startswith("(error:"):
+        elif not doc_answer and not job and not coding and not stakes and not reply.startswith("(error:"):
             reply = committee.finish_off_coding(user_text, reply)
 
         def finish() -> None:

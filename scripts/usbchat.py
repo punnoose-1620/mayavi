@@ -34,7 +34,7 @@ WEB_HTML_CAP = 12_000
 WEB_PAGE_CAP = 8_000
 WEB_HTML_TOTAL_CAP = 80_000
 WEB_MAX_CHUNKS = 8
-DOC_BOARD_MAX_CHUNKS = 12
+DOC_BOARD_MAX_CHUNKS = 20
 DOC_FILE_MAX_CHUNKS = 4
 FOLDER_DOC_CAP = 80_000
 FOLDER_DOC_PAGES = 80
@@ -197,6 +197,12 @@ def job_model(choices: list[ModelChoice]) -> ModelChoice | None:
     band = [item for item in choices if JOB_MODEL_MIN <= item.size <= JOB_MODEL_MAX]
     pool = band or list(choices)
     return min(pool, key=lambda item: item.size)
+
+
+def smallest_model(choices: list[ModelChoice]) -> ModelChoice | None:
+    if not choices:
+        return None
+    return min(choices, key=lambda item: item.size)
 
 
 def default_models_root(here: Path | None = None) -> Path:
@@ -1113,6 +1119,73 @@ def _messages_with_document_block(messages: list[dict[str, str]], block: str) ->
     return cloned
 
 
+CONTINUE_PROMPT = "Read 20 parts. More of this folder is still unread. Continue? Yes or no."
+
+_CONTINUE_YES = {
+    "yes",
+    "y",
+    "yeah",
+    "yep",
+    "continue",
+    "go on",
+    "keep going",
+    "go ahead",
+    "carry on",
+    "sure",
+    "ok",
+    "okay",
+    "please",
+    "please continue",
+}
+_CONTINUE_NO = {
+    "no",
+    "n",
+    "nope",
+    "stop",
+    "done",
+    "finish",
+    "stop here",
+    "that's enough",
+    "thats enough",
+    "do not continue",
+    "don't continue",
+}
+
+
+def continue_intent(text: str) -> str | None:
+    """Map a clear yes or no. Other wording returns None so a model can read it."""
+    cleaned = re.sub(r"[^a-z']+", " ", str(text or "").lower()).strip()
+    if cleaned in _CONTINUE_YES:
+        return "yes"
+    if cleaned in _CONTINUE_NO:
+        return "no"
+    return None
+
+
+def classify_continue(complete, text: str) -> str | None:
+    known = continue_intent(text)
+    if known:
+        return known
+    raw = complete(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "The user was asked whether to keep reading a folder or to stop. "
+                    "Reply with one word: YES or NO."
+                ),
+            },
+            {"role": "user", "content": str(text or "").strip() or "(empty)"},
+        ]
+    )
+    first = re.sub(r"[^a-z]", "", str(raw or "").lower().split(" ", 1)[0] if str(raw or "").strip() else "")
+    if first == "yes":
+        return "yes"
+    if first == "no":
+        return "no"
+    return None
+
+
 def _note_from_part(complete, user_text: str, part: str, prefix: str, n_ctx: int) -> str:
     piece = part
     msgs = lean_web_messages(user_text, DOC_NOTE_SYSTEM, prefix + piece)
@@ -1122,6 +1195,165 @@ def _note_from_part(complete, user_text: str, part: str, prefix: str, n_ctx: int
         msgs = lean_web_messages(user_text, DOC_NOTE_SYSTEM, prefix + piece)
     raw = _safe_complete(complete, msgs, None)
     return raw.strip() or piece[:800]
+
+
+def document_board_fits(
+    chat_messages: list[dict[str, str]],
+    board: list[dict],
+    n_ctx: int,
+    file_limit_note: str = "",
+) -> tuple[list[dict[str, str]] | None, str]:
+    """Return the prompt when the whole board fits. Otherwise return no messages."""
+    if not board:
+        return [dict(msg) for msg in chat_messages], ""
+    full = format_document_board(board)
+    if file_limit_note:
+        full = f"{full}\n\n{file_limit_note}"
+    direct = _messages_with_document_block(chat_messages, full)
+    if messages_tokens(direct) <= token_budget(n_ctx):
+        return direct, full
+    return None, full
+
+
+def split_document_board(board: list[dict], n_ctx: int, user_text: str) -> tuple[list[dict], bool]:
+    """Split each file into note-sized parts. One file still stops after four parts."""
+    char_budget = _blob_char_budget(n_ctx, user_text, DOC_NOTE_SYSTEM, chars_per_token=4)
+    parts: list[dict] = []
+    file_cut = False
+    total = len(board)
+    for index, doc in enumerate(board, start=1):
+        card = document_card(index, total, doc)
+        chunks = chunk_text(card, char_budget, max_chunks=DOC_FILE_MAX_CHUNKS) or [card]
+        if sum(len(chunk) for chunk in chunks) < len(card):
+            file_cut = True
+        name = str(doc.get("name") or Path(str(doc.get("path") or "")).name or "document")
+        for part_index, chunk in enumerate(chunks, start=1):
+            parts.append(
+                {
+                    "name": name,
+                    "index": index,
+                    "total": total,
+                    "part_index": part_index,
+                    "part_count": len(chunks),
+                    "text": chunk,
+                }
+            )
+    return parts, file_cut
+
+
+def take_document_notes(
+    complete,
+    status,
+    stop_event,
+    parts: list[dict],
+    cursor: int,
+    user_text: str,
+    n_ctx: int,
+    batch: int = DOC_BOARD_MAX_CHUNKS,
+) -> tuple[list[str], int, bool]:
+    """Read up to one batch of parts. Returns notes, the next cursor, and whether the user stopped."""
+    notes: list[str] = []
+    end = min(len(parts), max(0, cursor) + max(1, batch))
+    for part in parts[cursor:end]:
+        if _stopped(stop_event):
+            return notes, cursor, True
+        if part["part_count"] == 1:
+            status(f"Notes: {part['name']} ({part['index']}/{part['total']})")
+        else:
+            status(
+                f"Notes: {part['name']} ({part['index']}/{part['total']}), "
+                f"part {part['part_index']}/{part['part_count']}"
+            )
+        prefix = f"Part {part['part_index']} of {part['part_count']}.\n" if part["part_count"] > 1 else ""
+        notes.append(_note_from_part(complete, user_text, part["text"], prefix, n_ctx))
+        cursor += 1
+    return notes, cursor, False
+
+
+def notes_block(
+    notes: list[str],
+    *,
+    file_cut: bool = False,
+    file_limit_note: str = "",
+    stopped_early: bool = False,
+) -> str:
+    header = (
+        "Notes taken from the attached documents one part at a time. "
+        "Answer only from these notes."
+    )
+    if stopped_early:
+        header += " The reader stopped early. These notes cover the parts read so far."
+    elif file_cut or file_limit_note:
+        header += " Some later text was not covered in this pass."
+    if file_limit_note:
+        header += " " + file_limit_note
+    body = "\n\n".join(f"Note {i}:\n{note}" for i, note in enumerate(notes, start=1))
+    return header + ("\n\n" + body if body else "")
+
+
+def fold_notes_until_fit(
+    *,
+    complete,
+    chat_messages: list[dict[str, str]],
+    user_text: str,
+    notes: list[str],
+    n_ctx: int,
+    stop_event,
+    status,
+    file_cut: bool = False,
+    file_limit_note: str = "",
+    stopped_early: bool = False,
+) -> tuple[list[dict[str, str]], str, bool]:
+    """Keep combining notes until they fit. A later round covers every piece from the round before."""
+    current = [str(note).strip() for note in notes if str(note).strip()] or ["(No notes were kept.)"]
+    answer_system = (
+        "You are a local USB chat assistant. Answer from the attached-document notes. "
+        "They are read-only. Cite the file path when you use a fact."
+    )
+    for _round in range(8):
+        block = notes_block(
+            current,
+            file_cut=file_cut,
+            file_limit_note=file_limit_note,
+            stopped_early=stopped_early,
+        )
+        fitted = _messages_with_document_block(chat_messages, block)
+        if messages_tokens(fitted) <= token_budget(n_ctx):
+            return fitted, block, False
+        if _stopped(stop_event):
+            return [], "", True
+        char_budget = _blob_char_budget(n_ctx, user_text, DOC_NOTE_SYSTEM, chars_per_token=4)
+        pieces = chunk_text(block, char_budget, max_chunks=80) or [block]
+        if len(pieces) == 1 and len(pieces[0]) > 400:
+            pieces = chunk_text(block, max(400, len(block) // 2), max_chunks=80) or pieces
+        reduced: list[str] = []
+        for index, piece in enumerate(pieces, start=1):
+            if _stopped(stop_event):
+                return [], "", True
+            status(f"Combining notes ({index}/{len(pieces)})")
+            reduced.append(_note_from_part(complete, user_text, piece, "", n_ctx)[:1200])
+        joined = "\n".join(reduced)
+        if len(joined) >= len(block):
+            per = max(200, char_budget // max(1, len(current)))
+            shrunk = [note[:per] for note in current]
+            if sum(len(note) for note in shrunk) >= sum(len(note) for note in current):
+                current = reduced or shrunk
+                break
+            current = shrunk
+            continue
+        current = reduced or current
+    block = notes_block(
+        current,
+        file_cut=file_cut,
+        file_limit_note=file_limit_note,
+        stopped_early=stopped_early,
+    )
+    fitted = _messages_with_document_block(chat_messages, block)
+    if messages_tokens(fitted) <= token_budget(n_ctx):
+        return fitted, block, False
+    cap = _blob_char_budget(n_ctx, user_text, answer_system, chars_per_token=4)
+    lean = lean_web_messages(user_text, answer_system, block[:cap])
+    return lean, block[:cap], False
 
 
 def fit_document_messages(
@@ -1135,73 +1367,33 @@ def fit_document_messages(
     status,
     file_limit_note: str = "",
 ) -> tuple[list[dict[str, str]], str, bool]:
-    """Attach a document board to the prompt. Walk it in parts when it does not fit."""
+    """Attach a document board to the prompt. Walk every part, then fold the notes until they fit."""
     if not board:
         return [dict(msg) for msg in chat_messages], "", False
-    full = format_document_board(board)
-    if file_limit_note:
-        full = f"{full}\n\n{file_limit_note}"
-    direct = _messages_with_document_block(chat_messages, full)
-    if messages_tokens(direct) <= token_budget(n_ctx):
-        return direct, full, False
-
+    direct, _full = document_board_fits(chat_messages, board, n_ctx, file_limit_note)
+    if direct is not None:
+        return direct, _full, False
+    parts, file_cut = split_document_board(board, n_ctx, user_text)
     notes: list[str] = []
-    used_parts = 0
-    truncated = bool(file_limit_note)
-    char_budget = _blob_char_budget(n_ctx, user_text, DOC_NOTE_SYSTEM, chars_per_token=4)
-    for index, doc in enumerate(board, start=1):
-        if used_parts >= DOC_BOARD_MAX_CHUNKS:
-            truncated = True
-            break
-        card = document_card(index, len(board), doc)
-        room = DOC_BOARD_MAX_CHUNKS - used_parts
-        parts = chunk_text(card, char_budget, max_chunks=min(DOC_FILE_MAX_CHUNKS, room)) or [card]
-        if sum(len(part) for part in parts) < len(card):
-            truncated = True
-        for part_index, part in enumerate(parts, start=1):
-            if _stopped(stop_event):
-                return [], "", True
-            name = str(doc.get("name") or Path(str(doc.get("path") or "")).name or "document")
-            if len(parts) == 1:
-                status(f"Notes: {name} ({index}/{len(board)})")
-            else:
-                status(f"Notes: {name} ({index}/{len(board)}), part {part_index}/{len(parts)}")
-            prefix = f"Part {part_index} of {len(parts)}.\n" if len(parts) > 1 else ""
-            notes.append(_note_from_part(complete, user_text, part, prefix, n_ctx))
-            used_parts += 1
-
-    header = (
-        "Notes taken from the attached documents one part at a time. "
-        "Answer only from these notes."
-    )
-    if truncated:
-        header += " Some later text was not covered in this pass."
-    if file_limit_note:
-        header += " " + file_limit_note
-    block = header + "\n\n" + "\n\n".join(f"Note {i}:\n{note}" for i, note in enumerate(notes, start=1))
-    fitted = _messages_with_document_block(chat_messages, block)
-    if messages_tokens(fitted) <= token_budget(n_ctx):
-        return fitted, block, False
-
-    reduced: list[str] = []
-    parts = chunk_text(block, char_budget, max_chunks=DOC_FILE_MAX_CHUNKS) or [block]
-    for part_index, part in enumerate(parts, start=1):
-        if _stopped(stop_event):
+    cursor = 0
+    while cursor < len(parts):
+        batch, cursor, stopped = take_document_notes(
+            complete, status, stop_event, parts, cursor, user_text, n_ctx
+        )
+        notes.extend(batch)
+        if stopped:
             return [], "", True
-        status(f"Combining notes ({part_index}/{len(parts)})")
-        reduced.append(_note_from_part(complete, user_text, part, "", n_ctx))
-    block = header + "\n\n" + "\n\n".join(reduced)
-    fitted = _messages_with_document_block(chat_messages, block)
-    if messages_tokens(fitted) <= token_budget(n_ctx):
-        return fitted, block, False
-
-    answer_system = (
-        "You are a local USB chat assistant. Answer from the attached-document notes. "
-        "They are read-only. Cite the file path when you use a fact."
+    return fold_notes_until_fit(
+        complete=complete,
+        chat_messages=chat_messages,
+        user_text=user_text,
+        notes=notes,
+        n_ctx=n_ctx,
+        stop_event=stop_event,
+        status=status,
+        file_cut=file_cut,
+        file_limit_note=file_limit_note,
     )
-    cap = _blob_char_budget(n_ctx, user_text, answer_system, chars_per_token=4)
-    lean = lean_web_messages(user_text, answer_system, block[:cap])
-    return lean, block[:cap], False
 
 
 def fold_system_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
