@@ -70,6 +70,15 @@ FOLDER_SKIP_DIRS = frozenset(
     }
 )
 ATTACH_ICON = "📄"
+FOLDER_ICON = "📁"
+FILE_TYPE_ICONS = {
+    ".pdf": "📕",
+    ".docx": "📘",
+    ".xlsx": "📗",
+    ".txt": "📝",
+    ".md": "📃",
+    ".csv": "📊",
+}
 _ATTACH_MARK = re.compile(r"\[attached ([^\]]+)\]")
 
 
@@ -428,8 +437,25 @@ def load_turns(path: Path) -> list[dict]:
     return turns
 
 
+def file_type_icon(path_or_name: str) -> str:
+    return FILE_TYPE_ICONS.get(Path(str(path_or_name)).suffix.lower(), ATTACH_ICON)
+
+
 def attach_label(path_or_name: str) -> str:
-    return f"{ATTACH_ICON} {path_or_name}"
+    return f"{file_type_icon(path_or_name)} {path_or_name}"
+
+
+def folder_attach_block(folder: str, files: list[str], truncated: bool = False) -> str:
+    """History block: folder path, then each file name with its type icon."""
+    lines = [f"{FOLDER_ICON} {folder}"]
+    for item in files:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        lines.append(f"- {file_type_icon(text)} {Path(text).name}")
+    if truncated:
+        lines.append(f"- … only the first {FOLDER_MAX_FILES} files")
+    return "\n".join(lines)
 
 
 def rewrite_attach_markers(text: str) -> str:
@@ -1102,10 +1128,11 @@ def fit_document_messages(
         for part_index, part in enumerate(parts, start=1):
             if _stopped(stop_event):
                 return [], "", True
+            name = str(doc.get("name") or Path(str(doc.get("path") or "")).name or "document")
             if len(parts) == 1:
-                status(f"Documents: {index}/{len(board)}…")
+                status(f"Notes: {name} ({index}/{len(board)})")
             else:
-                status(f"Documents: {index}/{len(board)}, part {part_index}/{len(parts)}…")
+                status(f"Notes: {name} ({index}/{len(board)}), part {part_index}/{len(parts)}")
             prefix = f"Part {part_index} of {len(parts)}.\n" if len(parts) > 1 else ""
             notes.append(_note_from_part(complete, user_text, part, prefix, n_ctx))
             used_parts += 1
@@ -1128,7 +1155,7 @@ def fit_document_messages(
     for part_index, part in enumerate(parts, start=1):
         if _stopped(stop_event):
             return [], "", True
-        status(f"Documents: combining notes ({part_index}/{len(parts)})…")
+        status(f"Combining notes ({part_index}/{len(parts)})")
         reduced.append(_note_from_part(complete, user_text, part, "", n_ctx))
     block = header + "\n\n" + "\n\n".join(reduced)
     fitted = _messages_with_document_block(chat_messages, block)
@@ -1335,10 +1362,16 @@ def _read_attach_file(path: Path) -> dict:
     return item
 
 
-def read_document_board(folder: Path) -> tuple[list[dict], bool]:
+def read_document_board(folder: Path, on_file=None) -> tuple[list[dict], bool]:
     """Parse each accepted file before a model is loaded. Returns (documents, hit file cap)."""
     files, truncated = list_attach_files(folder)
-    return [_read_attach_file(path) for path in files], truncated
+    docs: list[dict] = []
+    total = len(files)
+    for index, path in enumerate(files, start=1):
+        if on_file is not None:
+            on_file(index, total, path.name)
+        docs.append(_read_attach_file(path))
+    return docs, truncated
 
 
 def _pdf_escape(text: str) -> str:

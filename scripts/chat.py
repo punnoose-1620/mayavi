@@ -77,6 +77,13 @@ class UsbChatApp:
         self.older_turns: list[dict] = []
         self.older_files: list[Path] = []
         self.loading_older = False
+        self._pin_bottom = False
+        self._step = ""
+        self._step_chars = 0
+        self._step_got_text = False
+        self._step_tick = 0
+        self._step_after: str | None = None
+        self.attach_truncated = False
         self.quote = ""
         self.attachment: dict | None = None
         self.attach_dir: Path | None = None
@@ -324,6 +331,8 @@ class UsbChatApp:
     def _on_scroll(self, scrollbar: ttk.Scrollbar):
         def set_view(*args):
             scrollbar.set(*args)
+            if self._pin_bottom:
+                return None
             if args and float(args[0]) <= 0.001:
                 self.root.after(50, self.load_older)
             return None
@@ -334,7 +343,47 @@ class UsbChatApp:
         self.status_var.set(text)
 
     def _ui_status(self, text: str) -> None:
-        self.root.after(0, lambda t=text: self._status(t))
+        self.root.after(0, lambda t=text: self._begin_step(t))
+
+    def _begin_step(self, step: str) -> None:
+        self._step = step
+        self._step_chars = 0
+        self._step_got_text = False
+        self._step_tick = 0
+        self._status(step)
+        self._schedule_step_tail()
+
+    def _schedule_step_tail(self) -> None:
+        if self._step_after is not None:
+            self.root.after_cancel(self._step_after)
+            self._step_after = None
+        if not self.busy or self._step_got_text or not self._step:
+            return
+        self._step_after = self.root.after(4000, self._advance_step_tail)
+
+    def _advance_step_tail(self) -> None:
+        self._step_after = None
+        if not self.busy or self._step_got_text or not self._step:
+            return
+        self._step_tick = (self._step_tick + 1) % 3
+        tails = ("", " · still working", " · this can take a while on a large model")
+        self._status(self._step + tails[self._step_tick])
+        self._schedule_step_tail()
+
+    def _add_step_chars(self, count: int) -> None:
+        if count <= 0:
+            return
+
+        def apply() -> None:
+            self._step_chars += count
+            self._step_got_text = True
+            if self._step_after is not None:
+                self.root.after_cancel(self._step_after)
+                self._step_after = None
+            label = self._step or "Writing the answer"
+            self._status(f"{label} · {self._step_chars} chars")
+
+        self.root.after(0, apply)
 
     def _set_web_row(self, online: bool) -> None:
         if online:
@@ -512,6 +561,9 @@ class UsbChatApp:
         if self._spin_after is not None:
             self.root.after_cancel(self._spin_after)
             self._spin_after = None
+        if self._step_after is not None:
+            self.root.after_cancel(self._step_after)
+            self._step_after = None
         self.spin_host.pack_forget()
         self.send_btn.pack(side="right", padx=(12, 0), fill="y")
         self.input.configure(state="normal", background="#ffffff")
@@ -736,6 +788,7 @@ class UsbChatApp:
         resolved = str(file_path.resolve())
         self.attach_dir = None
         self.attach_files = []
+        self.attach_truncated = False
         self.attachment = {"name": file_path.name, "path": resolved, "text": text}
         self.attach_var.set(f"{usbchat.attach_label(resolved)} ({len(text)} chars, read-only)")
 
@@ -762,16 +815,18 @@ class UsbChatApp:
         self.attachment = None
         self.attach_dir = folder
         self.attach_files = files
+        self.attach_truncated = truncated
         suffixes = ", ".join(sorted({path.suffix.lower().lstrip(".") for path in files}))
         extra = f" First {usbchat.FOLDER_MAX_FILES} only." if truncated else ""
         self.attach_var.set(
-            f"{usbchat.attach_label(str(folder))}  ·  {len(files)} document(s): {suffixes}, read-only.{extra}"
+            f"{usbchat.FOLDER_ICON} {folder}  ·  {len(files)} document(s): {suffixes}, read-only.{extra}"
         )
 
     def clear_attach(self) -> None:
         self.attachment = None
         self.attach_dir = None
         self.attach_files = []
+        self.attach_truncated = False
         self.attach_var.set("No document attached")
 
     def clear_quote(self) -> None:
@@ -821,6 +876,10 @@ class UsbChatApp:
         self._show_history_empty()
         self._status(f"New session {self.session_path.name}")
 
+    def _show_latest(self) -> None:
+        self.transcript.see("end")
+        self._pin_bottom = False
+
     def load_older(self) -> None:
         if self.loading_older or self.busy:
             return
@@ -830,7 +889,10 @@ class UsbChatApp:
         if nxt is None:
             self._show_no_earlier_history()
             return
+        initial = self._history_empty
         self.loading_older = True
+        if initial:
+            self._pin_bottom = True
         turns = usbchat.load_turns(nxt)
         self.older_files.append(nxt)
         self.older_turns = turns + self.older_turns
@@ -852,6 +914,9 @@ class UsbChatApp:
             self.transcript.insert("1.0", f"— earlier session {nxt.name} —\n", "system")
             self.transcript.configure(state="disabled")
         self.loading_older = False
+        if initial:
+            self.transcript.see("end")
+            self.root.after_idle(self._show_latest)
         self._status(f"Loaded older log {nxt.name} as earlier turns")
         loaded = {p.resolve() for p in self.older_files}
         if not any(p.resolve() not in loaded for p in sessions):
@@ -935,9 +1000,15 @@ class UsbChatApp:
         if quote:
             shown = f"> {quote[: usbchat.QUOTE_CAP]}\n\n{user_text}"
         if self.attach_dir:
-            lines = [usbchat.attach_label(str(self.attach_dir))]
-            lines.extend(usbchat.attach_label(str(path)) for path in self.attach_files)
-            shown = "\n".join(lines) + "\n" + shown
+            shown = (
+                usbchat.folder_attach_block(
+                    str(self.attach_dir),
+                    [str(path) for path in self.attach_files],
+                    self.attach_truncated,
+                )
+                + "\n"
+                + shown
+            )
         elif self.attachment:
             shown = f"{usbchat.attach_label(self.attachment['path'])}\n{shown}"
         if seed_dir:
@@ -949,10 +1020,13 @@ class UsbChatApp:
         self.clear_quote()
         self._set_busy(True)
         self.stop_event.clear()
-        if attach_dir:
-            self._status(f"Reading documents in {Path(attach_dir).name}…")
+        if attach_dir and self.attach_files:
+            first = self.attach_files[0].name
+            self._begin_step(f"Reading 1/{len(self.attach_files)}: {first}")
+        elif self.loaded_path != choice.path:
+            self._begin_step(f"Loading {choice.label}")
         else:
-            self._status(f"Loading {choice.label}…" if self.loaded_path != choice.path else "Thinking…")
+            self._begin_step("Writing the answer")
         threading.Thread(
             target=self._generate,
             args=(choice, messages, user_text, attachments, quote, use_web, coding, github, seed_dir, attach_dir),
@@ -963,6 +1037,7 @@ class UsbChatApp:
         parts: list[str] = []
         for piece in self.engine.stream(messages, self.stop_event, max_tokens=max_tokens):
             parts.append(piece)
+            self._add_step_chars(len(piece))
             if self.stop_event.is_set():
                 break
         if self.engine is not None:
@@ -981,7 +1056,6 @@ class UsbChatApp:
         self.loaded_path = None
         self.engine = usbchat.make_engine(choice.path, n_ctx=self.n_ctx, here=HERE)
         self.loaded_path = choice.path
-        self._ui_status(f"Loaded {choice.label}. Thinking…")
 
     def _generate(
         self,
@@ -1007,10 +1081,13 @@ class UsbChatApp:
         run_text = user_text
         board: list[dict] = []
         file_limit_note = ""
+        folder_truncated = False
         try:
             if attach_dir:
-                self._ui_status("Reading documents…")
-                board, truncated = usbchat.read_document_board(Path(attach_dir))
+                def on_file(index: int, total: int, name: str) -> None:
+                    self._ui_status(f"Reading {index}/{total}: {name}")
+
+                board, truncated = usbchat.read_document_board(Path(attach_dir), on_file=on_file)
                 if not board:
                     raise ValueError("No readable documents in that folder.")
                 attachments = [
@@ -1022,9 +1099,14 @@ class UsbChatApp:
                     for item in board
                 ]
                 if truncated:
+                    folder_truncated = True
                     file_limit_note = f"Only the first {usbchat.FOLDER_MAX_FILES} accepted files were read."
+                noun = "document" if len(board) == 1 else "documents"
+                self._ui_status(f"Read {len(board)} {noun}")
                 if self.stop_event.is_set():
                     raise ValueError("stopped")
+            if self.loaded_path != choice.path:
+                self._ui_status(f"Loading {choice.label}")
             self._ensure_engine(choice)
             if use_web:
                 web_path = usbchat.new_web_log_path(self.log_root)
@@ -1149,10 +1231,12 @@ class UsbChatApp:
                     cap = usbchat._blob_char_budget(self.n_ctx, user_text, str((messages[0] or {}).get("content") or ""))
                     last["content"] = str(last.get("content") or "")[:cap]
                     messages = [dict(m) for m in messages[:-1]] + [last]
+                self._ui_status("Writing the answer")
                 self.root.after(0, self._begin_assistant)
                 streamed = True
                 for piece in self.engine.stream(messages, self.stop_event):
                     reply_parts.append(piece)
+                    self._add_step_chars(len(piece))
                     self.root.after(0, lambda p=piece: self._stream_piece(p))
                 if self.engine is not None:
                     prompt_tokens, completion_tokens = self.engine.last_usage
@@ -1184,10 +1268,15 @@ class UsbChatApp:
             shown = user_text
             if quote:
                 shown = f"> {quote[: usbchat.QUOTE_CAP]}\n\n{user_text}"
-            if attachments:
+            if attach_dir:
+                names = usbchat.folder_attach_block(
+                    attach_dir,
+                    [a.get("path") or a.get("name") or "" for a in attachments],
+                    folder_truncated,
+                )
+                shown = f"{names}\n{shown}"
+            elif attachments:
                 names = "\n".join(usbchat.attach_label(a.get("path") or a["name"]) for a in attachments)
-                if attach_dir:
-                    names = usbchat.attach_label(attach_dir) + "\n" + names
                 shown = f"{names}\n{shown}"
             if seed_dir:
                 shown = f"folder: {seed_dir}\n{shown}".strip()
