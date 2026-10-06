@@ -79,6 +79,8 @@ class UsbChatApp:
         self.loading_older = False
         self.quote = ""
         self.attachment: dict | None = None
+        self.attach_dir: Path | None = None
+        self.attach_files: list[Path] = []
         self.prompt_tokens_total = 0
         self.completion_tokens_total = 0
         self.messages: list[tuple[str, str]] = []
@@ -185,8 +187,15 @@ class UsbChatApp:
         self.attach_row.grid(row=4, column=0, sticky="ew")
         self.attach_var = tk.StringVar(value="No document attached")
         ttk.Label(self.attach_row, textvariable=self.attach_var).pack(side="left", fill="x", expand=True)
+        folder_attach = ttk.Button(self.attach_row, text="Attach folder…", command=self.attach_folder)
+        folder_attach.pack(side="right", padx=(gap, 0))
+        _HoverTip(
+            folder_attach,
+            "Read pdf, docx, xlsx, txt, md, and csv in this folder before the model starts. "
+            "Other files are skipped. A long folder is read in parts so it fits the context window.",
+        )
         ttk.Button(self.attach_row, text="Attach…", command=self.attach).pack(side="right", padx=(gap, 0))
-        ttk.Button(self.attach_row, text="Clear file", command=self.clear_attach).pack(side="right")
+        ttk.Button(self.attach_row, text="Clear", command=self.clear_attach).pack(side="right")
 
         self.coding_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
         self.coding_row.grid(row=5, column=0, sticky="ew")
@@ -704,6 +713,8 @@ class UsbChatApp:
         return None
 
     def attach(self) -> None:
+        if self.busy:
+            return
         path = filedialog.askopenfilename(
             title="Attach a document (read-only)",
             filetypes=[
@@ -723,11 +734,44 @@ class UsbChatApp:
             messagebox.showerror("Attach", str(exc))
             return
         resolved = str(file_path.resolve())
+        self.attach_dir = None
+        self.attach_files = []
         self.attachment = {"name": file_path.name, "path": resolved, "text": text}
         self.attach_var.set(f"{usbchat.attach_label(resolved)} ({len(text)} chars, read-only)")
 
+    def attach_folder(self) -> None:
+        if self.busy:
+            return
+        picked = filedialog.askdirectory(
+            title="Attach a folder of documents (read-only)",
+            mustexist=True,
+        )
+        if not picked:
+            return
+        folder = Path(picked).expanduser().resolve()
+        if not folder.is_dir():
+            messagebox.showerror("Attach folder", "Pick an existing folder.")
+            return
+        files, truncated = usbchat.list_attach_files(folder)
+        if not files:
+            messagebox.showerror(
+                "Attach folder",
+                "No pdf, docx, xlsx, txt, md, or csv files in that folder.",
+            )
+            return
+        self.attachment = None
+        self.attach_dir = folder
+        self.attach_files = files
+        suffixes = ", ".join(sorted({path.suffix.lower().lstrip(".") for path in files}))
+        extra = f" First {usbchat.FOLDER_MAX_FILES} only." if truncated else ""
+        self.attach_var.set(
+            f"{usbchat.attach_label(str(folder))}  ·  {len(files)} document(s): {suffixes}, read-only.{extra}"
+        )
+
     def clear_attach(self) -> None:
         self.attachment = None
+        self.attach_dir = None
+        self.attach_files = []
         self.attach_var.set("No document attached")
 
     def clear_quote(self) -> None:
@@ -819,8 +863,14 @@ class UsbChatApp:
         text = self._input_text()
         coding = bool(self.coding_var.get())
         seed_dir = self.seed_dir if coding else None
-        if not text and not seed_dir:
+        if not text and not seed_dir and not self.attachment and not self.attach_dir:
             return
+        user_text = text
+        if not user_text:
+            if self.attachment or self.attach_dir:
+                user_text = "Summarize the attached documents."
+            else:
+                user_text = f"(seed folder {seed_dir})"
         choice = self._selected()
         if choice is None:
             messagebox.showerror("Send", "Pick a model that fits RAM.")
@@ -846,7 +896,14 @@ class UsbChatApp:
             except Exception as exc:
                 messagebox.showerror("Web Search", str(exc))
                 return
-        attachments = [self.attachment] if self.attachment else []
+        if self.attach_dir:
+            attachments = [
+                {"name": path.name, "path": str(path.resolve()), "text": ""}
+                for path in self.attach_files
+            ]
+        else:
+            attachments = [self.attachment] if self.attachment else []
+        attach_dir = str(self.attach_dir) if self.attach_dir else ""
         quote = self.quote
         github = ""
         if coding:
@@ -871,13 +928,17 @@ class UsbChatApp:
             older_turns=self.older_turns,
             session_turns=self.session_turns,
             quote=quote,
-            attachments=attachments,
-            user_text=text or (f"(seed folder {seed_dir})" if seed_dir else ""),
+            attachments=[self.attachment] if self.attachment else [],
+            user_text=user_text,
         )
-        shown = text
+        shown = user_text
         if quote:
-            shown = f"> {quote[: usbchat.QUOTE_CAP]}\n\n{text}"
-        if self.attachment:
+            shown = f"> {quote[: usbchat.QUOTE_CAP]}\n\n{user_text}"
+        if self.attach_dir:
+            lines = [usbchat.attach_label(str(self.attach_dir))]
+            lines.extend(usbchat.attach_label(str(path)) for path in self.attach_files)
+            shown = "\n".join(lines) + "\n" + shown
+        elif self.attachment:
             shown = f"{usbchat.attach_label(self.attachment['path'])}\n{shown}"
         if seed_dir:
             shown = f"folder: {seed_dir}\n{shown}".strip()
@@ -888,10 +949,13 @@ class UsbChatApp:
         self.clear_quote()
         self._set_busy(True)
         self.stop_event.clear()
-        self._status(f"Loading {choice.label}…" if self.loaded_path != choice.path else "Thinking…")
+        if attach_dir:
+            self._status(f"Reading documents in {Path(attach_dir).name}…")
+        else:
+            self._status(f"Loading {choice.label}…" if self.loaded_path != choice.path else "Thinking…")
         threading.Thread(
             target=self._generate,
-            args=(choice, messages, text, attachments, quote, use_web, coding, github, seed_dir),
+            args=(choice, messages, user_text, attachments, quote, use_web, coding, github, seed_dir, attach_dir),
             daemon=True,
         ).start()
 
@@ -919,7 +983,19 @@ class UsbChatApp:
         self.loaded_path = choice.path
         self._ui_status(f"Loaded {choice.label}. Thinking…")
 
-    def _generate(self, choice, messages, user_text, attachments, quote, use_web, coding, github, seed_dir=None) -> None:
+    def _generate(
+        self,
+        choice,
+        messages,
+        user_text,
+        attachments,
+        quote,
+        use_web,
+        coding,
+        github,
+        seed_dir=None,
+        attach_dir="",
+    ) -> None:
         err = ""
         reply_parts: list[str] = []
         streamed = False
@@ -927,7 +1003,28 @@ class UsbChatApp:
         self._turn_completion_tokens = 0
         web_meta = {"used": False, "query": "", "urls": [], "log": "", "digest": ""}
         extras: dict = {"pdf_paths": [], "profile_update": {}, "keep_dir": ""}
+        stakes = committee.looks_high_stakes(user_text)
+        run_text = user_text
+        board: list[dict] = []
+        file_limit_note = ""
         try:
+            if attach_dir:
+                self._ui_status("Reading documents…")
+                board, truncated = usbchat.read_document_board(Path(attach_dir))
+                if not board:
+                    raise ValueError("No readable documents in that folder.")
+                attachments = [
+                    {
+                        "name": str(item.get("name") or ""),
+                        "path": str(item.get("path") or ""),
+                        "text": str(item.get("text") or ""),
+                    }
+                    for item in board
+                ]
+                if truncated:
+                    file_limit_note = f"Only the first {usbchat.FOLDER_MAX_FILES} accepted files were read."
+                if self.stop_event.is_set():
+                    raise ValueError("stopped")
             self._ensure_engine(choice)
             if use_web:
                 web_path = usbchat.new_web_log_path(self.log_root)
@@ -961,7 +1058,7 @@ class UsbChatApp:
                 )
                 if web.get("stopped"):
                     err = "stopped"
-                elif web.get("ok") and not coding and not committee.looks_high_stakes(user_text):
+                elif web.get("ok") and not coding and not stakes:
                     messages, stopped = usbchat.fit_web_answer_messages(
                         complete=self._complete,
                         chat_messages=messages,
@@ -979,6 +1076,22 @@ class UsbChatApp:
                         self._ui_status("Web Search: writing the answer…")
                 elif not web.get("ok"):
                     self._ui_status("Search failed; answering without the web.")
+            if not err and board:
+                messages, doc_block, stopped = usbchat.fit_document_messages(
+                    complete=self._complete,
+                    chat_messages=messages,
+                    user_text=user_text,
+                    board=board,
+                    n_ctx=self.n_ctx,
+                    stop_event=self.stop_event,
+                    status=self._ui_status,
+                    file_limit_note=file_limit_note,
+                )
+                if stopped:
+                    err = "stopped"
+                elif doc_block and (coding or stakes):
+                    clip = doc_block if len(doc_block) <= 4000 else doc_block[:4000] + "\n…[truncated]"
+                    run_text = (user_text.rstrip() + "\n\nAttached documents (read-only):\n" + clip).strip()
             if not err and coding:
                 slug = user_text or (Path(seed_dir).name if seed_dir else "run")
                 keep = usbchat.new_keep_dir(self.data_root, slug)
@@ -986,7 +1099,7 @@ class UsbChatApp:
                 self._ui_status("Coding committee…")
                 result = committee.run_coding(
                     complete=self._coding_complete,
-                    user_text=user_text,
+                    user_text=run_text,
                     keep_dir=keep,
                     github_url=github or None,
                     seed_dir=Path(seed_dir) if seed_dir else None,
@@ -1006,13 +1119,13 @@ class UsbChatApp:
                 }
                 if result.get("stopped"):
                     err = "stopped"
-            elif not err and committee.looks_high_stakes(user_text):
+            elif not err and stakes:
                 keep = usbchat.new_keep_dir(self.data_root, user_text)
                 coding_log = usbchat.new_coding_log_path(self.data_root, keep.name)
                 self._ui_status("Review committee…")
                 result = committee.run_review(
                     complete=self._coding_complete,
-                    user_text=user_text,
+                    user_text=run_text,
                     keep_dir=keep,
                     web_digest=str(web_meta.get("digest") or ""),
                     stop_event=self.stop_event,
@@ -1056,7 +1169,7 @@ class UsbChatApp:
         reply = "".join(reply_parts).strip()
         if err and not reply:
             reply = "Stopped." if err == "stopped" else f"(error: {err})"
-        elif not coding and not committee.looks_high_stakes(user_text) and not reply.startswith("(error:"):
+        elif not coding and not stakes and not reply.startswith("(error:"):
             reply = committee.finish_off_coding(user_text, reply)
 
         def finish() -> None:
@@ -1073,6 +1186,8 @@ class UsbChatApp:
                 shown = f"> {quote[: usbchat.QUOTE_CAP]}\n\n{user_text}"
             if attachments:
                 names = "\n".join(usbchat.attach_label(a.get("path") or a["name"]) for a in attachments)
+                if attach_dir:
+                    names = usbchat.attach_label(attach_dir) + "\n" + names
                 shown = f"{names}\n{shown}"
             if seed_dir:
                 shown = f"folder: {seed_dir}\n{shown}".strip()
@@ -1085,6 +1200,7 @@ class UsbChatApp:
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
                 "attached": [a.get("path") or a["name"] for a in attachments],
+                "attach_dir": attach_dir,
                 "quote": quote,
                 "web_search": bool(web_meta["used"]),
                 "web_query": web_meta["query"],

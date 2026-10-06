@@ -34,6 +34,12 @@ WEB_HTML_CAP = 12_000
 WEB_PAGE_CAP = 8_000
 WEB_HTML_TOTAL_CAP = 80_000
 WEB_MAX_CHUNKS = 8
+DOC_BOARD_MAX_CHUNKS = 12
+DOC_FILE_MAX_CHUNKS = 4
+FOLDER_DOC_CAP = 80_000
+FOLDER_DOC_PAGES = 80
+FOLDER_MAX_FILES = 40
+FOLDER_MAX_FILE_BYTES = 20 * 1024 * 1024
 CTX_SLACK = 64
 HTML_CHARS_PER_TOKEN = 3
 
@@ -46,6 +52,23 @@ _INSTRUCT = re.compile(r"(?i)[-_](Instruct|Chat|it)$")
 _SS_NS = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
 ALLOWED_ATTACH = {".pdf", ".docx", ".xlsx", ".txt", ".md", ".csv"}
+FOLDER_SKIP_DIRS = frozenset(
+    {
+        ".git",
+        ".hg",
+        ".svn",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "env",
+        "node_modules",
+        ".tox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".idea",
+        ".vscode",
+    }
+)
 ATTACH_ICON = "📄"
 _ATTACH_MARK = re.compile(r"\[attached ([^\]]+)\]")
 
@@ -491,7 +514,7 @@ def messages_tokens(messages: list[dict[str, str]]) -> int:
     return estimate_tokens(flatten_prompt(messages))
 
 
-def chunk_text(text: str, max_chars: int) -> list[str]:
+def chunk_text(text: str, max_chars: int, max_chunks: int = WEB_MAX_CHUNKS) -> list[str]:
     text = text or ""
     if not text:
         return []
@@ -500,6 +523,7 @@ def chunk_text(text: str, max_chars: int) -> list[str]:
         return [text]
     chunks: list[str] = []
     start = 0
+    cap = max(1, int(max_chunks))
     while start < len(text):
         end = min(start + limit, len(text))
         if end < len(text):
@@ -508,7 +532,7 @@ def chunk_text(text: str, max_chars: int) -> list[str]:
                 end = cut + 1
         chunks.append(text[start:end])
         start = end
-        if len(chunks) >= WEB_MAX_CHUNKS:
+        if len(chunks) >= cap:
             break
     return chunks
 
@@ -968,6 +992,126 @@ def fit_web_answer_messages(
     return lean, False
 
 
+DOC_NOTE_SYSTEM = (
+    "You are reading attached documents for a later answer. This may be only one part of one file. "
+    "Write notes that help answer the user. Keep facts, names, numbers, and the file path they came from. "
+    "Leave out parts that do not help. A few short paragraphs."
+)
+
+
+def document_card(index: int, total: int, doc: dict) -> str:
+    label = str(doc.get("path") or doc.get("name") or "document")
+    body = str(doc.get("text") or "").strip() or "(empty)"
+    return f"Document {index} of {total}: {label}\n{body}"
+
+
+def format_document_board(docs: list[dict]) -> str:
+    total = len(docs)
+    return "\n\n".join(document_card(index, total, doc) for index, doc in enumerate(docs, start=1))
+
+
+def _messages_with_document_block(messages: list[dict[str, str]], block: str) -> list[dict[str, str]]:
+    cloned = copy.deepcopy(messages)
+    if not cloned:
+        cloned = [{"role": "user", "content": ""}]
+    last = dict(cloned[-1])
+    prior = str(last.get("content") or "").strip()
+    body = f"Attached documents (read-only):\n{block}"
+    last["content"] = f"{body}\n\n{prior}" if prior else body
+    cloned[-1] = last
+    return cloned
+
+
+def _note_from_part(complete, user_text: str, part: str, prefix: str, n_ctx: int) -> str:
+    piece = part
+    msgs = lean_web_messages(user_text, DOC_NOTE_SYSTEM, prefix + piece)
+    budget = token_budget(n_ctx)
+    while messages_tokens(msgs) > budget and len(piece) > 400:
+        piece = piece[: max(400, len(piece) * 3 // 4)]
+        msgs = lean_web_messages(user_text, DOC_NOTE_SYSTEM, prefix + piece)
+    raw = _safe_complete(complete, msgs, None)
+    return raw.strip() or piece[:800]
+
+
+def fit_document_messages(
+    *,
+    complete,
+    chat_messages: list[dict[str, str]],
+    user_text: str,
+    board: list[dict],
+    n_ctx: int,
+    stop_event,
+    status,
+    file_limit_note: str = "",
+) -> tuple[list[dict[str, str]], str, bool]:
+    """Attach a document board to the prompt. Walk it in parts when it does not fit."""
+    if not board:
+        return [dict(msg) for msg in chat_messages], "", False
+    full = format_document_board(board)
+    if file_limit_note:
+        full = f"{full}\n\n{file_limit_note}"
+    direct = _messages_with_document_block(chat_messages, full)
+    if messages_tokens(direct) <= token_budget(n_ctx):
+        return direct, full, False
+
+    notes: list[str] = []
+    used_parts = 0
+    truncated = bool(file_limit_note)
+    char_budget = _blob_char_budget(n_ctx, user_text, DOC_NOTE_SYSTEM, chars_per_token=4)
+    for index, doc in enumerate(board, start=1):
+        if used_parts >= DOC_BOARD_MAX_CHUNKS:
+            truncated = True
+            break
+        card = document_card(index, len(board), doc)
+        room = DOC_BOARD_MAX_CHUNKS - used_parts
+        parts = chunk_text(card, char_budget, max_chunks=min(DOC_FILE_MAX_CHUNKS, room)) or [card]
+        if sum(len(part) for part in parts) < len(card):
+            truncated = True
+        for part_index, part in enumerate(parts, start=1):
+            if _stopped(stop_event):
+                return [], "", True
+            if len(parts) == 1:
+                status(f"Documents: {index}/{len(board)}…")
+            else:
+                status(f"Documents: {index}/{len(board)}, part {part_index}/{len(parts)}…")
+            prefix = f"Part {part_index} of {len(parts)}.\n" if len(parts) > 1 else ""
+            notes.append(_note_from_part(complete, user_text, part, prefix, n_ctx))
+            used_parts += 1
+
+    header = (
+        "Notes taken from the attached documents one part at a time. "
+        "Answer only from these notes."
+    )
+    if truncated:
+        header += " Some later text was not covered in this pass."
+    if file_limit_note:
+        header += " " + file_limit_note
+    block = header + "\n\n" + "\n\n".join(f"Note {i}:\n{note}" for i, note in enumerate(notes, start=1))
+    fitted = _messages_with_document_block(chat_messages, block)
+    if messages_tokens(fitted) <= token_budget(n_ctx):
+        return fitted, block, False
+
+    reduced: list[str] = []
+    parts = chunk_text(block, char_budget, max_chunks=DOC_FILE_MAX_CHUNKS) or [block]
+    for part_index, part in enumerate(parts, start=1):
+        if _stopped(stop_event):
+            return [], "", True
+        status(f"Documents: combining notes ({part_index}/{len(parts)})…")
+        reduced.append(_note_from_part(complete, user_text, part, "", n_ctx))
+    block = header + "\n\n" + "\n\n".join(reduced)
+    fitted = _messages_with_document_block(chat_messages, block)
+    if messages_tokens(fitted) <= token_budget(n_ctx):
+        return fitted, block, False
+
+    answer_system = (
+        "You are a local USB chat assistant. Answer from the attached-document notes. "
+        "They are read-only. Cite the file path when you use a fact."
+    )
+    cap = _blob_char_budget(n_ctx, user_text, answer_system, chars_per_token=4)
+    lean = lean_web_messages(user_text, answer_system, block[:cap])
+    return lean, block[:cap], False
+
+
 def fold_system_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
     """Move system text into the first user message for templates that reject role=system."""
     systems: list[str] = []
@@ -1063,13 +1207,14 @@ def extract_xlsx(path: Path) -> str:
     return "\n\n".join(blocks).strip()
 
 
-def extract_pdf(path: Path) -> str:
+def extract_pdf(path: Path, max_pages: int = 20) -> str:
     try:
         from pypdf import PdfReader  # type: ignore
 
         reader = PdfReader(str(path))
         pages = []
-        for page in reader.pages[:20]:
+        limit = max(1, int(max_pages))
+        for page in reader.pages[:limit]:
             pages.append(page.extract_text() or "")
         text = "\n".join(pages).strip()
         if text:
@@ -1090,7 +1235,7 @@ def _pdf_strings(data: bytes) -> str:
     return "\n".join(texts).strip()
 
 
-def extract_document(path: Path, cap: int = DOC_CAP) -> str:
+def extract_document(path: Path, cap: int = DOC_CAP, max_pages: int = 20) -> str:
     suffix = path.suffix.lower()
     if suffix not in ALLOWED_ATTACH:
         raise ValueError(f"unsupported type: {suffix}")
@@ -1101,13 +1246,67 @@ def extract_document(path: Path, cap: int = DOC_CAP) -> str:
     elif suffix == ".xlsx":
         text = extract_xlsx(path)
     else:
-        text = extract_pdf(path)
+        text = extract_pdf(path, max_pages=max_pages)
         if not text:
             text = "(Could not extract text from this PDF.)"
     text = text.strip()
     if len(text) > cap:
         return text[:cap] + "\n…[truncated]"
     return text
+
+
+def list_attach_files(folder: Path) -> tuple[list[Path], bool]:
+    """Accepted documents under folder. Skips other types. Second value is True when the file cap cut the list."""
+    root = Path(folder).expanduser().resolve()
+    if not root.is_dir():
+        return [], False
+    found: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [
+            name
+            for name in dirnames
+            if name.lower() not in FOLDER_SKIP_DIRS
+            and not name.lower().endswith(".dist-info")
+            and not name.startswith(".")
+        ]
+        for name in sorted(filenames):
+            if name.startswith(".") or name.startswith("~$"):
+                continue
+            path = Path(dirpath) / name
+            if path.suffix.lower() not in ALLOWED_ATTACH:
+                continue
+            try:
+                if path.is_symlink() or not path.is_file():
+                    continue
+            except OSError:
+                continue
+            found.append(path)
+            if len(found) > FOLDER_MAX_FILES:
+                return sorted(found[:FOLDER_MAX_FILES]), True
+    return sorted(found), False
+
+
+def _read_attach_file(path: Path) -> dict:
+    item = {"name": path.name, "path": str(path.resolve()), "text": ""}
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        item["text"] = f"(Could not read this file: {exc})"
+        return item
+    if size > FOLDER_MAX_FILE_BYTES:
+        item["text"] = "(Skipped: file is larger than 20 MB.)"
+        return item
+    try:
+        item["text"] = extract_document(path, cap=FOLDER_DOC_CAP, max_pages=FOLDER_DOC_PAGES)
+    except Exception as exc:
+        item["text"] = f"(Could not read this file: {exc})"
+    return item
+
+
+def read_document_board(folder: Path) -> tuple[list[dict], bool]:
+    """Parse each accepted file before a model is loaded. Returns (documents, hit file cap)."""
+    files, truncated = list_attach_files(folder)
+    return [_read_attach_file(path) for path in files], truncated
 
 
 def _pdf_escape(text: str) -> str:
