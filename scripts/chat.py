@@ -329,6 +329,7 @@ class UsbChatApp:
         ttk.Button(buttons, text="Save transcript PDF", command=self.save_pdf).pack(side="right")
         ttk.Button(buttons, text="Print", command=self.print_pdf).pack(side="right", padx=(0, gap))
         ttk.Button(buttons, text="Notes…", command=self.notes_dialog).pack(side="right", padx=(0, gap))
+        ttk.Button(buttons, text="View profile", command=self.profile_dialog).pack(side="right", padx=(0, gap))
         ttk.Button(buttons, text="Profile…", command=self.profile_dialog).pack(side="right", padx=(0, gap))
 
         self.status_var = tk.StringVar(value="")
@@ -358,6 +359,8 @@ class UsbChatApp:
         widget = self.root.winfo_containing(event.x_root, event.y_root)
         while widget is not None:
             if widget in {self.transcript, self.input}:
+                return None
+            if widget.winfo_toplevel() is not self.root:
                 return None
             widget = getattr(widget, "master", None)
         if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0:
@@ -1891,32 +1894,360 @@ class UsbChatApp:
         ttk.Button(row, text="Save notes", command=save).pack(side="right", padx=(0, 6))
 
     def profile_dialog(self) -> None:
-        win = tk.Toplevel(self.root)
-        win.title("profile.md")
-        win.geometry("560x420")
-        body = tk.Text(win, wrap="word")
-        body.pack(fill="both", expand=True, padx=8, pady=8)
-        current = usbchat.read_profile(self.profile_file, cap=200_000)
-        body.insert("1.0", current or usbchat.PROFILE_TEMPLATE)
-        hint = ttk.Label(
-            win,
-            text="The job committee reads only this file. notes.md is not used. Writes need your OK.",
+        ProfileWindow(self)
+
+
+class ProfileWindow:
+    """Editable profile cards. Profile… and View profile open this same window."""
+
+    _PAGE = "#f7f7f7"
+    _CARD = "#ffffff"
+    _GREEN = "#1a7f37"
+    _GRAY = "#5f6368"
+    _MUTED = "#8a8a8a"
+    _CHIP = "#e7f5ec"
+    _LINE = "#dadce0"
+
+    def __init__(self, app: UsbChatApp) -> None:
+        self.app = app
+        self.dirty = False
+        self._loading = True
+        family = app._ui_font[0]
+        self.font = (family, 11)
+        self.small = (family, 9)
+        self.name_font = (family, 18, "bold")
+        self.win = tk.Toplevel(app.root)
+        self.win.title("Profile")
+        self.win.geometry("720x640")
+        self.win.minsize(480, 420)
+        self.win.configure(bg=self._PAGE)
+        self.profile = profiledoc.load_profile(app.profile_json)
+        self.role_rows: list[dict] = []
+        self.school_rows: list[dict] = []
+        self.skills: list[str] = list(self.profile["skills"])
+        self._cards = 0
+
+        shell = tk.Frame(self.win, bg=self._PAGE)
+        shell.pack(fill="both", expand=True)
+        self.canvas = tk.Canvas(shell, bg=self._PAGE, highlightthickness=0, borderwidth=0)
+        scroll = ttk.Scrollbar(shell, command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=scroll.set)
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        self.page = tk.Frame(self.canvas, bg=self._PAGE)
+        self.page_id = self.canvas.create_window((0, 0), window=self.page, anchor="nw")
+        self.page.bind("<Configure>", lambda _e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind("<Configure>", self._fit_width)
+        self.canvas.bind("<MouseWheel>", self._wheel)
+        self.canvas.bind("<Button-4>", self._wheel)
+        self.canvas.bind("<Button-5>", self._wheel)
+
+        self._build_header()
+        self._build_summary()
+        self._build_experience()
+        self._build_skills()
+        self._build_education()
+
+        bar = tk.Frame(self.win, bg=self._PAGE, padx=16, pady=12)
+        bar.pack(fill="x")
+        ttk.Button(bar, text="Close", command=self.close).pack(side="right")
+        ttk.Button(bar, text="Save profile", command=self.save).pack(side="right", padx=(0, 8))
+        self.win.protocol("WM_DELETE_WINDOW", self.close)
+        self._loading = False
+        self.dirty = False
+        self.win.after_idle(self._place_skills)
+
+    def _fit_width(self, event) -> None:
+        self.canvas.itemconfigure(self.page_id, width=max(event.width, 1))
+
+    def _wheel(self, event) -> str:
+        if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0:
+            self.canvas.yview_scroll(-1, "units")
+        else:
+            self.canvas.yview_scroll(1, "units")
+        return "break"
+
+    def _touch(self, *_args) -> None:
+        if not self._loading:
+            self.dirty = True
+
+    def _card(self, title: str) -> tk.Frame:
+        outer = tk.Frame(self.page, bg=self._PAGE, padx=16)
+        outer.pack(fill="x", pady=(12 if self._cards == 0 else 0, 0))
+        self._cards += 1
+        box = tk.Frame(outer, bg=self._CARD, padx=16, pady=14, highlightbackground=self._LINE, highlightthickness=1)
+        box.pack(fill="x", pady=(0, 12))
+        tk.Label(box, text=title, bg=self._CARD, fg=self._GRAY, font=self.small).pack(anchor="w")
+        return box
+
+    def _entry(self, parent, value: str, font=None, fg=None) -> tk.Entry:
+        field = tk.Entry(
+            parent,
+            font=font or self.font,
+            fg=fg or "#202124",
+            bg=self._CARD,
+            relief="solid",
+            borderwidth=1,
+            highlightthickness=0,
         )
-        hint.pack(fill="x", padx=8)
-        row = ttk.Frame(win, padding=8)
-        row.pack(fill="x")
+        field.insert(0, value)
+        field.bind("<KeyRelease>", self._touch)
+        field.pack(fill="x", pady=(6, 0))
+        return field
 
-        def save() -> None:
-            text = body.get("1.0", "end").rstrip() + "\n"
-            if not messagebox.askyesno("profile.md", f"Write {len(text)} characters to {self.profile_file}?"):
-                return
-            self.profile_file.parent.mkdir(parents=True, exist_ok=True)
-            self.profile_file.write_text(text, encoding="utf-8")
-            win.destroy()
-            self._status(f"Wrote {self.profile_file}")
+    def _text(self, parent, value: str, height: int) -> tk.Text:
+        field = tk.Text(
+            parent,
+            height=height,
+            wrap="word",
+            font=self.font,
+            bg=self._CARD,
+            relief="solid",
+            borderwidth=1,
+            highlightthickness=0,
+            padx=6,
+            pady=4,
+        )
+        if value:
+            field.insert("1.0", value)
+        field.bind("<KeyRelease>", self._touch)
+        field.pack(fill="x", pady=(6, 0))
+        return field
 
-        ttk.Button(row, text="Cancel", command=win.destroy).pack(side="right")
-        ttk.Button(row, text="Save profile", command=save).pack(side="right", padx=(0, 6))
+    def _empty(self, parent, shown: bool) -> None:
+        if shown:
+            tk.Label(
+                parent,
+                text="Nothing saved in this section.",
+                bg=self._CARD,
+                fg=self._MUTED,
+                font=(self.font[0], 11, "italic"),
+            ).pack(anchor="w", pady=(8, 0))
+
+    def _build_header(self) -> None:
+        box = self._card("CONTACT")
+        contact = self.profile["contact"]
+        self.name = self._entry(box, contact["name"], font=self.name_font, fg=self._GREEN)
+        self.email = self._entry(box, contact["email"])
+        self.phone = self._entry(box, contact["phone"])
+        self.location = self._entry(box, contact["location"])
+        tk.Label(box, text="Links, one per line", bg=self._CARD, fg=self._GRAY, font=self.small).pack(anchor="w", pady=(8, 0))
+        self.links = self._text(box, "\n".join(contact["links"]), 3)
+        if usbchat.read_profile(self.app.profile_file).strip() and profiledoc.profile_is_empty(self.profile):
+            tk.Label(
+                box,
+                text="profile.md is still on the stick. Saving writes profile.json, which the job committee uses.",
+                bg=self._CARD,
+                fg=self._GRAY,
+                font=self.small,
+                wraplength=620,
+                justify="left",
+            ).pack(anchor="w", pady=(8, 0))
+
+    def _build_summary(self) -> None:
+        box = self._card("SUMMARY")
+        self.summary = self._text(box, self.profile["summary"], 4)
+        self._empty(box, not self.profile["summary"])
+
+    def _build_experience(self) -> None:
+        self.exp_box = self._card("EXPERIENCE")
+        self.exp_host = tk.Frame(self.exp_box, bg=self._CARD)
+        self.exp_host.pack(fill="x")
+        ttk.Button(self.exp_box, text="Add role", command=self._add_role).pack(anchor="w", pady=(8, 0))
+        self._render_roles()
+
+    def _render_roles(self) -> None:
+        for child in self.exp_host.winfo_children():
+            child.destroy()
+        self.role_rows = []
+        roles = self.profile["experience"]
+        self._empty(self.exp_host, not roles)
+        for role in roles:
+            block = tk.Frame(self.exp_host, bg=self._CARD, pady=8)
+            block.pack(fill="x")
+            title = self._entry(block, role.get("title") or "")
+            employer = self._entry(block, role.get("employer") or "")
+            dates = tk.Frame(block, bg=self._CARD)
+            dates.pack(fill="x")
+            start = self._entry(dates, role.get("start") or "")
+            end = self._entry(dates, role.get("end") or "")
+            start.pack_forget()
+            end.pack_forget()
+            start.pack(in_=dates, side="left", fill="x", expand=True, pady=(6, 0))
+            end.pack(in_=dates, side="left", fill="x", expand=True, padx=(8, 0), pady=(6, 0))
+            highlights = self._text(block, "\n".join(role.get("highlights") or []), 3)
+            row = {"title": title, "employer": employer, "start": start, "end": end, "highlights": highlights}
+            self.role_rows.append(row)
+            ttk.Button(block, text="Remove", command=lambda item=row: self._remove_role(item)).pack(anchor="w", pady=(6, 0))
+
+    def _read_roles(self) -> list[dict]:
+        roles = []
+        for row in self.role_rows:
+            highlights = [line.strip() for line in row["highlights"].get("1.0", "end").splitlines() if line.strip()]
+            roles.append(
+                {
+                    "title": row["title"].get().strip(),
+                    "employer": row["employer"].get().strip(),
+                    "start": row["start"].get().strip(),
+                    "end": row["end"].get().strip(),
+                    "highlights": highlights,
+                }
+            )
+        return roles
+
+    def _add_role(self) -> None:
+        self.profile["experience"] = self._read_roles() + [
+            {"title": "", "employer": "", "start": "", "end": "", "highlights": []}
+        ]
+        self._touch()
+        self._render_roles()
+
+    def _remove_role(self, item: dict) -> None:
+        roles = self._read_roles()
+        index = self.role_rows.index(item)
+        del roles[index]
+        self.profile["experience"] = roles
+        self._touch()
+        self._render_roles()
+
+    def _build_skills(self) -> None:
+        self.skill_box = self._card("SKILLS")
+        self.skill_host = tk.Frame(self.skill_box, bg=self._CARD)
+        self.skill_host.pack(fill="x", pady=(8, 0))
+        self.skill_host.bind("<Configure>", lambda _e: self._place_skills())
+        add = tk.Frame(self.skill_box, bg=self._CARD)
+        add.pack(fill="x", pady=(8, 0))
+        self.skill_entry = tk.Entry(add, font=self.font)
+        self.skill_entry.pack(side="left", fill="x", expand=True)
+        self.skill_entry.bind("<Return>", lambda _e: self._add_skill())
+        ttk.Button(add, text="Add skill", command=self._add_skill).pack(side="left", padx=(8, 0))
+        self._place_skills()
+
+    def _place_skills(self) -> None:
+        for child in self.skill_host.winfo_children():
+            child.destroy()
+        if not self.skills:
+            self._empty(self.skill_host, True)
+            self.skill_host.configure(height=28)
+            return
+        width = max(self.skill_host.winfo_width(), 560)
+        x = y = row_h = 0
+        for index, skill in enumerate(self.skills):
+            chip = tk.Frame(self.skill_host, bg=self._CHIP, padx=8, pady=3)
+            tk.Label(chip, text=skill, bg=self._CHIP, fg=self._GREEN, font=self.font).pack(side="left")
+            tk.Button(
+                chip,
+                text="×",
+                relief="flat",
+                bg=self._CHIP,
+                fg=self._GREEN,
+                command=lambda n=index: self._remove_skill(n),
+                padx=2,
+                pady=0,
+            ).pack(side="left")
+            chip.update_idletasks()
+            w = chip.winfo_reqwidth()
+            h = chip.winfo_reqheight()
+            if x and x + w > width:
+                x = 0
+                y += row_h + 6
+                row_h = 0
+            chip.place(x=x, y=y)
+            x += w + 6
+            row_h = max(row_h, h)
+        self.skill_host.configure(height=y + row_h + 4)
+
+    def _add_skill(self) -> None:
+        text = self.skill_entry.get().strip()
+        if not text:
+            return
+        self.skills.append(text)
+        self.skill_entry.delete(0, "end")
+        self._touch()
+        self._place_skills()
+
+    def _remove_skill(self, index: int) -> None:
+        if 0 <= index < len(self.skills):
+            del self.skills[index]
+            self._touch()
+            self._place_skills()
+
+    def _build_education(self) -> None:
+        self.edu_box = self._card("EDUCATION")
+        self.edu_host = tk.Frame(self.edu_box, bg=self._CARD)
+        self.edu_host.pack(fill="x")
+        ttk.Button(self.edu_box, text="Add education", command=self._add_school).pack(anchor="w", pady=(8, 0))
+        self._render_schools()
+
+    def _render_schools(self) -> None:
+        for child in self.edu_host.winfo_children():
+            child.destroy()
+        self.school_rows = []
+        schools = self.profile["education"]
+        self._empty(self.edu_host, not schools)
+        for school in schools:
+            block = tk.Frame(self.edu_host, bg=self._CARD, pady=8)
+            block.pack(fill="x")
+            degree = self._entry(block, school.get("degree") or "")
+            name = self._entry(block, school.get("school") or "")
+            year = self._entry(block, school.get("year") or "")
+            row = {"degree": degree, "school": name, "year": year}
+            self.school_rows.append(row)
+            ttk.Button(block, text="Remove", command=lambda item=row: self._remove_school(item)).pack(anchor="w", pady=(6, 0))
+
+    def _read_schools(self) -> list[dict]:
+        return [
+            {
+                "degree": row["degree"].get().strip(),
+                "school": row["school"].get().strip(),
+                "year": row["year"].get().strip(),
+            }
+            for row in self.school_rows
+        ]
+
+    def _add_school(self) -> None:
+        self.profile["education"] = self._read_schools() + [{"degree": "", "school": "", "year": ""}]
+        self._touch()
+        self._render_schools()
+
+    def _remove_school(self, item: dict) -> None:
+        schools = self._read_schools()
+        del schools[self.school_rows.index(item)]
+        self.profile["education"] = schools
+        self._touch()
+        self._render_schools()
+
+    def _collect(self) -> dict:
+        links = [line.strip() for line in self.links.get("1.0", "end").splitlines() if line.strip()]
+        return profiledoc.normalize_profile(
+            {
+                "contact": {
+                    "name": self.name.get().strip(),
+                    "email": self.email.get().strip(),
+                    "phone": self.phone.get().strip(),
+                    "location": self.location.get().strip(),
+                    "links": links,
+                },
+                "summary": self.summary.get("1.0", "end").strip(),
+                "experience": self._read_roles(),
+                "skills": list(self.skills),
+                "education": self._read_schools(),
+            }
+        )
+
+    def save(self) -> None:
+        record = self._collect()
+        if not messagebox.askyesno("profile.json", "Save these details to profile.json?"):
+            return
+        profiledoc.save_profile(self.app.profile_json, record)
+        self.profile = record
+        self.dirty = False
+        self.app._status("Saved profile.json")
+
+    def close(self) -> None:
+        if self.dirty and not messagebox.askyesno("Profile", "Close without saving these edits?"):
+            return
+        self.win.destroy()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
