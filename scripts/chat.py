@@ -16,6 +16,7 @@ if str(HERE) not in sys.path:
 import committee
 import formatter
 import jobapp
+import profiledoc
 import usbchat
 
 
@@ -67,6 +68,7 @@ class UsbChatApp:
         self.log_root = usbchat.logs_dir(self.data_root)
         self.notes_file = usbchat.notes_path(self.data_root)
         self.profile_file = usbchat.profile_path(self.data_root)
+        self.profile_json = profiledoc.profile_json_path(self.data_root)
         self.n_ctx = args.n_ctx
 
         self.choices: list[usbchat.ModelChoice] = []
@@ -103,6 +105,8 @@ class UsbChatApp:
         self.web_visible = False
         self.coding_var = tk.BooleanVar(value=False)
         self.job_var = tk.BooleanVar(value=False)
+        self.update_var = tk.BooleanVar(value=False)
+        self._profile_turn: dict | None = None
         self.github_var = tk.StringVar(value="")
         self.seed_dir: Path | None = None
         self.seed_var = tk.StringVar(value="No project folder")
@@ -233,6 +237,18 @@ class UsbChatApp:
             job_box,
             "The message is the job description. Writes an English resume and cover letter "
             "from Profile… only, then a short match summary.",
+        )
+        update_box = ttk.Checkbutton(
+            self.coding_row,
+            text="Update profile",
+            variable=self.update_var,
+            command=self._on_update,
+        )
+        update_box.pack(side="left")
+        _HoverTip(
+            update_box,
+            "The attached resume is the source. The message is an optional instruction. "
+            "Save to profile writes profile.json after you confirm.",
         )
 
         self.github_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
@@ -419,6 +435,7 @@ class UsbChatApp:
     def _on_coding(self) -> None:
         if self.coding_var.get():
             self.job_var.set(False)
+            self.update_var.set(False)
             self.github_row.grid(row=6, column=0, sticky="ew")
         else:
             self.github_row.grid_remove()
@@ -427,6 +444,15 @@ class UsbChatApp:
     def _on_job(self) -> None:
         if self.job_var.get():
             self.coding_var.set(False)
+            self.update_var.set(False)
+            self.web_search_var.set(False)
+            self.github_row.grid_remove()
+            self._sync_page()
+
+    def _on_update(self) -> None:
+        if self.update_var.get():
+            self.coding_var.set(False)
+            self.job_var.set(False)
             self.web_search_var.set(False)
             self.github_row.grid_remove()
             self._sync_page()
@@ -434,6 +460,7 @@ class UsbChatApp:
     def _on_web(self) -> None:
         if self.web_search_var.get():
             self.job_var.set(False)
+            self.update_var.set(False)
 
     def _on_github_edit(self, *_args) -> None:
         if self.github_var.get().strip() and self.seed_dir is not None:
@@ -628,14 +655,24 @@ class UsbChatApp:
             pages = formatter.html_pages(formatter.format_blocks(body))
         pdfs = [p for p in (extras.get("pdf_paths") or []) if p]
         profile = extras.get("profile_update") or {}
+        record = extras.get("profile_record")
         frame = ttk.Frame(self.transcript)
-        save = ttk.Button(
-            frame,
-            text="Save to notes",
-            command=lambda b=body, p=profile: self._save_turn_notes(b, p),
-        )
-        save.pack(side="left")
-        _HoverTip(save, "Append this reply, or the saved personal details, to notes.md")
+        if record:
+            save = ttk.Button(
+                frame,
+                text="Save to profile",
+                command=lambda rec=record: self._save_profile_record(rec),
+            )
+            save.pack(side="left")
+            _HoverTip(save, "Merge these checked details into profile.json")
+        else:
+            save = ttk.Button(
+                frame,
+                text="Save to notes",
+                command=lambda b=body, p=profile: self._save_turn_notes(b, p),
+            )
+            save.pack(side="left")
+            _HoverTip(save, "Append this reply, or the saved personal details, to notes.md")
         if pages:
             view = ttk.Button(frame, text="View HTML", command=lambda ps=pages: self._view_html(ps))
             view.pack(side="left", padx=(8, 0))
@@ -660,6 +697,20 @@ class UsbChatApp:
             return
         usbchat.append_notes(self.notes_file, snippet)
         self._status("Saved to notes.md")
+
+    def _save_profile_record(self, record: dict) -> None:
+        if profiledoc.profile_is_empty(record):
+            messagebox.showinfo("profile.json", "Nothing checked from the resume can be saved.")
+            return
+        current = profiledoc.load_profile(self.profile_json)
+        merged, conflicts = profiledoc.merge_profile(current, record)
+        message = "Save these details to profile.json?"
+        if conflicts:
+            message += "\n\nExisting values kept:\n" + "\n".join(conflicts)
+        if not messagebox.askyesno("profile.json", message):
+            return
+        profiledoc.save_profile(self.profile_json, merged)
+        self._status("Saved profile.json")
 
     def _view_html(self, pages: list) -> None:
         if not pages:
@@ -945,6 +996,7 @@ class UsbChatApp:
                         "pdf_paths": list(turn.get("pdf_paths") or []),
                         "pdf_saves": list(turn.get("pdf_saves") or []),
                         "profile_update": turn.get("profile_update") or {},
+                        "profile_record": turn.get("profile_record"),
                     }
                     self._prepend_message("assistant", str(turn["response"]), extras)
                     self.messages.insert(0, ("assistant", str(turn["response"])))
@@ -984,7 +1036,7 @@ class UsbChatApp:
         self._begin_step("Checking whether to continue")
         threading.Thread(
             target=self._generate,
-            args=(choice, [], text.strip(), [], "", False, False, "", None, "", False, "", True),
+            args=(choice, [], text.strip(), [], "", False, False, "", None, "", False, "", False, True),
             daemon=True,
         ).start()
 
@@ -1025,18 +1077,30 @@ class UsbChatApp:
             return
         coding = bool(self.coding_var.get())
         job = bool(self.job_var.get())
+        update = bool(self.update_var.get())
         seed_dir = self.seed_dir if coding else None
         if job and coding:
             messagebox.showerror("Job application", "Use Job application or Coding, not both.")
             return
+        if update and (not self.attachment and not self.attach_dir):
+            messagebox.showerror("Update profile", "Attach a resume first.")
+            return
+        if update and self.web_search_var.get():
+            messagebox.showerror(
+                "Update profile",
+                "Turn Web Search off. Profile updates do not search the web.",
+            )
+            return
         if job and not text.strip():
             messagebox.showerror("Job application", "Paste the job description in the message box.")
             return
-        if not text and not seed_dir and not self.attachment and not self.attach_dir:
+        if not update and not text and not seed_dir and not self.attachment and not self.attach_dir:
             return
         user_text = text
         if not user_text:
-            if self.attachment or self.attach_dir:
+            if update:
+                user_text = "Update my profile from the attached resume."
+            elif self.attachment or self.attach_dir:
                 user_text = "Summarize the attached documents."
             else:
                 user_text = f"(seed folder {seed_dir})"
@@ -1044,7 +1108,7 @@ class UsbChatApp:
         if choice is None:
             messagebox.showerror("Send", "Pick a model that fits RAM.")
             return
-        use_web = bool(self.web_visible and self.web_search_var.get()) and not job
+        use_web = bool(self.web_visible and self.web_search_var.get()) and not job and not update
         if job and self.web_search_var.get():
             messagebox.showerror(
                 "Job application",
@@ -1053,7 +1117,7 @@ class UsbChatApp:
             return
         profile = ""
         if job:
-            profile = usbchat.read_profile(self.profile_file)
+            profile = profiledoc.job_profile_text(self.data_root)
             if not profile.strip():
                 messagebox.showerror(
                     "Job application",
@@ -1139,7 +1203,9 @@ class UsbChatApp:
         self.clear_quote()
         self._set_busy(True)
         self.stop_event.clear()
-        if job:
+        if update:
+            self._begin_step("Update profile: reading the resume")
+        elif job:
             self._begin_step("Job application: reading the job description")
         elif attach_dir and self.attach_files:
             first = self.attach_files[0].name
@@ -1163,6 +1229,7 @@ class UsbChatApp:
                 attach_dir,
                 job,
                 profile,
+                update,
             ),
             daemon=True,
         ).start()
@@ -1205,6 +1272,100 @@ class UsbChatApp:
             stopped_early=stopped_early,
         )
 
+    def _structure_saved_profile(self, state: dict, reply_parts: list[str]) -> None:
+        notes = "\n\n".join(str(note) for note in (state.get("notes") or []) if str(note).strip())
+        source = str(state.get("source_text") or notes)
+        self._ui_status("Update profile: structuring the profile")
+        result = profiledoc.build_update(
+            self._complete,
+            notes or source,
+            str(state.get("instruction") or ""),
+            source,
+        )
+        reply_parts.append(str(result.get("reply") or "").strip())
+        if result.get("profile_record"):
+            self._profile_turn = {"profile_record": result["profile_record"]}
+
+    def _profile_board(self, attachments: list[dict]) -> tuple[str, list[dict]]:
+        if self.attach_dir:
+            def on_file(index: int, total: int, name: str) -> None:
+                self._ui_status(f"Reading {index}/{total}: {name}")
+
+            board, _truncated = usbchat.read_document_board(self.attach_dir, on_file=on_file)
+            if not board:
+                raise ValueError("No readable documents in that folder.")
+            source = "\n\n".join(str(item.get("text") or "") for item in board).strip()
+            return source, board
+        if not attachments:
+            raise ValueError("Attach a resume first.")
+        path = Path(str(attachments[0].get("path") or ""))
+        source = usbchat.extract_document(
+            path,
+            cap=usbchat.FOLDER_DOC_CAP,
+            max_pages=usbchat.FOLDER_DOC_PAGES,
+        )
+        return source, [{"name": path.name or "resume", "path": str(path), "text": source}]
+
+    def _run_profile_update(self, choice, user_text: str, attachments: list[dict], reply_parts: list[str]):
+        picked = usbchat.job_model(self.choices) or choice
+        self._load_choice(picked)
+        source, board = self._profile_board(attachments)
+        if not source.strip():
+            raise ValueError("That resume did not contain readable text.")
+        parts, file_cut = usbchat.split_document_board(board, self.n_ctx, user_text)
+        if len(parts) > usbchat.DOC_BOARD_MAX_CHUNKS:
+            batch, cursor, stopped = usbchat.take_document_notes(
+                self._complete,
+                self._ui_status,
+                self.stop_event,
+                parts,
+                0,
+                user_text,
+                self.n_ctx,
+            )
+            if stopped:
+                return "stopped", picked
+            self._doc_resume = {
+                "purpose": "profile",
+                "parts": parts,
+                "notes": batch,
+                "cursor": cursor,
+                "source_text": source,
+                "instruction": user_text,
+                "user_text": user_text,
+                "chat_messages": [],
+                "file_cut": file_cut,
+                "file_limit_note": "",
+                "choice_path": str(picked.path),
+            }
+            reply_parts.append(usbchat.CONTINUE_PROMPT)
+            return "", picked
+        model_text = source
+        if not profiledoc.fits_structure_prompt(source, user_text, self.n_ctx):
+            notes: list[str] = []
+            cursor = 0
+            while cursor < len(parts):
+                batch, cursor, stopped = usbchat.take_document_notes(
+                    self._complete,
+                    self._ui_status,
+                    self.stop_event,
+                    parts,
+                    cursor,
+                    user_text,
+                    self.n_ctx,
+                    batch=len(parts),
+                )
+                if stopped:
+                    return "stopped", picked
+                notes.extend(batch)
+            model_text = "\n\n".join(notes)
+        self._ui_status("Update profile: structuring the profile")
+        result = profiledoc.build_update(self._complete, model_text, user_text, source)
+        reply_parts.append(str(result.get("reply") or "").strip())
+        if result.get("profile_record"):
+            self._profile_turn = {"profile_record": result["profile_record"]}
+        return "", picked
+
     def _run_doc_continue(self, choice, user_text: str, reply_parts: list[str]):
         state = self._doc_resume or {}
         parts = list(state.get("parts") or [])
@@ -1243,6 +1404,9 @@ class UsbChatApp:
                 return "", False, True, choice
         stopped_early = cursor < len(parts)
         self._doc_resume = None
+        if str(state.get("purpose") or "") == "profile":
+            self._structure_saved_profile(state, reply_parts)
+            return "", False, True, choice
         messages, _block, stopped = self._fold_doc_state(state, stopped_early)
         if stopped:
             return "stopped", False, True, choice
@@ -1335,6 +1499,7 @@ class UsbChatApp:
         attach_dir="",
         job=False,
         profile="",
+        update=False,
         continuing=False,
     ) -> None:
         err = ""
@@ -1356,6 +1521,10 @@ class UsbChatApp:
             if continuing and self._doc_resume:
                 skip_main = True
                 err, streamed, doc_answer, choice = self._run_doc_continue(choice, user_text, reply_parts)
+            if not skip_main and update:
+                skip_main = True
+                doc_answer = True
+                err, choice = self._run_profile_update(choice, user_text, attachments, reply_parts)
             if not skip_main and job:
                 picked = usbchat.job_model(self.choices) or choice
                 choice = picked
@@ -1554,6 +1723,9 @@ class UsbChatApp:
                 if usbchat._context_overflow(exc)
                 else str(exc)
             )
+        if self._profile_turn:
+            extras.update(self._profile_turn)
+            self._profile_turn = None
         prompt_tokens = self._turn_prompt_tokens
         completion_tokens = self._turn_completion_tokens
         reply = "".join(reply_parts).strip()
@@ -1606,6 +1778,7 @@ class UsbChatApp:
                 "seed_dir": str(seed_dir) if seed_dir else "",
                 "pdf_paths": list(extras.get("pdf_paths") or []),
                 "pdf_saves": list(extras.get("pdf_saves") or []),
+                "profile_record": extras.get("profile_record"),
                 "job": bool(job),
                 "profile_update": extras.get("profile_update") or {},
                 "keep_dir": extras.get("keep_dir") or "",
