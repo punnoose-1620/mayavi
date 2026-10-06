@@ -497,6 +497,37 @@ def folder_attach_block(folder: str, files: list[str], truncated: bool = False) 
     return "\n".join(lines)
 
 
+def _token_phrase(tokens: int) -> str:
+    noun = "token" if tokens == 1 else "tokens"
+    return f"{tokens:,} {noun}"
+
+
+def attach_row_file(name: str, text: str) -> str:
+    """Attach-row label: file name and token estimate. History still uses the full path."""
+    return f"{name} · {_token_phrase(estimate_tokens(text))}"
+
+
+def attach_row_folder(folder_name: str, file_count: int, tokens: int, truncated: bool = False) -> str:
+    """Attach-row label: folder name, readable file count, and total tokens."""
+    noun = "file" if file_count == 1 else "files"
+    label = f"{folder_name} · {file_count} {noun} · {_token_phrase(tokens)}"
+    if truncated:
+        label += f" · first {FOLDER_MAX_FILES} only"
+    return label
+
+
+def folder_extracted_tokens(files: list[Path]) -> int:
+    """Token estimate for the text the folder reader will use."""
+    total = 0
+    for path in files:
+        try:
+            text = extract_document(path, cap=FOLDER_DOC_CAP, max_pages=FOLDER_DOC_PAGES)
+        except Exception:
+            text = ""
+        total += estimate_tokens(text)
+    return total
+
+
 def rewrite_attach_markers(text: str) -> str:
     return _ATTACH_MARK.sub(lambda m: attach_label(m.group(1)), text)
 

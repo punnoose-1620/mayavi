@@ -294,44 +294,166 @@ def fits_structure_prompt(text: str, instruction: str, n_ctx: int) -> bool:
     return len(text or "") <= budget
 
 
-def build_update(complete, model_text: str, instruction: str, source_text: str) -> dict:
-    """Ask once, and once more if the sections are unreadable. Then drop values the resume does not contain."""
-    user = (instruction.strip() + "\n\n" if instruction.strip() else "") + model_text
-    raw = complete(
-        [
-            {"role": "system", "content": _STRUCTURE_SYSTEM},
-            {"role": "user", "content": user},
-        ]
-    )
-    parsed = usbchat.extract_json_object(raw)
-    if not parsed:
+GUARD_ROUNDS = 5
+
+_JSON_SHAPE = (
+    "Return one JSON object only. contact is an object with name, email, phone, location, and links. "
+    "summary is a string. experience is a list of objects with title, employer, start, end, and highlights. "
+    "skills is a list of strings. education is a list of objects with degree, school, and year. "
+    "Copy each value as it appears in the resume, or use an empty string."
+)
+
+
+def _guard(failures: list[str], field: str, value: str, why: str, how: str) -> None:
+    shown = value if len(value) <= 180 else value[:180] + "…"
+    failures.append(f'{field}: "{shown}" failed because {why} {how}')
+
+
+def _check_value(failures: list[str], field: str, value: str, source: str, how: str) -> None:
+    if not value:
+        return
+    if verbal_contains(source, value):
+        return
+    _guard(failures, field, value, "those words are not in the resume.", how)
+
+
+def audit_profile(raw: dict, source: str, failures: list[str]) -> dict:
+    """Append one message per failed section or value. The list is shared by every check."""
+    if not isinstance(raw, dict) or not raw:
+        failures.append(
+            "reply: the text failed because it is not a JSON object. " + _JSON_SHAPE
+        )
+        return empty_profile()
+    expected = {
+        "contact": "an object with name, email, phone, location, and links",
+        "summary": "a string copied from the resume",
+        "experience": "a list of objects with title, employer, start, end, and highlights",
+        "skills": "a list of strings copied from the resume",
+        "education": "a list of objects with degree, school, and year",
+    }
+    for key, how in expected.items():
+        if key not in raw:
+            failures.append(
+                f"{key}: this section is missing. Structure it as {how}. "
+                "It was missing from the JSON object."
+            )
+    profile = normalize_profile(raw)
+    contact = profile["contact"]
+    for key in ("name", "email", "phone", "location"):
+        _check_value(
+            failures,
+            f"contact.{key}",
+            contact[key],
+            source,
+            "Copy that value as it appears in the resume, or use an empty string.",
+        )
+    for index, link in enumerate(contact["links"]):
+        _check_value(
+            failures,
+            f"contact.links[{index}]",
+            link,
+            source,
+            "Copy the link as it appears in the resume, or remove it.",
+        )
+    for index, sentence in enumerate(re.split(r"(?<=[.!?])\s+", profile["summary"])):
+        _check_value(
+            failures,
+            f"summary[{index}]",
+            sentence.strip(),
+            source,
+            "Copy the sentence as it appears in the resume, or remove it.",
+        )
+    for index, role in enumerate(profile["experience"]):
+        for key in ("title", "employer", "start", "end"):
+            _check_value(
+                failures,
+                f"experience[{index}].{key}",
+                role[key],
+                source,
+                "Copy that value as it appears in the resume, or use an empty string.",
+            )
+        for line_index, line in enumerate(role["highlights"]):
+            _check_value(
+                failures,
+                f"experience[{index}].highlights[{line_index}]",
+                line,
+                source,
+                "Copy the sentence as it appears in the resume, or remove it.",
+            )
+    for index, skill in enumerate(profile["skills"]):
+        _check_value(
+            failures,
+            f"skills[{index}]",
+            skill,
+            source,
+            "Copy the skill as it appears in the resume, or remove it.",
+        )
+    for index, school in enumerate(profile["education"]):
+        for key in ("degree", "school", "year"):
+            _check_value(
+                failures,
+                f"education[{index}].{key}",
+                school[key],
+                source,
+                "Copy that value as it appears in the resume, or use an empty string.",
+            )
+    if not failures and profile_is_empty(profile):
+        failures.append(
+            "profile: every section is empty. Fill contact, summary, experience, skills, and education from the resume. "
+            "It failed because the JSON object had no resume text in it."
+        )
+    return profile
+
+
+def build_update(
+    complete,
+    model_text: str,
+    instruction: str,
+    source_text: str,
+    status=None,
+    stop_event=None,
+) -> dict:
+    """Check every value, then retry all failures together. Stop after five rounds."""
+    failures: list[str] = []
+    feedback = ""
+    base = (instruction.strip() + "\n\n" if instruction.strip() else "") + model_text
+    for round_no in range(1, GUARD_ROUNDS + 1):
+        if usbchat._stopped(stop_event):
+            return {"reply": "", "profile_record": None, "dropped": list(failures), "stopped": True}
+        if status is not None:
+            if round_no == 1:
+                status("Update profile: structuring the profile")
+            else:
+                count = len(feedback.splitlines()) or 1
+                noun = "check" if count == 1 else "checks"
+                status(f"Update profile: fixing {count} {noun} (round {round_no} of {GUARD_ROUNDS})")
+        prompt = base
+        if feedback:
+            prompt += (
+                "\n\nThese checks failed. Fix every one of them and return the full JSON object again.\n"
+                + feedback
+            )
         raw = complete(
             [
                 {"role": "system", "content": _STRUCTURE_SYSTEM},
-                {"role": "user", "content": "Return the JSON object only.\n\n" + user},
+                {"role": "user", "content": prompt},
             ]
         )
-        parsed = usbchat.extract_json_object(raw)
-    if not parsed:
-        return {
-            "reply": "The profile sections could not be read. profile.json was left unchanged.",
-            "profile_record": None,
-            "dropped": [],
-        }
-    cleaned, dropped = filter_profile(normalize_profile(parsed), source_text)
-    reply = render_profile(cleaned)
-    cleaned, dropped_again = filter_profile(cleaned, source_text + "\n" + reply)
-    dropped.extend(dropped_again)
-    reply = render_profile(cleaned)
-    if profile_is_empty(cleaned):
-        reply = "Nothing on the resume could be saved to the profile."
-        record = None
-    else:
-        record = cleaned
-    if dropped:
-        listed = "\n".join(f"- {item}" for item in dropped)
-        reply = (reply + "\n\n" if reply else "") + "Left out, not found in the resume notes:\n" + listed
-    return {"reply": reply.strip(), "profile_record": record, "dropped": dropped}
+        failures.clear()
+        profile = audit_profile(usbchat.extract_json_object(raw), source_text, failures)
+        if not failures:
+            return {
+                "reply": render_profile(profile),
+                "profile_record": profile,
+                "dropped": [],
+                "stopped": False,
+            }
+        feedback = "\n".join(f"- {item}" for item in failures)
+    reply = (
+        f"The profile was not saved. These checks were still failing after {GUARD_ROUNDS} rounds:\n"
+        + feedback
+    )
+    return {"reply": reply, "profile_record": None, "dropped": list(failures), "stopped": False}
 
 
 def job_profile_text(root: Path, cap: int = 24_000) -> str:

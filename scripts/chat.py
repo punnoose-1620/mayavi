@@ -885,7 +885,7 @@ class UsbChatApp:
         self.attach_files = []
         self.attach_truncated = False
         self.attachment = {"name": file_path.name, "path": resolved, "text": text}
-        self.attach_var.set(f"{usbchat.attach_label(resolved)} ({len(text)} chars, read-only)")
+        self.attach_var.set(usbchat.attach_row_file(file_path.name, text))
 
     def attach_folder(self) -> None:
         if self.busy:
@@ -911,11 +911,11 @@ class UsbChatApp:
         self.attach_dir = folder
         self.attach_files = files
         self.attach_truncated = truncated
-        suffixes = ", ".join(sorted({path.suffix.lower().lstrip(".") for path in files}))
-        extra = f" First {usbchat.FOLDER_MAX_FILES} only." if truncated else ""
-        self.attach_var.set(
-            f"{usbchat.FOLDER_ICON} {folder}  ·  {len(files)} document(s): {suffixes}, read-only.{extra}"
-        )
+        self._status("Reading the folder…")
+        self.root.update_idletasks()
+        tokens = usbchat.folder_extracted_tokens(files)
+        self.attach_var.set(usbchat.attach_row_folder(folder.name, len(files), tokens, truncated))
+        self._status("")
 
     def clear_attach(self) -> None:
         self.attachment = None
@@ -1275,19 +1275,23 @@ class UsbChatApp:
             stopped_early=stopped_early,
         )
 
-    def _structure_saved_profile(self, state: dict, reply_parts: list[str]) -> None:
+    def _structure_saved_profile(self, state: dict, reply_parts: list[str]) -> bool:
         notes = "\n\n".join(str(note) for note in (state.get("notes") or []) if str(note).strip())
         source = str(state.get("source_text") or notes)
-        self._ui_status("Update profile: structuring the profile")
         result = profiledoc.build_update(
             self._complete,
             notes or source,
             str(state.get("instruction") or ""),
             source,
+            status=self._ui_status,
+            stop_event=self.stop_event,
         )
+        if result.get("stopped"):
+            return True
         reply_parts.append(str(result.get("reply") or "").strip())
         if result.get("profile_record"):
             self._profile_turn = {"profile_record": result["profile_record"]}
+        return False
 
     def _profile_board(self, attachments: list[dict]) -> tuple[str, list[dict]]:
         if self.attach_dir:
@@ -1362,8 +1366,16 @@ class UsbChatApp:
                     return "stopped", picked
                 notes.extend(batch)
             model_text = "\n\n".join(notes)
-        self._ui_status("Update profile: structuring the profile")
-        result = profiledoc.build_update(self._complete, model_text, user_text, source)
+        result = profiledoc.build_update(
+            self._complete,
+            model_text,
+            user_text,
+            source,
+            status=self._ui_status,
+            stop_event=self.stop_event,
+        )
+        if result.get("stopped"):
+            return "stopped", picked
         reply_parts.append(str(result.get("reply") or "").strip())
         if result.get("profile_record"):
             self._profile_turn = {"profile_record": result["profile_record"]}
@@ -1408,7 +1420,8 @@ class UsbChatApp:
         stopped_early = cursor < len(parts)
         self._doc_resume = None
         if str(state.get("purpose") or "") == "profile":
-            self._structure_saved_profile(state, reply_parts)
+            if self._structure_saved_profile(state, reply_parts):
+                return "stopped", False, True, choice
             return "", False, True, choice
         messages, _block, stopped = self._fold_doc_state(state, stopped_early)
         if stopped:
