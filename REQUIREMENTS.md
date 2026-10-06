@@ -8,7 +8,7 @@ A visual copy is `REQUIREMENTS.pdf` in the same folder. Chat and setup do not op
 
 - Windows or Ubuntu
 - Python **3.11 or newer** already on PATH (install *alongside* 3.9 / 2.7; setup will not upgrade them)
-- A **writable** USB stick: setup creates `logs\` and `outputs\` next to the GGUFs (not inside `chat\`)
+- A **writable** USB stick: setup creates `logs\`, `coding-logs\`, and `outputs\` next to the GGUFs (not inside `chat\`)
 - `llama-cpp-python` in the host venv, **or** `llama-cli` in `chat/bin/`
 - Host venv libraries (setup installs these): `pypdf` (attached PDFs), `requests` and `beautifulsoup4` (Web Search)
 
@@ -21,7 +21,7 @@ Host venv location:
 
 ## Optional
 
-- **git** on PATH — only if you turn on **Coding** and paste a public `https://github.com/owner/repo` URL. Chat still runs without git.
+- **git** on PATH — only if you turn on **Coding** and paste a public `https://github.com/owner/repo` URL. A local **Folder…** seed does not need git. Chat still runs without git.
 - Internet — only for **Web Search**. Google HTML can still block; that is expected.
 - GPU offload — off unless you set `USB_CHAT_N_GPU_LAYERS` (or a numeric `N_GPU_LAYERS`) on the host.
 

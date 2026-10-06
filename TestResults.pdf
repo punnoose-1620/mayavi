@@ -1,0 +1,4434 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [7 0 R 9 0 R 11 0 R 13 0 R 15 0 R 17 0 R 19 0 R 21 0 R 23 0 R 25 0 R] /Count 10 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+8 0 obj
+<< /Length 5874 >>
+stream
+BT
+1 0 0 1 54.0 746.0 Tm
+0.08 0.16 0.36 rg
+/F2 22 Tf
+(USB ) Tj
+(chat ) Tj
+(coding ) Tj
+(bench) Tj
+ET
+BT
+1 0 0 1 54.0 706.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Model: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(Deepseek ) Tj
+(Coder ) Tj
+(6.7B ) Tj
+(\(3.8 ) Tj
+(GB\)) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(Started: ) Tj
+(2026-10-06T10:20:01+00:00 ) Tj
+(Coding ) Tj
+(on, ) Tj
+(no ) Tj
+ET
+BT
+1 0 0 1 54.0 691.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(GitHub. ) Tj
+(Vote ) Tj
+(opens ) Tj
+(only ) Tj
+(after ) Tj
+(host ) Tj
+(quality ) Tj
+(criteria ) Tj
+(pass ) Tj
+(\(mean ) Tj
+(of ) Tj
+(trials\). ) Tj
+(Loop ) Tj
+(tables ) Tj
+ET
+BT
+1 0 0 1 54.0 676.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(update ) Tj
+(after ) Tj
+(every ) Tj
+(committee ) Tj
+(round.) Tj
+ET
+BT
+1 0 0 1 54.0 635.0 Tm
+0.10 0.22 0.42 rg
+/F2 15 Tf
+(Summary) Tj
+ET
+BT
+1 0 0 1 76.0 606.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Tasks: ) Tj
+(4. ) Tj
+(Finished: ) Tj
+(4/4. ) Tj
+(Qualified: ) Tj
+(0/4. ) Tj
+(Committee ) Tj
+(shipped: ) Tj
+(0/4. ) Tj
+(Verifier ) Tj
+(passed: ) Tj
+ET
+BT
+1 0 0 1 76.0 591.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(0/4.) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 561.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 564.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(# | Task      | Loops | Qualified | Shipped | Verifier | Files) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 549.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 552.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(--+-----------+-------+-----------+---------+----------+------) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 537.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 540.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(1 | snake-dqn | 2     | no        | no      | fail     | 1    ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 525.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 528.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(2 | maze-path | 2     | no        | no      | fail     | 1    ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 513.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 516.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(3 | csv-sql   | 3     | no        | no      | fail     | 7    ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 501.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 504.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(4 | expr-lang | 2     | no        | no      | fail     | 1    ) Tj
+ET
+BT
+1 0 0 1 54.0 464.0 Tm
+0.10 0.22 0.42 rg
+/F2 15 Tf
+(Loop ) Tj
+(progress ) Tj
+(\(all ) Tj
+(tasks\)) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 429.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 432.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(Task      | Loop | Qualified | Mean | Min | Scores | Files | Vote | Shipped) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 417.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 420.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(----------+------+-----------+------+-----+--------+-------+------+--------) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 405.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 408.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(snake-dqn | 1    | no        | -    | -   | -      | 1     | no   | no     ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 393.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 396.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(snake-dqn | 2    | no        | -    | -   | -      | 1     | no   | no     ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 381.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 384.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(maze-path | 1    | no        | -    | -   | -      | 1     | no   | no     ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 369.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 372.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(maze-path | 2    | no        | -    | -   | -      | 1     | no   | no     ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 357.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 360.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(csv-sql   | 1    | no        | -    | -   | -      | 7     | no   | no     ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 345.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 348.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(csv-sql   | 2    | no        | -    | -   | -      | 7     | no   | no     ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 333.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 336.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(csv-sql   | 3    | no        | -    | -   | -      | 7     | no   | no     ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 321.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 324.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(expr-lang | 1    | no        | -    | -   | -      | 1     | no   | no     ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 309.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 312.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(expr-lang | 2    | no        | -    | -   | -      | 1     | no   | no     ) Tj
+ET
+BT
+1 0 0 1 54.0 272.0 Tm
+0.10 0.22 0.42 rg
+/F2 15 Tf
+(1. ) Tj
+(Snake ) Tj
+(grid ) Tj
+(plus ) Tj
+(tiny ) Tj
+(DQN) Tj
+ET
+BT
+1 0 0 1 76.0 243.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Id: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(snake-dqn) Tj
+ET
+BT
+1 0 0 1 76.0 225.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Elapsed: ) Tj
+(90.0 ) Tj
+(min) Tj
+ET
+BT
+1 0 0 1 76.0 207.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Status: ) Tj
+(done) Tj
+ET
+BT
+1 0 0 1 76.0 189.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Committee ) Tj
+(shipped: ) Tj
+(no) Tj
+ET
+BT
+1 0 0 1 76.0 171.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Qualified: ) Tj
+(no) Tj
+ET
+BT
+1 0 0 1 76.0 153.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Vote ) Tj
+(opened: ) Tj
+(no) Tj
+ET
+BT
+1 0 0 1 76.0 135.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Vote: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(\(not ) Tj
+(opened\)) Tj
+ET
+BT
+1 0 0 1 76.0 117.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Targets: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+([{"id": ) Tj
+("fruit_mean", ) Tj
+("metric": ) Tj
+("fruit_points", ) Tj
+("n": ) Tj
+(5, ) Tj
+("aggregate": ) Tj
+ET
+BT
+1 0 0 1 76.0 102.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+("mean", ) Tj
+("op": ) Tj
+(">=", ) Tj
+("value": ) Tj
+(16.0}, ) Tj
+({"id": ) Tj
+("fruit_min", ) Tj
+("metric": ) Tj
+ET
+BT
+1 0 0 1 76.0 87.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+("fruit_points", ) Tj
+("n": ) Tj
+(5, ) Tj
+("aggregate": ) Tj
+("min", ) Tj
+("op": ) Tj
+(">=", ) Tj
+("value": ) Tj
+(0.0}]) Tj
+ET
+BT
+1 0 0 1 76.0 69.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Scores: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+({}) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 10 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+10 0 obj
+<< /Length 6834 >>
+stream
+BT
+1 0 0 1 76.0 745.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Qualify: ) Tj
+(fruit_mean: ) Tj
+(need ) Tj
+(5 ) Tj
+(fruit_points ) Tj
+(values, ) Tj
+(got ) Tj
+(0; ) Tj
+(fruit_min: ) Tj
+(need ) Tj
+(5 ) Tj
+ET
+BT
+1 0 0 1 76.0 730.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(fruit_points ) Tj
+(values, ) Tj
+(got ) Tj
+(0) Tj
+ET
+BT
+1 0 0 1 76.0 712.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Files: ) Tj
+(PROMPT.md) Tj
+ET
+BT
+1 0 0 1 76.0 694.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Keep ) Tj
+(dir: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/outputs/2026-10-06_122024_snake-dqn) Tj
+ET
+BT
+1 0 0 1 76.0 676.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Coding ) Tj
+(session: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/coding-logs/2026-10-06_122024_snake-dqn) Tj
+ET
+BT
+1 0 0 1 76.0 658.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Coding ) Tj
+(log: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/coding-logs/2026-10-06_122024_snake-dqn/generic.jsonl) Tj
+ET
+BT
+1 0 0 1 76.0 640.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Verifier ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(test_snake.py) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(: ) Tj
+(fail ) Tj
+(\(missing ) Tj
+(test_snake.py\)) Tj
+ET
+BT
+1 0 0 1 54.0 605.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Loop ) Tj
+(table) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 575.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 578.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(Loop | Qualified | Mean | Min | Scores | Files | Vote | Shipped | Note                        ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 563.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 566.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(-----+-----------+------+-----+--------+-------+------+---------+-----------------------------) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 551.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 554.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(1    | no        | -    | -   | -      | 1     | no   | no      | fruit_mean: need 5 fruit_p..) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 539.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 542.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(2    | no        | -    | -   | -      | 1     | no   | no      | fruit_mean: need 5 fruit_p..) Tj
+ET
+BT
+1 0 0 1 54.0 508.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Prompt) Tj
+ET
+BT
+1 0 0 1 54.0 485.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Build ) Tj
+(a ) Tj
+(stdlib-only ) Tj
+(Snake ) Tj
+(grid ) Tj
+(and ) Tj
+(a ) Tj
+(tiny ) Tj
+(DQN. ) Tj
+(No ) Tj
+(pip, ) Tj
+(no ) Tj
+(numpy, ) Tj
+(no ) Tj
+(pygame.) Tj
+ET
+BT
+1 0 0 1 54.0 462.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Files ) Tj
+(\(exactly ) Tj
+(these ) Tj
+(names\):) Tj
+ET
+BT
+1 0 0 1 76.0 438.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(snake.py  ) Tj
+(-  ) Tj
+(10x10 ) Tj
+(grid ) Tj
+(game. ) Tj
+(Four ) Tj
+(move ) Tj
+(directions ) Tj
+(\(up, ) Tj
+(right, ) Tj
+(down, ) Tj
+(left\). ) Tj
+(Reset ) Tj
+ET
+BT
+1 0 0 1 76.0 423.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(starts ) Tj
+(a ) Tj
+(new ) Tj
+(game. ) Tj
+(A ) Tj
+(step ) Tj
+(that ) Tj
+(hits ) Tj
+(a ) Tj
+(wall ) Tj
+(or ) Tj
+(the ) Tj
+(snake ) Tj
+(body ) Tj
+(ends ) Tj
+(the ) Tj
+(game. ) Tj
+(Eating ) Tj
+ET
+BT
+1 0 0 1 76.0 408.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(fruit ) Tj
+(scores ) Tj
+(+1 ) Tj
+(fruit ) Tj
+(point ) Tj
+(and ) Tj
+(the ) Tj
+(fruit ) Tj
+(respawns ) Tj
+(on ) Tj
+(a ) Tj
+(random ) Tj
+(empty ) Tj
+(cell.) Tj
+ET
+BT
+1 0 0 1 76.0 390.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(dqn.py  ) Tj
+(-  ) Tj
+(tiny ) Tj
+(neural ) Tj
+(net ) Tj
+(with ) Tj
+(nested ) Tj
+(Python ) Tj
+(lists, ) Tj
+(a ) Tj
+(replay ) Tj
+(buffer, ) Tj
+ET
+BT
+1 0 0 1 76.0 375.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(epsilon-greedy ) Tj
+(action ) Tj
+(choice, ) Tj
+(and ) Tj
+(a ) Tj
+(train ) Tj
+(step. ) Tj
+(No ) Tj
+(third-party ) Tj
+(tensor ) Tj
+(libraries.) Tj
+ET
+BT
+1 0 0 1 76.0 357.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(train.py  ) Tj
+(-  ) Tj
+(trains ) Tj
+(the ) Tj
+(DQN ) Tj
+(for ) Tj
+(as ) Tj
+(many ) Tj
+(episodes ) Tj
+(as ) Tj
+(needed ) Tj
+(so ) Tj
+(eval ) Tj
+(games ) Tj
+(can ) Tj
+(score ) Tj
+ET
+BT
+1 0 0 1 76.0 342.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(fruit.) Tj
+ET
+BT
+1 0 0 1 76.0 324.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(main.py  ) Tj
+(-  ) Tj
+(import ) Tj
+(the ) Tj
+(modules ) Tj
+(and ) Tj
+(call ) Tj
+(them ) Tj
+(with ) Tj
+(a ) Tj
+(short ) Tj
+(example ) Tj
+(\(a ) Tj
+(few ) Tj
+(steps, ) Tj
+(not ) Tj
+ET
+BT
+1 0 0 1 76.0 309.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(a ) Tj
+(full ) Tj
+(train\) ) Tj
+(so ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(python ) Tj
+(main.py) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(finishes ) Tj
+(in ) Tj
+(a ) Tj
+(few ) Tj
+(seconds ) Tj
+(and ) Tj
+(exits ) Tj
+(0. ) Tj
+(This ) Tj
+(is ) Tj
+(the ) Tj
+ET
+BT
+1 0 0 1 76.0 294.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(usage ) Tj
+(spec ) Tj
+(the ) Tj
+(tester ) Tj
+(clones ) Tj
+(\(different ) Tj
+(values\).) Tj
+ET
+BT
+1 0 0 1 76.0 276.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(test_snake.py  ) Tj
+(-  ) Tj
+(the ) Tj
+(only ) Tj
+(test ) Tj
+(script.) Tj
+ET
+BT
+1 0 0 1 54.0 253.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Tester ) Tj
+(\(test_snake.py\):) Tj
+ET
+BT
+1 0 0 1 76.0 229.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Import ) Tj
+(snake.py, ) Tj
+(dqn.py, ) Tj
+(and ) Tj
+(train.py. ) Tj
+(Clone ) Tj
+(the ) Tj
+(call ) Tj
+(pattern ) Tj
+(from ) Tj
+(main.py ) Tj
+(with ) Tj
+ET
+BT
+1 0 0 1 76.0 214.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(different ) Tj
+(literals ) Tj
+(where ) Tj
+(that ) Tj
+(makes ) Tj
+(sense. ) Tj
+(Call ) Tj
+(the ) Tj
+(names ) Tj
+(those ) Tj
+(modules ) Tj
+(actually ) Tj
+ET
+BT
+1 0 0 1 76.0 199.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(define. ) Tj
+(Do ) Tj
+(not ) Tj
+(invent ) Tj
+(other ) Tj
+(function ) Tj
+(or ) Tj
+(class ) Tj
+(names. ) Tj
+(Do ) Tj
+(not ) Tj
+(copy ) Tj
+(the ) Tj
+(game ) Tj
+(or ) Tj
+(the ) Tj
+(net ) Tj
+ET
+BT
+1 0 0 1 76.0 184.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(into ) Tj
+(the ) Tj
+(test.) Tj
+ET
+BT
+1 0 0 1 76.0 166.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(In ) Tj
+(one ) Tj
+(process: ) Tj
+(train ) Tj
+(if ) Tj
+(the ) Tj
+(modules ) Tj
+(need ) Tj
+(it, ) Tj
+(then ) Tj
+(play ) Tj
+(5 ) Tj
+(evaluation ) Tj
+(games ) Tj
+(with ) Tj
+ET
+BT
+1 0 0 1 76.0 151.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(seeds ) Tj
+(0, ) Tj
+(1, ) Tj
+(2, ) Tj
+(3, ) Tj
+(4. ) Tj
+(During ) Tj
+(eval, ) Tj
+(pick ) Tj
+(actions ) Tj
+(greedily ) Tj
+(\(no ) Tj
+(exploration, ) Tj
+(no ) Tj
+(train ) Tj
+ET
+BT
+1 0 0 1 76.0 136.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(step\). ) Tj
+(Each ) Tj
+(game's ) Tj
+(score ) Tj
+(is ) Tj
+(fruit ) Tj
+(eaten ) Tj
+(that ) Tj
+(game.) Tj
+ET
+BT
+1 0 0 1 76.0 118.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Also ) Tj
+(check ) Tj
+(that ) Tj
+(a ) Tj
+(reset ) Tj
+(yields ) Tj
+(a ) Tj
+(usable ) Tj
+(state ) Tj
+(and ) Tj
+(that ) Tj
+(walking ) Tj
+(into ) Tj
+(a ) Tj
+(wall ) Tj
+(ends ) Tj
+(the ) Tj
+ET
+BT
+1 0 0 1 76.0 103.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(game.) Tj
+ET
+BT
+1 0 0 1 76.0 85.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Never ) Tj
+(hardcode ) Tj
+(SCORES. ) Tj
+(Never ) Tj
+(assert ) Tj
+(or ) Tj
+(sys.exit ) Tj
+(before ) Tj
+(scores. ) Tj
+(Print ) Tj
+(one ) Tj
+(ASCII ) Tj
+(line:) Tj
+ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 12 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+12 0 obj
+<< /Length 6220 >>
+stream
+BT
+1 0 0 1 54.0 746.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(SCORES ) Tj
+(fruit_points=a,b,c,d,e ) Tj
+(with ) Tj
+(the ) Tj
+(five ) Tj
+(eval ) Tj
+(fruit ) Tj
+(counts ) Tj
+(\(not ) Tj
+(a ) Tj
+(total, ) Tj
+(no ) Tj
+(brackets\).) Tj
+ET
+BT
+1 0 0 1 76.0 722.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Execute ) Tj
+(timeout ) Tj
+(may ) Tj
+(be ) Tj
+(up ) Tj
+(to ) Tj
+(600 ) Tj
+(seconds.) Tj
+ET
+BT
+1 0 0 1 54.0 699.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Quality ) Tj
+(\(host ) Tj
+(qualify ) Tj
+(is ) Tj
+(the ) Tj
+(mean/min ) Tj
+(of ) Tj
+(those ) Tj
+(five ) Tj
+(values, ) Tj
+(not ) Tj
+("at ) Tj
+(least ) Tj
+(one ) Tj
+(passed"\):) Tj
+ET
+BT
+1 0 0 1 76.0 675.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(mean ) Tj
+(fruit_points ) Tj
+(>= ) Tj
+(16) Tj
+ET
+BT
+1 0 0 1 76.0 657.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(min ) Tj
+(fruit_points ) Tj
+(>= ) Tj
+(0) Tj
+ET
+BT
+1 0 0 1 54.0 634.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(TARGETS: ) Tj
+([{"id": ) Tj
+("fruit_mean", ) Tj
+("metric": ) Tj
+("fruit_points", ) Tj
+("n": ) Tj
+(5, ) Tj
+("aggregate": ) Tj
+("mean", ) Tj
+ET
+BT
+1 0 0 1 54.0 619.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+("op": ) Tj
+(">=", ) Tj
+("value": ) Tj
+(16}, ) Tj
+({"id": ) Tj
+("fruit_min", ) Tj
+("metric": ) Tj
+("fruit_points", ) Tj
+("n": ) Tj
+(5, ) Tj
+ET
+BT
+1 0 0 1 54.0 604.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+("aggregate": ) Tj
+("min", ) Tj
+("op": ) Tj
+(">=", ) Tj
+("value": ) Tj
+(0}]) Tj
+ET
+BT
+1 0 0 1 54.0 569.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Committee ) Tj
+(reply ) Tj
+(\(clipped\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 539.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 542.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Committee phase 1 round 2. Vote: \(not opened\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 527.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 530.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 515.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 518.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Qualify: no \(fruit_mean: need 5 fruit_points values, got 0; fruit_min: need 5 fruit_points values, got 0\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 503.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 506.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 491.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 494.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Targets: [{"id": "fruit_mean", "metric": "fruit_points", "n": 5, "aggregate": "mean", "op": ">=", "value": 16.0}, {"id": "fruit_min", "metric": "fruit_points", "n": 5, "aggregate": "min", "op": ">=", "value": 0.0}]) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 479.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 482.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 467.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 470.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Build a stdlib-only Snake grid and a tiny DQN. No pip, no numpy, no pygame.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 455.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 458.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 443.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 446.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Files \(exactly these names\):) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 431.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 434.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- snake.py  -  10x10 grid game. Four move directions \(up, right, down, left\). Reset starts a new game. A step that hits a wall or the snake body ends the game. Eating fruit scores +1 fruit point and the fruit respawns on a random empty cell.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 419.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 422.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- dqn.py  -  tiny neural net with nested Python lists, a replay buffer, epsilon-greedy action choice, and a train step. No third-party tensor libraries.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 407.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 410.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- train.py  -  trains the DQN for as many episodes as needed so eval games can score fruit.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 395.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 398.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- main.py  -  import the modules and call them with a short example \(a few steps, not a full train\) so `python main.py` finishes in a few seconds and exits 0. This is the usage spec the tester clones \(different valu) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 383.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 386.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 371.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 374.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Files:) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 359.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 362.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(PROMPT.md) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 347.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 350.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 335.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 338.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Seeded D:/Documents/Github Repositories/id10t/seeds/snake-dqn \(1 files\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 323.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 326.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(round 1 no vote \(fruit_mean: need 5 fruit_points values, got 0; fruit_min: need 5 fruit_points values, got 0\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 311.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 314.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 299.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 302.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Coding session: E:/coding-logs/2026-10-06_122024_snake-dqn) Tj
+ET
+BT
+1 0 0 1 54.0 268.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Verifier ) Tj
+(stdout ) Tj
+(\(clipped\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 238.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 241.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+BT
+1 0 0 1 54.0 201.0 Tm
+0.10 0.22 0.42 rg
+/F2 15 Tf
+(2. ) Tj
+(Maze ) Tj
+(shortest ) Tj
+(path) Tj
+ET
+BT
+1 0 0 1 76.0 172.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Id: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(maze-path) Tj
+ET
+BT
+1 0 0 1 76.0 154.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Elapsed: ) Tj
+(90.0 ) Tj
+(min) Tj
+ET
+BT
+1 0 0 1 76.0 136.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Status: ) Tj
+(done) Tj
+ET
+BT
+1 0 0 1 76.0 118.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Committee ) Tj
+(shipped: ) Tj
+(no) Tj
+ET
+BT
+1 0 0 1 76.0 100.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Qualified: ) Tj
+(no) Tj
+ET
+BT
+1 0 0 1 76.0 82.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Vote ) Tj
+(opened: ) Tj
+(no) Tj
+ET
+endstream
+endobj
+13 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 14 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+14 0 obj
+<< /Length 6436 >>
+stream
+BT
+1 0 0 1 76.0 745.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Vote: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(\(not ) Tj
+(opened\)) Tj
+ET
+BT
+1 0 0 1 76.0 727.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Targets: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+([{"id": ) Tj
+("maze_mean", ) Tj
+("metric": ) Tj
+("maze_ok", ) Tj
+("n": ) Tj
+(8, ) Tj
+("aggregate": ) Tj
+ET
+BT
+1 0 0 1 76.0 712.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+("mean", ) Tj
+("op": ) Tj
+(">=", ) Tj
+("value": ) Tj
+(1.0}]) Tj
+ET
+BT
+1 0 0 1 76.0 694.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Scores: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+({}) Tj
+ET
+BT
+1 0 0 1 76.0 676.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Qualify: ) Tj
+(maze_mean: ) Tj
+(need ) Tj
+(8 ) Tj
+(maze_ok ) Tj
+(values, ) Tj
+(got ) Tj
+(0) Tj
+ET
+BT
+1 0 0 1 76.0 658.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Files: ) Tj
+(PROMPT.md) Tj
+ET
+BT
+1 0 0 1 76.0 640.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Keep ) Tj
+(dir: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/outputs/2026-10-06_135025_maze-path) Tj
+ET
+BT
+1 0 0 1 76.0 622.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Coding ) Tj
+(session: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/coding-logs/2026-10-06_135025_maze-path) Tj
+ET
+BT
+1 0 0 1 76.0 604.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Coding ) Tj
+(log: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/coding-logs/2026-10-06_135025_maze-path/generic.jsonl) Tj
+ET
+BT
+1 0 0 1 76.0 586.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Verifier ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(test_maze.py) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(: ) Tj
+(fail ) Tj
+(\(missing ) Tj
+(test_maze.py\)) Tj
+ET
+BT
+1 0 0 1 54.0 551.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Loop ) Tj
+(table) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 521.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 524.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(Loop | Qualified | Mean | Min | Scores | Files | Vote | Shipped | Note                        ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 509.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 512.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(-----+-----------+------+-----+--------+-------+------+---------+-----------------------------) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 497.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 500.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(1    | no        | -    | -   | -      | 1     | no   | no      | maze_mean: need 8 maze_ok ..) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 485.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 488.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(2    | no        | -    | -   | -      | 1     | no   | no      | maze_mean: need 8 maze_ok ..) Tj
+ET
+BT
+1 0 0 1 54.0 454.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Prompt) Tj
+ET
+BT
+1 0 0 1 54.0 431.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Build ) Tj
+(a ) Tj
+(stdlib-only ) Tj
+(maze ) Tj
+(generator ) Tj
+(and ) Tj
+(shortest-path ) Tj
+(solver. ) Tj
+(No ) Tj
+(pip.) Tj
+ET
+BT
+1 0 0 1 54.0 408.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Files ) Tj
+(\(exactly ) Tj
+(these ) Tj
+(names\):) Tj
+ET
+BT
+1 0 0 1 76.0 384.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(maze.py  ) Tj
+(-  ) Tj
+(make ) Tj
+(a ) Tj
+(grid ) Tj
+(with ) Tj
+(walls, ) Tj
+(a ) Tj
+(start ) Tj
+(cell, ) Tj
+(and ) Tj
+(a ) Tj
+(goal ) Tj
+(cell. ) Tj
+(Find ) Tj
+(a ) Tj
+(shortest ) Tj
+ET
+BT
+1 0 0 1 76.0 369.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(path ) Tj
+(as ) Tj
+(a ) Tj
+(list ) Tj
+(of ) Tj
+(\(row, ) Tj
+(column\) ) Tj
+(cells ) Tj
+(from ) Tj
+(start ) Tj
+(to ) Tj
+(goal, ) Tj
+(or ) Tj
+(an ) Tj
+(empty ) Tj
+(list ) Tj
+(when ) Tj
+(there ) Tj
+ET
+BT
+1 0 0 1 76.0 354.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(is ) Tj
+(no ) Tj
+(path. ) Tj
+(The ) Tj
+(test ) Tj
+(must ) Tj
+(be ) Tj
+(able ) Tj
+(to ) Tj
+(import ) Tj
+(this ) Tj
+(module ) Tj
+(and ) Tj
+(call ) Tj
+(whatever ) Tj
+(public ) Tj
+(names ) Tj
+ET
+BT
+1 0 0 1 76.0 339.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(you ) Tj
+(define.) Tj
+ET
+BT
+1 0 0 1 76.0 321.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(main.py  ) Tj
+(-  ) Tj
+(import ) Tj
+(maze ) Tj
+(and ) Tj
+(call ) Tj
+(it ) Tj
+(with ) Tj
+(a ) Tj
+(small ) Tj
+(example ) Tj
+(so ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(python ) Tj
+(main.py) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(exits ) Tj
+ET
+BT
+1 0 0 1 76.0 306.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(0. ) Tj
+(This ) Tj
+(is ) Tj
+(the ) Tj
+(usage ) Tj
+(spec ) Tj
+(the ) Tj
+(tester ) Tj
+(clones ) Tj
+(\(different ) Tj
+(values\).) Tj
+ET
+BT
+1 0 0 1 76.0 288.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(test_maze.py  ) Tj
+(-  ) Tj
+(the ) Tj
+(only ) Tj
+(test ) Tj
+(script.) Tj
+ET
+BT
+1 0 0 1 54.0 265.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Tester ) Tj
+(\(test_maze.py\):) Tj
+ET
+BT
+1 0 0 1 76.0 241.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Import ) Tj
+(maze.py. ) Tj
+(Clone ) Tj
+(the ) Tj
+(call ) Tj
+(pattern ) Tj
+(from ) Tj
+(main.py ) Tj
+(with ) Tj
+(different ) Tj
+(literals. ) Tj
+(Call ) Tj
+ET
+BT
+1 0 0 1 76.0 226.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(the ) Tj
+(names ) Tj
+(that ) Tj
+(module ) Tj
+(actually ) Tj
+(defines. ) Tj
+(Do ) Tj
+(not ) Tj
+(invent ) Tj
+(other ) Tj
+(functions. ) Tj
+(Do ) Tj
+(not ) Tj
+ET
+BT
+1 0 0 1 76.0 211.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(reimplement ) Tj
+(the ) Tj
+(generator ) Tj
+(or ) Tj
+(solver ) Tj
+(inside ) Tj
+(the ) Tj
+(test ) Tj
+(except ) Tj
+(for ) Tj
+(a ) Tj
+(small ) Tj
+(independent ) Tj
+ET
+BT
+1 0 0 1 76.0 196.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(shortest-path ) Tj
+(check ) Tj
+(used ) Tj
+(only ) Tj
+(as ) Tj
+(an ) Tj
+(oracle.) Tj
+ET
+BT
+1 0 0 1 76.0 178.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Run ) Tj
+(at ) Tj
+(least ) Tj
+(8 ) Tj
+(trials ) Tj
+(in ) Tj
+(one ) Tj
+(loop:) Tj
+ET
+BT
+1 0 0 1 54.0 155.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(1. ) Tj
+(Fixed ) Tj
+(open ) Tj
+(corridor: ) Tj
+(returned ) Tj
+(path ) Tj
+(length ) Tj
+(matches ) Tj
+(the ) Tj
+(oracle. ) Tj
+(2. ) Tj
+(Sealed ) Tj
+(/ ) Tj
+(unsolvable ) Tj
+ET
+BT
+1 0 0 1 54.0 140.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(maze: ) Tj
+(return ) Tj
+(is ) Tj
+(empty. ) Tj
+(3. ) Tj
+(Start ) Tj
+(cell ) Tj
+(is ) Tj
+(open. ) Tj
+(4. ) Tj
+(Goal ) Tj
+(cell ) Tj
+(is ) Tj
+(open. ) Tj
+(5-8. ) Tj
+(At ) Tj
+(least ) Tj
+(four ) Tj
+ET
+BT
+1 0 0 1 54.0 125.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(seeded ) Tj
+(random ) Tj
+(mazes: ) Tj
+(a ) Tj
+(returned ) Tj
+(path ) Tj
+(stays ) Tj
+(in ) Tj
+(bounds, ) Tj
+(does ) Tj
+(not ) Tj
+(walk ) Tj
+(through ) Tj
+(walls, ) Tj
+ET
+BT
+1 0 0 1 54.0 110.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(connects ) Tj
+(start ) Tj
+(to ) Tj
+(goal, ) Tj
+(and ) Tj
+(its ) Tj
+(length ) Tj
+(matches ) Tj
+(the ) Tj
+(oracle. ) Tj
+(An ) Tj
+(unsolvable ) Tj
+(fixture ) Tj
+(still ) Tj
+ET
+BT
+1 0 0 1 54.0 95.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(returns ) Tj
+(empty.) Tj
+ET
+endstream
+endobj
+15 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 16 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+16 0 obj
+<< /Length 6006 >>
+stream
+BT
+1 0 0 1 76.0 745.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Each ) Tj
+(trial ) Tj
+(scores ) Tj
+(maze_ok ) Tj
+(1 ) Tj
+(or ) Tj
+(0 ) Tj
+(from ) Tj
+(the ) Tj
+(impl ) Tj
+(return ) Tj
+(value. ) Tj
+(Never ) Tj
+(hardcode ) Tj
+(SCORES. ) Tj
+ET
+BT
+1 0 0 1 76.0 730.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Never ) Tj
+(assert ) Tj
+(or ) Tj
+(sys.exit ) Tj
+(before ) Tj
+(scores. ) Tj
+(Print:) Tj
+ET
+BT
+1 0 0 1 54.0 707.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(SCORES ) Tj
+(maze_ok=v1,v2,... ) Tj
+(with ) Tj
+(all ) Tj
+(trial ) Tj
+(values ) Tj
+(\(no ) Tj
+(brackets, ) Tj
+(not ) Tj
+(a ) Tj
+(total\).) Tj
+ET
+BT
+1 0 0 1 76.0 683.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Finish ) Tj
+(in ) Tj
+(under ) Tj
+(30 ) Tj
+(seconds.) Tj
+ET
+BT
+1 0 0 1 54.0 660.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Quality: ) Tj
+(mean ) Tj
+(maze_ok ) Tj
+(>= ) Tj
+(1 ) Tj
+(\(every ) Tj
+(trial ) Tj
+(must ) Tj
+(pass\).) Tj
+ET
+BT
+1 0 0 1 54.0 637.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(TARGETS: ) Tj
+([{"id": ) Tj
+("maze_mean", ) Tj
+("metric": ) Tj
+("maze_ok", ) Tj
+("n": ) Tj
+(8, ) Tj
+("aggregate": ) Tj
+("mean", ) Tj
+("op": ) Tj
+ET
+BT
+1 0 0 1 54.0 622.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(">=", ) Tj
+("value": ) Tj
+(1}]) Tj
+ET
+BT
+1 0 0 1 54.0 587.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Committee ) Tj
+(reply ) Tj
+(\(clipped\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 557.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 560.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Committee phase 1 round 2. Vote: \(not opened\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 545.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 548.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 533.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 536.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Qualify: no \(maze_mean: need 8 maze_ok values, got 0\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 521.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 524.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 509.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 512.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Targets: [{"id": "maze_mean", "metric": "maze_ok", "n": 8, "aggregate": "mean", "op": ">=", "value": 1.0}]) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 497.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 500.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 485.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 488.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Build a stdlib-only maze generator and shortest-path solver. No pip.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 473.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 476.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 461.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 464.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Files \(exactly these names\):) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 449.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 452.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- maze.py  -  make a grid with walls, a start cell, and a goal cell. Find a shortest path as a list of \(row, column\) cells from start to goal, or an empty list when there is no path. The test must be able to import this module and call whatever public names you define.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 437.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 440.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- main.py  -  import maze and call it with a small example so `python main.py` exits 0. This is the usage spec the tester clones \(different values\).) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 425.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 428.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- test_maze.py  -  the only test script.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 413.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 416.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 401.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 404.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Tester \(test_maze.py\):) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 389.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 392.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- Import maze.py. Clone the call pattern from main.py with different literals. Call the names that module actually defines. Do not invent other functions. Do not reimplement the generator or solver inside the test except fo) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 377.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 380.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 365.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 368.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Files:) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 353.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 356.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(PROMPT.md) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 341.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 344.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 329.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 332.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Seeded D:/Documents/Github Repositories/id10t/seeds/maze-path \(1 files\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 317.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 320.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(round 1 no vote \(maze_mean: need 8 maze_ok values, got 0\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 305.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 308.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 293.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 296.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Coding session: E:/coding-logs/2026-10-06_135025_maze-path) Tj
+ET
+BT
+1 0 0 1 54.0 262.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Verifier ) Tj
+(stdout ) Tj
+(\(clipped\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 232.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 235.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+BT
+1 0 0 1 54.0 195.0 Tm
+0.10 0.22 0.42 rg
+/F2 15 Tf
+(3. ) Tj
+(Tiny ) Tj
+(CSV ) Tj
+(SELECT) Tj
+ET
+BT
+1 0 0 1 76.0 166.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Id: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(csv-sql) Tj
+ET
+BT
+1 0 0 1 76.0 148.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Elapsed: ) Tj
+(90.0 ) Tj
+(min) Tj
+ET
+BT
+1 0 0 1 76.0 130.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Status: ) Tj
+(done) Tj
+ET
+BT
+1 0 0 1 76.0 112.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Committee ) Tj
+(shipped: ) Tj
+(no) Tj
+ET
+BT
+1 0 0 1 76.0 94.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Qualified: ) Tj
+(no) Tj
+ET
+BT
+1 0 0 1 76.0 76.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Vote ) Tj
+(opened: ) Tj
+(no) Tj
+ET
+endstream
+endobj
+17 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 18 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+18 0 obj
+<< /Length 6378 >>
+stream
+BT
+1 0 0 1 76.0 745.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Vote: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(\(not ) Tj
+(opened\)) Tj
+ET
+BT
+1 0 0 1 76.0 727.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Targets: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+([{"id": ) Tj
+("csv_mean", ) Tj
+("metric": ) Tj
+("query_ok", ) Tj
+("n": ) Tj
+(6, ) Tj
+("aggregate": ) Tj
+ET
+BT
+1 0 0 1 76.0 712.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+("mean", ) Tj
+("op": ) Tj
+(">=", ) Tj
+("value": ) Tj
+(1.0}]) Tj
+ET
+BT
+1 0 0 1 76.0 694.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Scores: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+({}) Tj
+ET
+BT
+1 0 0 1 76.0 676.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Qualify: ) Tj
+(csv_mean: ) Tj
+(need ) Tj
+(6 ) Tj
+(query_ok ) Tj
+(values, ) Tj
+(got ) Tj
+(0) Tj
+ET
+BT
+1 0 0 1 76.0 658.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Files: ) Tj
+(data/empty.csv) Tj
+ET
+BT
+1 0 0 1 54.0 635.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(data/people.csv ) Tj
+(data/quoted.csv ) Tj
+(data/sample.csv ) Tj
+(data/ties.csv ) Tj
+(data/wide.csv ) Tj
+(PROMPT.md) Tj
+ET
+BT
+1 0 0 1 76.0 611.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Keep ) Tj
+(dir: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/outputs/2026-10-06_152026_csv-sql) Tj
+ET
+BT
+1 0 0 1 76.0 593.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Coding ) Tj
+(session: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/coding-logs/2026-10-06_152026_csv-sql) Tj
+ET
+BT
+1 0 0 1 76.0 575.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Coding ) Tj
+(log: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/coding-logs/2026-10-06_152026_csv-sql/generic.jsonl) Tj
+ET
+BT
+1 0 0 1 76.0 557.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Verifier ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(test_csvsql.py) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(: ) Tj
+(fail ) Tj
+(\(missing ) Tj
+(test_csvsql.py\)) Tj
+ET
+BT
+1 0 0 1 54.0 522.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Loop ) Tj
+(table) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 492.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 495.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(Loop | Qualified | Mean | Min | Scores | Files | Vote | Shipped | Note                        ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 480.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 483.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(-----+-----------+------+-----+--------+-------+------+---------+-----------------------------) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 468.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 471.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(1    | no        | -    | -   | -      | 7     | no   | no      | csv_mean: need 6 query_ok ..) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 456.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 459.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(2    | no        | -    | -   | -      | 7     | no   | no      | csv_mean: need 6 query_ok ..) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 444.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 447.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(3    | no        | -    | -   | -      | 7     | no   | no      | csv_mean: need 6 query_ok ..) Tj
+ET
+BT
+1 0 0 1 54.0 413.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Prompt) Tj
+ET
+BT
+1 0 0 1 54.0 390.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Build ) Tj
+(a ) Tj
+(stdlib-only ) Tj
+(CSV ) Tj
+(query ) Tj
+(helper ) Tj
+(\(csv ) Tj
+(module ) Tj
+(is ) Tj
+(fine\). ) Tj
+(No ) Tj
+(pip, ) Tj
+(no ) Tj
+(SQL ) Tj
+(engine.) Tj
+ET
+BT
+1 0 0 1 54.0 367.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Files ) Tj
+(\(exactly ) Tj
+(these ) Tj
+(names\):) Tj
+ET
+BT
+1 0 0 1 76.0 343.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(csvsql.py  ) Tj
+(-  ) Tj
+(read ) Tj
+(CSV ) Tj
+(files ) Tj
+(from ) Tj
+(data/. ) Tj
+(Support: ) Tj
+(pick ) Tj
+(a ) Tj
+(subset ) Tj
+(of ) Tj
+(columns; ) Tj
+(keep ) Tj
+ET
+BT
+1 0 0 1 76.0 328.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(rows ) Tj
+(where ) Tj
+(one ) Tj
+(column ) Tj
+(equals ) Tj
+(a ) Tj
+(value; ) Tj
+(sort ) Tj
+(by ) Tj
+(a ) Tj
+(column ) Tj
+(ascending ) Tj
+(with ) Tj
+(a ) Tj
+(stable ) Tj
+(order ) Tj
+ET
+BT
+1 0 0 1 76.0 313.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(on ) Tj
+(ties. ) Tj
+(If ) Tj
+(a ) Tj
+(named ) Tj
+(column ) Tj
+(is ) Tj
+(missing, ) Tj
+(either ) Tj
+(raise ) Tj
+(ValueError ) Tj
+(or ) Tj
+(return ) Tj
+(no ) Tj
+(rows  ) Tj
+(-  ) Tj
+ET
+BT
+1 0 0 1 76.0 298.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(pick ) Tj
+(one ) Tj
+(rule ) Tj
+(and ) Tj
+(keep ) Tj
+(it. ) Tj
+(Quoted ) Tj
+(fields ) Tj
+(that ) Tj
+(contain ) Tj
+(a ) Tj
+(comma ) Tj
+(are ) Tj
+(one ) Tj
+(cell. ) Tj
+(An ) Tj
+(empty ) Tj
+ET
+BT
+1 0 0 1 76.0 283.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(body ) Tj
+(yields ) Tj
+(no ) Tj
+(rows.) Tj
+ET
+BT
+1 0 0 1 76.0 265.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(main.py  ) Tj
+(-  ) Tj
+(import ) Tj
+(csvsql ) Tj
+(and ) Tj
+(call ) Tj
+(it ) Tj
+(on ) Tj
+(one ) Tj
+(existing ) Tj
+(data/) Tj
+(*.csv ) Tj
+(file ) Tj
+(so ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(python ) Tj
+ET
+BT
+1 0 0 1 76.0 250.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(main.py) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(exits ) Tj
+(0. ) Tj
+(This ) Tj
+(is ) Tj
+(the ) Tj
+(usage ) Tj
+(spec ) Tj
+(the ) Tj
+(tester ) Tj
+(clones ) Tj
+(\(different ) Tj
+(paths ) Tj
+(and ) Tj
+ET
+BT
+1 0 0 1 76.0 235.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(column/filter/sort ) Tj
+(literals\). ) Tj
+(Do ) Tj
+(not ) Tj
+(embed ) Tj
+(CSV ) Tj
+(text ) Tj
+(in ) Tj
+(Python ) Tj
+(strings.) Tj
+ET
+BT
+1 0 0 1 76.0 217.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(test_csvsql.py  ) Tj
+(-  ) Tj
+(the ) Tj
+(only ) Tj
+(test ) Tj
+(script.) Tj
+ET
+BT
+1 0 0 1 76.0 199.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(data/sample.csv  ) Tj
+(-  ) Tj
+(mixed ) Tj
+(depts; ) Tj
+(Ada ) Tj
+(and ) Tj
+(Bob ) Tj
+(share ) Tj
+(score ) Tj
+(9.) Tj
+ET
+BT
+1 0 0 1 76.0 181.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(data/people.csv  ) Tj
+(-  ) Tj
+(extra ) Tj
+(ordinary ) Tj
+(rows.) Tj
+ET
+BT
+1 0 0 1 76.0 163.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(data/ties.csv  ) Tj
+(-  ) Tj
+(several ) Tj
+(rows ) Tj
+(share ) Tj
+(the ) Tj
+(same ) Tj
+(sort ) Tj
+(key.) Tj
+ET
+BT
+1 0 0 1 76.0 145.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(data/quoted.csv  ) Tj
+(-  ) Tj
+(a ) Tj
+(quoted ) Tj
+(field ) Tj
+(that ) Tj
+(contains ) Tj
+(a ) Tj
+(comma.) Tj
+ET
+BT
+1 0 0 1 76.0 127.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(data/empty.csv  ) Tj
+(-  ) Tj
+(empty ) Tj
+(body ) Tj
+(\(no ) Tj
+(rows\).) Tj
+ET
+BT
+1 0 0 1 76.0 109.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(data/wide.csv  ) Tj
+(-  ) Tj
+(extra ) Tj
+(columns ) Tj
+(for ) Tj
+(a ) Tj
+(subset ) Tj
+(trial.) Tj
+ET
+BT
+1 0 0 1 54.0 86.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Tester ) Tj
+(\(test_csvsql.py\):) Tj
+ET
+endstream
+endobj
+19 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 20 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+20 0 obj
+<< /Length 7486 >>
+stream
+BT
+1 0 0 1 76.0 745.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Import ) Tj
+(csvsql.py. ) Tj
+(Clone ) Tj
+(the ) Tj
+(call ) Tj
+(pattern ) Tj
+(from ) Tj
+(main.py ) Tj
+(with ) Tj
+(different ) Tj
+(literals. ) Tj
+(Call ) Tj
+ET
+BT
+1 0 0 1 76.0 730.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(the ) Tj
+(names ) Tj
+(that ) Tj
+(module ) Tj
+(actually ) Tj
+(defines. ) Tj
+(Do ) Tj
+(not ) Tj
+(invent ) Tj
+(other ) Tj
+(functions. ) Tj
+(Do ) Tj
+(not ) Tj
+ET
+BT
+1 0 0 1 76.0 715.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(reimplement ) Tj
+(filtering ) Tj
+(or ) Tj
+(sorting ) Tj
+(in ) Tj
+(the ) Tj
+(test.) Tj
+ET
+BT
+1 0 0 1 76.0 697.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Use ) Tj
+(only ) Tj
+(the ) Tj
+(CSV ) Tj
+(files ) Tj
+(already ) Tj
+(in ) Tj
+(data/. ) Tj
+(Do ) Tj
+(not ) Tj
+(build ) Tj
+(CSV ) Tj
+(strings. ) Tj
+(Do ) Tj
+(not ) Tj
+(create ) Tj
+ET
+BT
+1 0 0 1 76.0 682.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(new ) Tj
+(CSV ) Tj
+(files.) Tj
+ET
+BT
+1 0 0 1 76.0 664.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Run ) Tj
+(at ) Tj
+(least ) Tj
+(6 ) Tj
+(trials ) Tj
+(in ) Tj
+(one ) Tj
+(loop, ) Tj
+(each ) Tj
+(on ) Tj
+(an ) Tj
+(existing ) Tj
+(data/) Tj
+(*.csv:) Tj
+ET
+BT
+1 0 0 1 54.0 641.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(1. ) Tj
+(Subset ) Tj
+(of ) Tj
+(columns ) Tj
+(\(wide.csv ) Tj
+(is ) Tj
+(for ) Tj
+(this\). ) Tj
+(2. ) Tj
+(Equality ) Tj
+(filter ) Tj
+(on ) Tj
+(a ) Tj
+(column. ) Tj
+(3. ) Tj
+(Ascending ) Tj
+ET
+BT
+1 0 0 1 54.0 626.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(sort. ) Tj
+(4. ) Tj
+(Stable ) Tj
+(order ) Tj
+(when ) Tj
+(sort ) Tj
+(keys ) Tj
+(tie ) Tj
+(\(ties.csv\). ) Tj
+(5. ) Tj
+(Missing ) Tj
+(column ) Tj
+(follows ) Tj
+(the ) Tj
+(chosen ) Tj
+ET
+BT
+1 0 0 1 54.0 611.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(rule. ) Tj
+(6. ) Tj
+(Quoted ) Tj
+(comma ) Tj
+(field ) Tj
+(parses ) Tj
+(as ) Tj
+(one ) Tj
+(cell ) Tj
+(\(quoted.csv\), ) Tj
+(and ) Tj
+(empty ) Tj
+(body ) Tj
+(yields ) Tj
+(no ) Tj
+(rows ) Tj
+ET
+BT
+1 0 0 1 54.0 596.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(\(empty.csv\)  ) Tj
+(-  ) Tj
+(two ) Tj
+(checks ) Tj
+(in ) Tj
+(one ) Tj
+(trial ) Tj
+(or ) Tj
+(split, ) Tj
+(as ) Tj
+(long ) Tj
+(as ) Tj
+(n>=6.) Tj
+ET
+BT
+1 0 0 1 76.0 572.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Each ) Tj
+(trial ) Tj
+(scores ) Tj
+(query_ok ) Tj
+(1 ) Tj
+(or ) Tj
+(0 ) Tj
+(from ) Tj
+(the ) Tj
+(impl ) Tj
+(return ) Tj
+(value. ) Tj
+(Never ) Tj
+(hardcode ) Tj
+ET
+BT
+1 0 0 1 76.0 557.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(SCORES. ) Tj
+(Never ) Tj
+(assert ) Tj
+(or ) Tj
+(sys.exit ) Tj
+(before ) Tj
+(scores. ) Tj
+(Print:) Tj
+ET
+BT
+1 0 0 1 54.0 534.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(SCORES ) Tj
+(query_ok=v1,v2,...) Tj
+ET
+BT
+1 0 0 1 76.0 510.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Finish ) Tj
+(in ) Tj
+(under ) Tj
+(30 ) Tj
+(seconds.) Tj
+ET
+BT
+1 0 0 1 54.0 487.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Quality: ) Tj
+(mean ) Tj
+(query_ok ) Tj
+(>= ) Tj
+(1.) Tj
+ET
+BT
+1 0 0 1 54.0 464.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(TARGETS: ) Tj
+([{"id": ) Tj
+("csv_mean", ) Tj
+("metric": ) Tj
+("query_ok", ) Tj
+("n": ) Tj
+(6, ) Tj
+("aggregate": ) Tj
+("mean", ) Tj
+("op": ) Tj
+ET
+BT
+1 0 0 1 54.0 449.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(">=", ) Tj
+("value": ) Tj
+(1}]) Tj
+ET
+BT
+1 0 0 1 54.0 414.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Committee ) Tj
+(reply ) Tj
+(\(clipped\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 384.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 387.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Committee phase 1 round 3. Vote: \(not opened\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 372.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 375.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 360.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 363.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Qualify: no \(csv_mean: need 6 query_ok values, got 0\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 348.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 351.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 336.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 339.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Targets: [{"id": "csv_mean", "metric": "query_ok", "n": 6, "aggregate": "mean", "op": ">=", "value": 1.0}]) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 324.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 327.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 312.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 315.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Build a stdlib-only CSV query helper \(csv module is fine\). No pip, no SQL engine.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 300.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 303.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 288.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 291.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Files \(exactly these names\):) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 276.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 279.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- csvsql.py  -  read CSV files from data/. Support: pick a subset of columns; keep rows where one column equals a value; sort by a column ascending with a stable order on ties. If a named column is missing, either raise ValueError or return no rows  -  pick one rule and keep it. Quoted fields that contain a comma are one cell. An empty body yields no rows.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 264.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 267.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- main.py  -  import csvsql and call it on one existing data/*.csv file so `python main.py` exits 0. This is the usage spec the tester clones \(different paths and column/filter/sort literals\). Do not embed CSV text in Python strings.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 252.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 255.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- test_csvsql.py  -  the only test script.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 240.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 243.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- data/sample.csv  -  mixed depts; Ada and Bob share score 9.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 228.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 231.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 216.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 219.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Files:) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 204.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 207.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(data/empty.csv) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 192.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 195.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(data/people.csv) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 180.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 183.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(data/quoted.csv) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 168.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 171.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(data/sample.csv) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 156.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 159.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(data/ties.csv) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 144.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 147.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(data/wide.csv) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 132.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 135.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(PROMPT.md) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 120.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 123.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 108.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 111.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Seeded D:/Documents/Github Repositories/id10t/seeds/csv-sql \(7 files\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 96.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 99.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(round 1 no vote \(csv_mean: need 6 query_ok values, got 0\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 84.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 87.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(round 2 no vote \(csv_mean: need 6 query_ok values, got 0\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 72.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 75.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+endstream
+endobj
+21 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 22 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+22 0 obj
+<< /Length 5411 >>
+stream
+q
+0.96 0.96 0.97 rg
+54.0 743.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 746.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Coding session: E:/coding-logs/2026-10-06_152026_csv-sql) Tj
+ET
+BT
+1 0 0 1 54.0 712.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Verifier ) Tj
+(stdout ) Tj
+(\(clipped\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 682.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 685.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+BT
+1 0 0 1 54.0 645.0 Tm
+0.10 0.22 0.42 rg
+/F2 15 Tf
+(4. ) Tj
+(Tiny ) Tj
+(expression ) Tj
+(language) Tj
+ET
+BT
+1 0 0 1 76.0 616.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Id: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(expr-lang) Tj
+ET
+BT
+1 0 0 1 76.0 598.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Elapsed: ) Tj
+(90.0 ) Tj
+(min) Tj
+ET
+BT
+1 0 0 1 76.0 580.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Status: ) Tj
+(done) Tj
+ET
+BT
+1 0 0 1 76.0 562.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Committee ) Tj
+(shipped: ) Tj
+(no) Tj
+ET
+BT
+1 0 0 1 76.0 544.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Qualified: ) Tj
+(no) Tj
+ET
+BT
+1 0 0 1 76.0 526.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Vote ) Tj
+(opened: ) Tj
+(no) Tj
+ET
+BT
+1 0 0 1 76.0 508.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Vote: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(\(not ) Tj
+(opened\)) Tj
+ET
+BT
+1 0 0 1 76.0 490.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Targets: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+([{"id": ) Tj
+("expr_mean", ) Tj
+("metric": ) Tj
+("expr_ok", ) Tj
+("n": ) Tj
+(8, ) Tj
+("aggregate": ) Tj
+ET
+BT
+1 0 0 1 76.0 475.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+("mean", ) Tj
+("op": ) Tj
+(">=", ) Tj
+("value": ) Tj
+(1.0}]) Tj
+ET
+BT
+1 0 0 1 76.0 457.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Scores: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+({}) Tj
+ET
+BT
+1 0 0 1 76.0 439.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Qualify: ) Tj
+(expr_mean: ) Tj
+(need ) Tj
+(8 ) Tj
+(expr_ok ) Tj
+(values, ) Tj
+(got ) Tj
+(0) Tj
+ET
+BT
+1 0 0 1 76.0 421.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Files: ) Tj
+(PROMPT.md) Tj
+ET
+BT
+1 0 0 1 76.0 403.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Keep ) Tj
+(dir: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/outputs/2026-10-06_165027_expr-lang) Tj
+ET
+BT
+1 0 0 1 76.0 385.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Coding ) Tj
+(session: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/coding-logs/2026-10-06_165027_expr-lang) Tj
+ET
+BT
+1 0 0 1 76.0 367.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Coding ) Tj
+(log: ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(E:/coding-logs/2026-10-06_165027_expr-lang/generic.jsonl) Tj
+ET
+BT
+1 0 0 1 76.0 349.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Verifier ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(test_expr.py) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(: ) Tj
+(fail ) Tj
+(\(missing ) Tj
+(test_expr.py\)) Tj
+ET
+BT
+1 0 0 1 54.0 314.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Loop ) Tj
+(table) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 284.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 287.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(Loop | Qualified | Mean | Min | Scores | Files | Vote | Shipped | Note                        ) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 272.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 275.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(-----+-----------+------+-----+--------+-------+------+---------+-----------------------------) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 260.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 263.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(1    | no        | -    | -   | -      | 1     | no   | no      | expr_mean: need 8 expr_ok ..) Tj
+ET
+q
+0.93 0.95 0.98 rg
+54.0 248.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 251.0 Tm
+0.18 0.18 0.20 rg
+/F4 8 Tf
+(2    | no        | -    | -   | -      | 1     | no   | no      | expr_mean: need 8 expr_ok ..) Tj
+ET
+BT
+1 0 0 1 54.0 217.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Prompt) Tj
+ET
+BT
+1 0 0 1 54.0 194.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Build ) Tj
+(a ) Tj
+(stdlib-only ) Tj
+(arithmetic ) Tj
+(expression ) Tj
+(evaluator. ) Tj
+(No ) Tj
+(pip.) Tj
+ET
+BT
+1 0 0 1 54.0 171.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Files ) Tj
+(\(exactly ) Tj
+(these ) Tj
+(names\):) Tj
+ET
+BT
+1 0 0 1 76.0 147.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(expr.py  ) Tj
+(-  ) Tj
+(parse ) Tj
+(and ) Tj
+(evaluate ) Tj
+(+ ) Tj
+(- ) Tj
+(* ) Tj
+(/ ) Tj
+(and ) Tj
+(parentheses ) Tj
+(on ) Tj
+(floats. ) Tj
+(Multiplication ) Tj
+ET
+BT
+1 0 0 1 76.0 132.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(and ) Tj
+(division ) Tj
+(bind ) Tj
+(tighter ) Tj
+(than ) Tj
+(addition ) Tj
+(and ) Tj
+(subtraction. ) Tj
+(Operators ) Tj
+(of ) Tj
+(the ) Tj
+(same ) Tj
+ET
+BT
+1 0 0 1 76.0 117.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(precedence ) Tj
+(associate ) Tj
+(left ) Tj
+(to ) Tj
+(right ) Tj
+(\(so ) Tj
+(10-3-2 ) Tj
+(is ) Tj
+(5\). ) Tj
+(Invalid ) Tj
+(input ) Tj
+(raises ) Tj
+(ValueError. ) Tj
+ET
+BT
+1 0 0 1 76.0 102.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(The ) Tj
+(test ) Tj
+(must ) Tj
+(import ) Tj
+(this ) Tj
+(module ) Tj
+(and ) Tj
+(call ) Tj
+(whatever ) Tj
+(public ) Tj
+(names ) Tj
+(you ) Tj
+(define.) Tj
+ET
+BT
+1 0 0 1 76.0 84.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(main.py  ) Tj
+(-  ) Tj
+(import ) Tj
+(expr ) Tj
+(and ) Tj
+(call ) Tj
+(it ) Tj
+(with ) Tj
+(a ) Tj
+(few ) Tj
+(example ) Tj
+(expressions ) Tj
+(so ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(python ) Tj
+ET
+BT
+1 0 0 1 76.0 69.0 Tm
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(main.py) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+( ) Tj
+(exits ) Tj
+(0. ) Tj
+(This ) Tj
+(is ) Tj
+(the ) Tj
+(usage ) Tj
+(spec ) Tj
+(the ) Tj
+(tester ) Tj
+(clones ) Tj
+(\(different ) Tj
+(values\).) Tj
+ET
+endstream
+endobj
+23 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 24 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+24 0 obj
+<< /Length 7122 >>
+stream
+BT
+1 0 0 1 76.0 745.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(test_expr.py  ) Tj
+(-  ) Tj
+(the ) Tj
+(only ) Tj
+(test ) Tj
+(script.) Tj
+ET
+BT
+1 0 0 1 54.0 722.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Tester ) Tj
+(\(test_expr.py\):) Tj
+ET
+BT
+1 0 0 1 76.0 698.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Import ) Tj
+(expr.py. ) Tj
+(Clone ) Tj
+(the ) Tj
+(call ) Tj
+(pattern ) Tj
+(from ) Tj
+(main.py ) Tj
+(with ) Tj
+(different ) Tj
+(literals. ) Tj
+(Call ) Tj
+ET
+BT
+1 0 0 1 76.0 683.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(the ) Tj
+(names ) Tj
+(that ) Tj
+(module ) Tj
+(actually ) Tj
+(defines. ) Tj
+(Do ) Tj
+(not ) Tj
+(invent ) Tj
+(other ) Tj
+(functions. ) Tj
+(Do ) Tj
+(not ) Tj
+(evaluate ) Tj
+ET
+BT
+1 0 0 1 76.0 668.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(the ) Tj
+(expression ) Tj
+(with ) Tj
+(eval\(\) ) Tj
+(or ) Tj
+(by ) Tj
+(copying ) Tj
+(the ) Tj
+(parser ) Tj
+(into ) Tj
+(the ) Tj
+(test ) Tj
+(except ) Tj
+(for ) Tj
+(one ) Tj
+ET
+BT
+1 0 0 1 76.0 653.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(oracle ) Tj
+(that ) Tj
+(uses ) Tj
+(the ) Tj
+(ast ) Tj
+(module ) Tj
+(on ) Tj
+(well-formed ) Tj
+(extra ) Tj
+(cases.) Tj
+ET
+BT
+1 0 0 1 76.0 635.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Run ) Tj
+(at ) Tj
+(least ) Tj
+(8 ) Tj
+(trials ) Tj
+(in ) Tj
+(one ) Tj
+(loop. ) Tj
+(A ) Tj
+(trial ) Tj
+(scores ) Tj
+(expr_ok ) Tj
+(1 ) Tj
+(only ) Tj
+(if ) Tj
+(the ) Tj
+(behavior ) Tj
+ET
+BT
+1 0 0 1 76.0 620.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(matches:) Tj
+ET
+BT
+1 0 0 1 54.0 597.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(1. ) Tj
+(1+2) Tj
+/F3 11 Tf
+(3 ) Tj
+(equals ) Tj
+(7 ) Tj
+(2. ) Tj
+(\(1+2\)) Tj
+/F1 11 Tf
+(3 ) Tj
+(equals ) Tj
+(9 ) Tj
+(3. ) Tj
+(10/4 ) Tj
+(equals ) Tj
+(2.5 ) Tj
+(4. ) Tj
+(the ) Tj
+(text ) Tj
+("nope" ) Tj
+(raises ) Tj
+ET
+BT
+1 0 0 1 54.0 582.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(ValueError ) Tj
+(5. ) Tj
+(10-3-2 ) Tj
+(equals ) Tj
+(5 ) Tj
+(6. ) Tj
+(\(2+3\)) Tj
+(*\(4-1\) ) Tj
+(equals ) Tj
+(15 ) Tj
+(7. ) Tj
+(whitespace ) Tj
+(around ) Tj
+(tokens ) Tj
+(is ) Tj
+ET
+BT
+1 0 0 1 54.0 567.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(accepted ) Tj
+(for ) Tj
+(a ) Tj
+(well-formed ) Tj
+(expression ) Tj
+(8. ) Tj
+(a ) Tj
+(random ) Tj
+(well-formed ) Tj
+(expression ) Tj
+(matches ) Tj
+(Python ) Tj
+ET
+BT
+1 0 0 1 54.0 552.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(ast ) Tj
+(within ) Tj
+(1e-9) Tj
+ET
+BT
+1 0 0 1 76.0 528.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Each ) Tj
+(trial ) Tj
+(scores ) Tj
+(expr_ok ) Tj
+(1 ) Tj
+(or ) Tj
+(0 ) Tj
+(from ) Tj
+(the ) Tj
+(impl ) Tj
+(return ) Tj
+(value. ) Tj
+(Never ) Tj
+(hardcode ) Tj
+(SCORES. ) Tj
+ET
+BT
+1 0 0 1 76.0 513.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Never ) Tj
+(assert ) Tj
+(or ) Tj
+(sys.exit ) Tj
+(before ) Tj
+(scores. ) Tj
+(Print:) Tj
+ET
+BT
+1 0 0 1 54.0 490.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(SCORES ) Tj
+(expr_ok=v1,v2,...) Tj
+ET
+BT
+1 0 0 1 76.0 466.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+/F1 11 Tf
+(Finish ) Tj
+(in ) Tj
+(under ) Tj
+(30 ) Tj
+(seconds.) Tj
+ET
+BT
+1 0 0 1 54.0 443.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(Quality: ) Tj
+(mean ) Tj
+(expr_ok ) Tj
+(>= ) Tj
+(1.) Tj
+ET
+BT
+1 0 0 1 54.0 420.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(TARGETS: ) Tj
+([{"id": ) Tj
+("expr_mean", ) Tj
+("metric": ) Tj
+("expr_ok", ) Tj
+("n": ) Tj
+(8, ) Tj
+("aggregate": ) Tj
+("mean", ) Tj
+("op": ) Tj
+ET
+BT
+1 0 0 1 54.0 405.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(">=", ) Tj
+("value": ) Tj
+(1}]) Tj
+ET
+BT
+1 0 0 1 54.0 370.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Committee ) Tj
+(reply ) Tj
+(\(clipped\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 340.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 343.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Committee phase 1 round 2. Vote: \(not opened\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 328.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 331.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 316.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 319.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Qualify: no \(expr_mean: need 8 expr_ok values, got 0\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 304.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 307.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 292.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 295.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Targets: [{"id": "expr_mean", "metric": "expr_ok", "n": 8, "aggregate": "mean", "op": ">=", "value": 1.0}]) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 280.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 283.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 268.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 271.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Build a stdlib-only arithmetic expression evaluator. No pip.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 256.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 259.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 244.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 247.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Files \(exactly these names\):) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 232.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 235.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- expr.py  -  parse and evaluate + - * / and parentheses on floats. Multiplication and division bind tighter than addition and subtraction. Operators of the same precedence associate left to right \(so 10-3-2 is 5\). Invalid input raises ValueError. The test must import this module and call whatever public names you define.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 220.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 223.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- main.py  -  import expr and call it with a few example expressions so `python main.py` exits 0. This is the usage spec the tester clones \(different values\).) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 208.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 211.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- test_expr.py  -  the only test script.) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 196.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 199.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 184.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 187.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Tester \(test_expr.py\):) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 172.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 175.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(- Import expr.py. Clone the call pattern from main.py with different literals. Call the names that module actually defines. Do not invent other functions. Do not evalu) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 160.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 163.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 148.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 151.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Files:) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 136.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 139.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(PROMPT.md) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 124.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 127.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 112.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 115.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Seeded D:/Documents/Github Repositories/id10t/seeds/expr-lang \(1 files\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 100.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 103.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(round 1 no vote \(expr_mean: need 8 expr_ok values, got 0\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 88.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 91.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 76.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 79.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+(Coding session: E:/coding-logs/2026-10-06_165027_expr-lang) Tj
+ET
+endstream
+endobj
+25 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 26 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
+endobj
+26 0 obj
+<< /Length 213 >>
+stream
+BT
+1 0 0 1 54.0 734.0 Tm
+0.12 0.12 0.14 rg
+/F2 12.5 Tf
+(Verifier ) Tj
+(stdout ) Tj
+(\(clipped\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 704.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 707.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
+( ) Tj
+ET
+endstream
+endobj
+xref
+0 27
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000178 00000 n 
+0000000248 00000 n 
+0000000323 00000 n 
+0000000401 00000 n 
+0000000469 00000 n 
+0000000625 00000 n 
+0000006551 00000 n 
+0000006708 00000 n 
+0000013595 00000 n 
+0000013753 00000 n 
+0000020026 00000 n 
+0000020184 00000 n 
+0000026673 00000 n 
+0000026831 00000 n 
+0000032890 00000 n 
+0000033048 00000 n 
+0000039479 00000 n 
+0000039637 00000 n 
+0000047176 00000 n 
+0000047334 00000 n 
+0000052798 00000 n 
+0000052956 00000 n 
+0000060131 00000 n 
+0000060289 00000 n 
+trailer
+<< /Size 27 /Root 1 0 R >>
+startxref
+60554
+%%EOF

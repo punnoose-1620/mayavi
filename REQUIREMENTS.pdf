@@ -21,7 +21,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
 endobj
 8 0 obj
-<< /Length 5524 >>
+<< /Length 5779 >>
 stream
 BT
 1 0 0 1 54.0 746.0 Tm
@@ -147,7 +147,13 @@ BT
 (logs/) Tj
 0.16 0.16 0.18 rg
 /F1 11 Tf
-( ) Tj
+(, ) Tj
+0.62 0.13 0.23 rg
+/F4 10 Tf
+(coding-logs/) Tj
+0.16 0.16 0.18 rg
+/F1 11 Tf
+(, ) Tj
 (and ) Tj
 0.62 0.13 0.23 rg
 /F4 10 Tf
@@ -158,13 +164,13 @@ BT
 (next ) Tj
 (to ) Tj
 (the ) Tj
-(GGUFs ) Tj
-(\(not ) Tj
 ET
 BT
 1 0 0 1 76.0 547.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
+(GGUFs ) Tj
+(\(not ) Tj
 (inside ) Tj
 0.62 0.13 0.23 rg
 /F4 10 Tf
@@ -363,14 +369,30 @@ BT
 /F1 11 Tf
 ( ) Tj
 (URL. ) Tj
+(A ) Tj
+(local ) Tj
+/F2 11 Tf
+(Folder...) Tj
+/F1 11 Tf
+( ) Tj
+(seed ) Tj
+(does ) Tj
+(not ) Tj
+(need ) Tj
+(git. ) Tj
 (Chat ) Tj
+ET
+BT
+1 0 0 1 76.0 293.0 Tm
+0.16 0.16 0.18 rg
+/F1 11 Tf
 (still ) Tj
 (runs ) Tj
 (without ) Tj
 (git.) Tj
 ET
 BT
-1 0 0 1 76.0 290.0 Tm
+1 0 0 1 76.0 275.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -394,7 +416,7 @@ BT
 (expected.) Tj
 ET
 BT
-1 0 0 1 76.0 272.0 Tm
+1 0 0 1 76.0 257.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -417,7 +439,7 @@ BT
 (numeric ) Tj
 ET
 BT
-1 0 0 1 76.0 257.0 Tm
+1 0 0 1 76.0 242.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (N_GPU_LAYERS) Tj
@@ -429,14 +451,14 @@ BT
 (host.) Tj
 ET
 BT
-1 0 0 1 54.0 216.0 Tm
+1 0 0 1 54.0 201.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (Not ) Tj
 (required) Tj
 ET
 BT
-1 0 0 1 76.0 187.0 Tm
+1 0 0 1 76.0 172.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -448,7 +470,7 @@ BT
 (keys) Tj
 ET
 BT
-1 0 0 1 76.0 169.0 Tm
+1 0 0 1 76.0 154.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -458,7 +480,7 @@ BT
 (accounts) Tj
 ET
 BT
-1 0 0 1 76.0 151.0 Tm
+1 0 0 1 76.0 136.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -468,7 +490,7 @@ BT
 (GGUF) Tj
 ET
 BT
-1 0 0 1 76.0 133.0 Tm
+1 0 0 1 76.0 118.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -489,7 +511,7 @@ BT
 (setup) Tj
 ET
 BT
-1 0 0 1 54.0 92.0 Tm
+1 0 0 1 54.0 77.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (Run ) Tj
@@ -565,10 +587,10 @@ xref
 0000000344 00000 n 
 0000000412 00000 n 
 0000000568 00000 n 
-0000006144 00000 n 
-0000006301 00000 n 
+0000006399 00000 n 
+0000006556 00000 n 
 trailer
 << /Size 11 /Root 1 0 R >>
 startxref
-6929
+7184
 %%EOF

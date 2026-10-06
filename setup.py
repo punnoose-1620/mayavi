@@ -213,13 +213,14 @@ def prepare_stick() -> None:
     models = usbchat.default_models_root(HERE)
     root = usbchat.usb_root(models, HERE)
     logs, outputs = usbchat.ensure_stick_dirs(root)
-    print(f"Stick folders ready: {logs} and {outputs}")
+    coding = usbchat.coding_logs_dir(root)
+    print(f"Stick folders ready: {logs}, {coding}, and {outputs}")
 
 
 def stick_unwritable_message(exc: BaseException) -> str:
     return (
-        "USB chat could not create logs or outputs on this stick.\n\n"
-        "The stick must be writable. logs and outputs sit next to the GGUFs, "
+        "USB chat could not create logs, coding-logs, or outputs on this stick.\n\n"
+        "The stick must be writable. Those folders sit next to the GGUFs, "
         "not inside the chat folder.\n\n"
         f"{exc}\n\n"
         "See REQUIREMENTS.md or REQUIREMENTS.pdf in this folder."
@@ -255,7 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     print("USB chat host setup")
     print(f"Needs Python {MIN_LABEL}+. Will not change the system interpreter.")
     print("Deps go in a host venv (%LOCALAPPDATA%\\usb-chat\\venv or ~/.local/share/usb-chat/venv).")
-    print("Creates logs and outputs on the stick. Git is optional.")
+    print("Creates logs, coding-logs, and outputs on the stick. Git is optional.")
     print()
 
     current = Path(sys.executable)

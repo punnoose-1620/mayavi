@@ -28,6 +28,7 @@ OLDER_CAP = 12_000
 SESSION_CAP = 16_000
 N_CTX_DEFAULT = 4096
 MAX_TOKENS_DEFAULT = 512
+CODING_MAX_TOKENS = 1024
 WEB_MAX_URLS = 3
 WEB_HTML_CAP = 12_000
 WEB_PAGE_CAP = 8_000
@@ -191,6 +192,10 @@ def logs_dir(root: Path) -> Path:
     return root / "logs"
 
 
+def coding_logs_dir(root: Path) -> Path:
+    return root / "coding-logs"
+
+
 def outputs_dir(root: Path) -> Path:
     path = root / "outputs"
     path.mkdir(parents=True, exist_ok=True)
@@ -198,15 +203,29 @@ def outputs_dir(root: Path) -> Path:
 
 
 def ensure_stick_dirs(root: Path) -> tuple[Path, Path]:
-    """Create logs and outputs on the stick. Raises OSError if they are not writable."""
+    """Create logs, coding-logs, and outputs on the stick. Raises OSError if they are not writable."""
     logs = logs_dir(root)
+    coding = coding_logs_dir(root)
     logs.mkdir(parents=True, exist_ok=True)
+    coding.mkdir(parents=True, exist_ok=True)
     outputs = outputs_dir(root)
-    for folder in (logs, outputs):
+    for folder in (logs, coding, outputs):
         probe = folder / ".usb-chat-write"
         probe.write_text("ok", encoding="utf-8")
         probe.unlink(missing_ok=True)
     return logs, outputs
+
+
+def new_coding_session_dir(root: Path, slug: str = "run") -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", str(slug or "run")).strip("-.")[:40] or "run"
+    when = datetime.now()
+    folder = coding_logs_dir(root) / f"{when:%Y-%m-%d_%H%M%S}_{safe}"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def new_coding_log_path(root: Path, slug: str = "run") -> Path:
+    return new_coding_session_dir(root, slug) / "generic.jsonl"
 
 
 def build_markdown_pdf(title: str, markdown: str) -> bytes:
@@ -1224,6 +1243,51 @@ def _wrap_guide_runs(
     return lines or [[]]
 
 
+def _split_table_row(line: str) -> list[str]:
+    text = line.strip()
+    if text.startswith("|"):
+        text = text[1:]
+    if text.endswith("|"):
+        text = text[:-1]
+    return [cell.strip() for cell in text.split("|")]
+
+
+def _is_table_sep(line: str) -> bool:
+    cells = _split_table_row(line)
+    if not cells:
+        return False
+    return all(re.match(r"^:?-{3,}:?$", cell.replace(" ", "")) for cell in cells if cell)
+
+
+def _is_table_row(line: str) -> bool:
+    text = line.strip()
+    return text.startswith("|") and text.count("|") >= 2
+
+
+def _pad_table(rows: list[list[str]], max_chars: int = 100) -> list[str]:
+    if not rows:
+        return []
+    width = max(len(row) for row in rows)
+    grid = [row + [""] * (width - len(row)) for row in rows]
+    caps = [max((len(grid[r][c]) for r in range(len(grid))), default=0) for c in range(width)]
+    caps = [max(1, min(cap, 28)) for cap in caps]
+    while sum(caps) + 3 * (width - 1) > max_chars and max(caps) > 4:
+        caps[caps.index(max(caps))] -= 1
+
+    def cell(text: str, cap: int) -> str:
+        body = (text or "").replace("\n", " ")
+        if len(body) > cap:
+            body = body[: max(1, cap - 2)] + ".."
+        return body.ljust(cap)
+
+    lines: list[str] = []
+    for i, row in enumerate(grid):
+        lines.append(" | ".join(cell(row[c], caps[c]) for c in range(width)))
+        if i == 0:
+            lines.append("-+-".join("-" * caps[c] for c in range(width)))
+    return lines
+
+
 def _parse_guide_blocks(markdown: str) -> list[dict]:
     lines = _guide_ascii(markdown).replace("\r\n", "\n").split("\n")
     blocks: list[dict] = []
@@ -1243,6 +1307,17 @@ def _parse_guide_blocks(markdown: str) -> list[dict]:
         if re.match(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$", line):
             blocks.append({"kind": "rule"})
             i += 1
+            continue
+        if _is_table_row(line):
+            grid: list[list[str]] = [_split_table_row(line)]
+            i += 1
+            while i < len(lines) and (_is_table_row(lines[i]) or _is_table_sep(lines[i])):
+                if _is_table_sep(lines[i]):
+                    i += 1
+                    continue
+                grid.append(_split_table_row(lines[i]))
+                i += 1
+            blocks.append({"kind": "table", "lines": _pad_table(grid), **_CODE})
             continue
         heading = re.match(r"^(#{1,3})\s+(.*)$", line)
         if heading:
@@ -1314,6 +1389,7 @@ def _parse_guide_blocks(markdown: str) -> list[dict]:
                 or re.match(r"^\d+\.\s+", lines[i])
                 or re.match(r"^>\s?", lines[i])
                 or re.match(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$", lines[i])
+                or _is_table_row(lines[i])
             ):
                 break
             para.append(lines[i])
@@ -1391,24 +1467,25 @@ def build_guide_pdf(title: str, markdown: str) -> bytes:
             y -= 10
             first_on_page = False
             continue
-        if kind == "code":
+        if kind == "code" or kind == "table":
             code_lines = list(block["lines"])
             lead = float(block["lead"])
             y -= 4
             for raw in code_lines:
                 need(lead + 4)
+                fill = "0.96 0.96 0.97 rg" if kind == "code" else "0.93 0.95 0.98 rg"
                 ops.extend(
                     [
                         "q",
-                        "0.96 0.96 0.97 rg",
+                        fill,
                         f"{_GUIDE_LEFT:.1f} {y - 3:.1f} {_GUIDE_WIDTH:.1f} {lead + 2:.1f} re f",
                         "Q",
                     ]
                 )
                 ops.extend(
                     _guide_line_ops(
-                        [("F4", raw if raw else " ", 9, block["color"])],
-                        _GUIDE_LEFT + 10,
+                        [("F4", raw if raw else " ", 8 if kind == "table" else 9, block["color"])],
+                        _GUIDE_LEFT + 8,
                         y,
                     )
                 )
@@ -1636,13 +1713,14 @@ class LlamaCppEngine:
         self.last_usage = (0, 0)
         self._no_system_role = False
 
-    def stream(self, messages: list[dict[str, str]], stop_event):
+    def stream(self, messages: list[dict[str, str]], stop_event, max_tokens: int | None = None):
         payload = fold_system_messages(messages) if self._no_system_role else messages
+        n_pred = max(16, int(max_tokens or MAX_TOKENS_DEFAULT))
         try:
             chunks = self.llm.create_chat_completion(
                 payload,
                 stream=True,
-                max_tokens=MAX_TOKENS_DEFAULT,
+                max_tokens=n_pred,
             )
         except Exception as exc:
             if self._no_system_role or "system role not supported" not in str(exc).lower():
@@ -1652,7 +1730,7 @@ class LlamaCppEngine:
             chunks = self.llm.create_chat_completion(
                 payload,
                 stream=True,
-                max_tokens=MAX_TOKENS_DEFAULT,
+                max_tokens=n_pred,
             )
         text: list[str] = []
         prompt_tokens = 0
@@ -1684,14 +1762,15 @@ class LlamaCliEngine:
         self.last_usage = (0, 0)
         self._proc: subprocess.Popen[str] | None = None
 
-    def stream(self, messages: list[dict[str, str]], stop_event):
+    def stream(self, messages: list[dict[str, str]], stop_event, max_tokens: int | None = None):
         prompt = flatten_prompt(messages)
+        n_pred = max(16, int(max_tokens or MAX_TOKENS_DEFAULT))
         cmd = [
             str(self.cli),
             "-m",
             str(self.model_path),
             "-n",
-            str(MAX_TOKENS_DEFAULT),
+            str(n_pred),
             "-c",
             str(self.n_ctx),
             "--simple-io",

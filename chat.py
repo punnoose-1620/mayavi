@@ -59,6 +59,10 @@ class UsbChatApp:
         self.args = args
         self.models_root = Path(args.models).resolve() if args.models else usbchat.default_models_root(HERE)
         self.data_root = usbchat.usb_root(self.models_root, HERE)
+        try:
+            usbchat.ensure_stick_dirs(self.data_root)
+        except OSError:
+            pass
         self.log_root = usbchat.logs_dir(self.data_root)
         self.notes_file = usbchat.notes_path(self.data_root)
         self.n_ctx = args.n_ctx
@@ -87,6 +91,8 @@ class UsbChatApp:
         self.web_visible = False
         self.coding_var = tk.BooleanVar(value=False)
         self.github_var = tk.StringVar(value="")
+        self.seed_dir: Path | None = None
+        self.seed_var = tk.StringVar(value="No project folder")
         self._turn_prompt_tokens = 0
         self._turn_completion_tokens = 0
         self._spin_angle = 0
@@ -200,11 +206,26 @@ class UsbChatApp:
         self.github_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
         ttk.Label(self.github_row, text="GitHub URL").pack(side="left")
         self.github_entry = ttk.Entry(self.github_row, textvariable=self.github_var)
-        self.github_entry.pack(side="left", fill="x", expand=True, padx=(10, 0))
+        self.github_entry.pack(side="left", fill="x", expand=True, padx=(10, 8))
         _HoverTip(
             self.github_entry,
-            "Optional public https://github.com/owner/repo. Used only while Coding is on.",
+            "Optional public https://github.com/owner/repo. Used only while Coding is on. "
+            "Leave empty if you pick a local folder.",
         )
+        ttk.Label(self.github_row, textvariable=self.seed_var, foreground="#5f6368").pack(
+            side="left", padx=(0, 8)
+        )
+        folder_btn = ttk.Button(self.github_row, text="Folder…", command=self.pick_seed_folder)
+        folder_btn.pack(side="right")
+        _HoverTip(
+            folder_btn,
+            "Pick a local folder. Files are copied into a new work folder on the stick; "
+            "your original folder is not edited. Cannot be used with a GitHub URL.",
+        )
+        ttk.Button(self.github_row, text="Clear folder", command=self.clear_seed_folder).pack(
+            side="right", padx=(0, 8)
+        )
+        self.github_var.trace_add("write", self._on_github_edit)
 
         self.web_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
         self.web_search_var = tk.BooleanVar(value=False)
@@ -321,6 +342,48 @@ class UsbChatApp:
         else:
             self.github_row.grid_remove()
         self._sync_page()
+
+    def _on_github_edit(self, *_args) -> None:
+        if self.github_var.get().strip() and self.seed_dir is not None:
+            self.clear_seed_folder()
+
+    def _refresh_seed_ui(self) -> None:
+        if self.seed_dir is None:
+            self.seed_var.set("No project folder")
+            self.github_entry.configure(state="normal")
+        else:
+            self.seed_var.set(self.seed_dir.name)
+            self.github_entry.configure(state="disabled")
+        self._sync_page()
+
+    def pick_seed_folder(self) -> None:
+        if self.busy:
+            return
+        picked = filedialog.askdirectory(
+            title="Seed the coding folder (copied, not edited in place)",
+            mustexist=True,
+            initialdir=str(self.data_root if self.data_root.is_dir() else Path.home()),
+        )
+        if not picked:
+            return
+        folder = Path(picked).expanduser().resolve()
+        if not folder.is_dir():
+            messagebox.showerror("Folder", "Pick an existing folder.")
+            return
+        if committee.looks_like_usb_chat_app(folder):
+            messagebox.showerror(
+                "Folder",
+                "That folder is USB chat itself. Pick a project folder with your code or test files.",
+            )
+            return
+        self.seed_dir = folder
+        if self.github_var.get().strip():
+            self.github_var.set("")
+        self._refresh_seed_ui()
+
+    def clear_seed_folder(self) -> None:
+        self.seed_dir = None
+        self._refresh_seed_ui()
 
     def _probe_web_search(self) -> None:
         def work() -> None:
@@ -754,7 +817,9 @@ class UsbChatApp:
         if self.busy:
             return
         text = self._input_text()
-        if not text:
+        coding = bool(self.coding_var.get())
+        seed_dir = self.seed_dir if coding else None
+        if not text and not seed_dir:
             return
         choice = self._selected()
         if choice is None:
@@ -783,10 +848,15 @@ class UsbChatApp:
                 return
         attachments = [self.attachment] if self.attachment else []
         quote = self.quote
-        coding = bool(self.coding_var.get())
         github = ""
         if coding:
             github_raw = self.github_var.get().strip()
+            if seed_dir and github_raw:
+                messagebox.showerror(
+                    "Coding",
+                    "Use a GitHub URL or a local folder, not both.",
+                )
+                return
             if github_raw:
                 github = committee.public_github_remote(github_raw) or ""
                 if not github:
@@ -802,13 +872,15 @@ class UsbChatApp:
             session_turns=self.session_turns,
             quote=quote,
             attachments=attachments,
-            user_text=text,
+            user_text=text or (f"(seed folder {seed_dir})" if seed_dir else ""),
         )
         shown = text
         if quote:
             shown = f"> {quote[: usbchat.QUOTE_CAP]}\n\n{text}"
         if self.attachment:
             shown = f"{usbchat.attach_label(self.attachment['path'])}\n{shown}"
+        if seed_dir:
+            shown = f"folder: {seed_dir}\n{shown}".strip()
         self._append("user", shown)
         self.input.delete("1.0", "end")
         self._input_hint = False
@@ -819,13 +891,13 @@ class UsbChatApp:
         self._status(f"Loading {choice.label}…" if self.loaded_path != choice.path else "Thinking…")
         threading.Thread(
             target=self._generate,
-            args=(choice, messages, text, attachments, quote, use_web, coding, github),
+            args=(choice, messages, text, attachments, quote, use_web, coding, github, seed_dir),
             daemon=True,
         ).start()
 
-    def _complete(self, messages: list[dict[str, str]]) -> str:
+    def _complete(self, messages: list[dict[str, str]], max_tokens: int | None = None) -> str:
         parts: list[str] = []
-        for piece in self.engine.stream(messages, self.stop_event):
+        for piece in self.engine.stream(messages, self.stop_event, max_tokens=max_tokens):
             parts.append(piece)
             if self.stop_event.is_set():
                 break
@@ -834,6 +906,9 @@ class UsbChatApp:
             self._turn_prompt_tokens += prompt_tokens
             self._turn_completion_tokens += completion_tokens
         return "".join(parts).strip()
+
+    def _coding_complete(self, messages: list[dict[str, str]]) -> str:
+        return self._complete(messages, max_tokens=usbchat.CODING_MAX_TOKENS)
 
     def _ensure_engine(self, choice) -> None:
         if self.engine is not None and self.loaded_path == choice.path:
@@ -844,7 +919,7 @@ class UsbChatApp:
         self.loaded_path = choice.path
         self._ui_status(f"Loaded {choice.label}. Thinking…")
 
-    def _generate(self, choice, messages, user_text, attachments, quote, use_web, coding, github) -> None:
+    def _generate(self, choice, messages, user_text, attachments, quote, use_web, coding, github, seed_dir=None) -> None:
         err = ""
         reply_parts: list[str] = []
         streamed = False
@@ -905,43 +980,53 @@ class UsbChatApp:
                 elif not web.get("ok"):
                     self._ui_status("Search failed; answering without the web.")
             if not err and coding:
-                keep = usbchat.new_keep_dir(self.data_root, user_text)
+                slug = user_text or (Path(seed_dir).name if seed_dir else "run")
+                keep = usbchat.new_keep_dir(self.data_root, slug)
+                coding_log = usbchat.new_coding_log_path(self.data_root, keep.name)
                 self._ui_status("Coding committee…")
                 result = committee.run_coding(
-                    complete=self._complete,
+                    complete=self._coding_complete,
                     user_text=user_text,
                     keep_dir=keep,
                     github_url=github or None,
+                    seed_dir=Path(seed_dir) if seed_dir else None,
                     web_digest=str(web_meta.get("digest") or ""),
                     stop_event=self.stop_event,
                     status=self._ui_status,
                     build_pdf=usbchat.build_text_pdf,
+                    coding_log=coding_log,
                 )
                 reply_parts.append(str(result.get("reply") or "").strip())
                 extras = {
                     "pdf_paths": list(result.get("pdf_paths") or []),
                     "profile_update": result.get("profile_update") or {},
                     "keep_dir": str(result.get("keep_dir") or keep),
+                    "coding_log": str(result.get("coding_log") or coding_log),
+                    "coding_session": str(result.get("coding_session") or Path(coding_log).parent),
                 }
                 if result.get("stopped"):
                     err = "stopped"
             elif not err and committee.looks_high_stakes(user_text):
                 keep = usbchat.new_keep_dir(self.data_root, user_text)
+                coding_log = usbchat.new_coding_log_path(self.data_root, keep.name)
                 self._ui_status("Review committee…")
                 result = committee.run_review(
-                    complete=self._complete,
+                    complete=self._coding_complete,
                     user_text=user_text,
                     keep_dir=keep,
                     web_digest=str(web_meta.get("digest") or ""),
                     stop_event=self.stop_event,
                     status=self._ui_status,
                     build_pdf=usbchat.build_text_pdf,
+                    coding_log=coding_log,
                 )
                 reply_parts.append(str(result.get("reply") or "").strip())
                 extras = {
                     "pdf_paths": list(result.get("pdf_paths") or []),
                     "profile_update": result.get("profile_update") or {},
                     "keep_dir": str(result.get("keep_dir") or keep),
+                    "coding_log": str(result.get("coding_log") or coding_log),
+                    "coding_session": str(result.get("coding_session") or Path(coding_log).parent),
                 }
                 if result.get("stopped"):
                     err = "stopped"
@@ -989,6 +1074,8 @@ class UsbChatApp:
             if attachments:
                 names = "\n".join(usbchat.attach_label(a.get("path") or a["name"]) for a in attachments)
                 shown = f"{names}\n{shown}"
+            if seed_dir:
+                shown = f"folder: {seed_dir}\n{shown}".strip()
             turn = {
                 "time": usbchat.utc_now(),
                 "model": choice.label,
@@ -1005,6 +1092,7 @@ class UsbChatApp:
                 "web_log": web_meta["log"],
                 "coding": bool(coding),
                 "github": github,
+                "seed_dir": str(seed_dir) if seed_dir else "",
                 "pdf_paths": list(extras.get("pdf_paths") or []),
                 "profile_update": extras.get("profile_update") or {},
                 "keep_dir": extras.get("keep_dir") or "",
