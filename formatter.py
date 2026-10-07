@@ -129,7 +129,12 @@ def format_answer(text: str) -> dict[str, Any]:
                 chunks.append(html_bit)
         lang = (match.group(1) or "").strip().split()[0].lower() if match.group(1) else ""
         body = match.group(2) or ""
-        chunks.append("<pre><code>" + html.escape(body.rstrip("\n")) + "</code></pre>")
+        label = html.escape(lang or "text")
+        chunks.append(
+            f'<pre class="code" data-lang="{label}"><code>'
+            + html.escape(body.rstrip("\n"))
+            + "</code></pre>"
+        )
         if lang == "html":
             pages.append(_page(len(pages), "page", body))
         idx = match.end()

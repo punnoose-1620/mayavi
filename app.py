@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import email
 import html
 import json
 import re
 import threading
+from email.policy import default as email_default
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -14,6 +16,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 import blackboard
+import career
 import config
 import executor
 import formatter
@@ -26,6 +29,11 @@ import search
 HOST = "127.0.0.1"
 PORT = 8765
 UI_FILE = config.REPO_ROOT / "ui" / "index.html"
+PROFILE_FILE = config.REPO_ROOT / "ui" / "profile.html"
+_DOWNLOAD_NAME = re.compile(
+    r"^[A-Za-z0-9._-]+\.(pdf|md|markdown|html|txt|py|csv|json|js|css)$",
+    re.I,
+)
 NO_MODEL = False
 KEEP_SUMMARY_FILE = "SUMMARY.md"
 _KEEP_DIR_OK = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -158,9 +166,24 @@ def read_active(device_id: str | None = None) -> dict[str, Any] | None:
     return dict(_ACTIVE)
 
 
-def set_active(prompt: str, thread_id: str | None, progress: str = "Working…", *, device_id: str) -> None:
+def set_active(
+    prompt: str,
+    thread_id: str | None,
+    progress: str = "Working…",
+    *,
+    device_id: str,
+    started: str,
+    attachments: list[dict[str, Any]] | None = None,
+) -> None:
     global _ACTIVE
-    _ACTIVE = {"prompt": prompt, "thread_id": thread_id, "progress": progress, "device": device_id}
+    _ACTIVE = {
+        "prompt": prompt,
+        "thread_id": thread_id,
+        "progress": progress,
+        "device": device_id,
+        "started": started,
+        "attachments": list(attachments or []),
+    }
     _write_active()
 
 
@@ -256,6 +279,42 @@ def resolve_output_file(dir_name: str | None, file_name: str | None) -> Path | N
     if not target.is_file():
         return None
     return target
+
+
+def resolve_download(dir_name: str | None, file_name: str | None) -> Path | None:
+    folder = unquote(str(dir_name or "")).strip().replace("\\", "/")
+    name = unquote(str(file_name or "")).strip()
+    parts = [p for p in folder.split("/") if p]
+    if not parts or any(p in {".", ".."} for p in parts) or not all(_KEEP_DIR_OK.fullmatch(p) for p in parts):
+        return None
+    if not _DOWNLOAD_NAME.fullmatch(name):
+        return None
+    root = config.OUTPUTS.resolve()
+    target = root.joinpath(*parts, name).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return None
+    if not target.is_file():
+        return None
+    return target
+
+
+def _preview_page(title: str, inner: str) -> bytes:
+    page = (
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+        f"<title>{html.escape(title)}</title>"
+        "<style>"
+        "body{margin:0 auto;max-width:820px;padding:24px 16px 48px;background:#141414;color:#ececec;"
+        "font:15px/1.5 system-ui,Segoe UI,sans-serif}"
+        "a{color:#c8a45a} pre{background:#111;border:1px solid #2e2e2e;padding:12px;overflow:auto;"
+        "white-space:pre-wrap} code{font-family:ui-monospace,Consolas,monospace}"
+        "h1,h2,h3{font-weight:600} blockquote{border-left:3px solid #c8a45a;margin-left:0;padding-left:10px;color:#9a9a9a}"
+        "</style></head><body>"
+        f"<p><a href=\"/\">Back to chat</a></p>"
+        f"{inner}</body></html>"
+    )
+    return page.encode("utf-8")
 
 
 def find_turn(run_id: str, device_id: str) -> dict[str, Any] | None:
@@ -380,6 +439,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send_html()
             return
         if path == "/profile":
+            self._send_ui(PROFILE_FILE)
+            return
+        if path == "/read-profile":
+            device = parse_device_id((qs.get("device") or [""])[0])
+            if not device:
+                self._send_json(400, {"ok": False, "error": "missing_device"})
+                return
+            self._send_json(200, {"ok": True, "profile": career.read_resume(device)})
+            return
+        if path == "/board":
             device = parse_device_id((qs.get("device") or [""])[0])
             if not device:
                 self._send_json(400, {"ok": False, "error": "missing_device"})
@@ -387,6 +456,9 @@ class Handler(BaseHTTPRequestHandler):
             self._note_device(device, language=(qs.get("language") or [""])[0])
             board = profile.public_board()
             self._send_json(200, {"ok": True, **board})
+            return
+        if path == "/download":
+            self._send_download()
             return
         if path == "/web-status":
             self._send_json(200, search.status())
@@ -397,6 +469,15 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/profile":
             self._save_profile()
+            return
+        if path == "/update-profile":
+            self._update_resume()
+            return
+        if path == "/upload-folder":
+            self._upload(kind="folder")
+            return
+        if path == "/upload-file":
+            self._upload(kind="file")
             return
         if path != "/turns":
             self._send_json(404, {"ok": False, "error": "not_found"})
@@ -417,15 +498,71 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(400, {"ok": False, "error": "missing_device"})
             return
         prompt = str((body or {}).get("prompt") or "").strip()
-        if not prompt:
-            self._send_json(400, {"ok": False, "error": "empty_prompt"})
-            return
         wanted = str((body or {}).get("thread_id") or "").strip() or None
-        coding = (body or {}).get("coding")
+        coding = bool((body or {}).get("coding"))
+        job = bool((body or {}).get("job"))
+        update_profile = bool((body or {}).get("update_profile"))
         web = (body or {}).get("web")
         git_remote = str((body or {}).get("git_remote") or "").strip() or None
+        seed_id = str((body or {}).get("seed_id") or "").strip()
+        folder_id = str((body or {}).get("folder_id") or "").strip()
+        file_id = str((body or {}).get("file_id") or "").strip()
         user_agent = str((body or {}).get("user_agent") or "")
         language = str((body or {}).get("language") or "")
+        if update_profile and not file_id:
+            self._send_json(400, {"ok": False, "error": "resume_required"})
+            return
+        if not prompt and not update_profile:
+            self._send_json(400, {"ok": False, "error": "empty_prompt"})
+            return
+        if job and coding:
+            self._send_json(400, {"ok": False, "error": "job_and_coding"})
+            return
+        if job and update_profile:
+            self._send_json(400, {"ok": False, "error": "job_and_update"})
+            return
+        if coding and git_remote and seed_id:
+            self._send_json(400, {"ok": False, "error": "git_and_folder"})
+            return
+        if job and career.profile_is_empty(device):
+            self._send_json(400, {"ok": False, "error": "empty_profile"})
+            return
+        document_text = ""
+        attach_listing = ""
+        attach_body = ""
+        seed_listing = ""
+        seed_body = ""
+        file_row = career.get_upload(file_id) if file_id else None
+        folder_row = career.get_upload(folder_id) if folder_id and not job and not update_profile else None
+        seed_row = career.get_upload(seed_id) if seed_id and coding else None
+        if file_id and file_row is None:
+            self._send_json(400, {"ok": False, "error": "unknown_upload"})
+            return
+        if folder_id and not job and not update_profile and folder_row is None:
+            self._send_json(400, {"ok": False, "error": "unknown_upload"})
+            return
+        if seed_id and coding and seed_row is None:
+            self._send_json(400, {"ok": False, "error": "unknown_upload"})
+            return
+        if file_row:
+            document_text = file_row["body"]
+            if not update_profile and not job:
+                attach_listing = file_row["listing"]
+                attach_body = file_row["body"]
+        if folder_row:
+            extra = folder_row["listing"]
+            attach_listing = f"{attach_listing}\n{extra}".strip() if attach_listing else extra
+            attach_body = f"{attach_body}\n\n{folder_row['body']}".strip()
+        if seed_row:
+            seed_listing = seed_row["listing"]
+            seed_body = seed_row["body"]
+        attachments: list[dict[str, Any]] = []
+        if file_row and not job:
+            attachments.append(file_row)
+        if folder_row:
+            attachments.append(folder_row)
+        if seed_row:
+            attachments.append(seed_row)
         if not _BUSY.acquire(blocking=False):
             self._send_json(409, {"ok": False, "error": "busy"})
             return
@@ -435,10 +572,18 @@ class Handler(BaseHTTPRequestHandler):
                 wanted,
                 coding=coding,
                 git_remote=git_remote,
-                web=web,
+                web=web and not job and not update_profile,
                 device_id=device,
                 user_agent=user_agent,
                 language=language,
+                job=job,
+                update_profile=update_profile,
+                document_text=document_text,
+                attach_listing=attach_listing,
+                attach_body=attach_body,
+                seed_listing=seed_listing,
+                seed_body=seed_body,
+                attachments=attachments,
             )
         finally:
             _BUSY.release()
@@ -454,13 +599,44 @@ class Handler(BaseHTTPRequestHandler):
         device_id: str,
         user_agent: str = "",
         language: str = "",
+        job: bool = False,
+        update_profile: bool = False,
+        document_text: str = "",
+        attach_listing: str = "",
+        attach_body: str = "",
+        seed_listing: str = "",
+        seed_body: str = "",
+        attachments: list[dict[str, Any]] | None = None,
     ) -> None:
+        shown = prompt
+        model_prompt = prompt
+        if attach_body:
+            model_prompt = f"{attach_body}\n\n{prompt}".strip()
+        if seed_body:
+            model_prompt = f"Project folder:\n{seed_body}\n\n{model_prompt}".strip()
+        saved_attachments = [
+            {
+                "kind": "file" if row.get("kind") == "file" else "folder",
+                "name": row.get("name") or "",
+                "entries": list(row.get("entries") or []),
+                "truncated": bool(row.get("truncated")),
+            }
+            for row in (attachments or [])
+        ]
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "close")
         self.end_headers()
-        set_active(prompt, thread_id, "Working…", device_id=device_id)
+        started = datetime.now(timezone.utc)
+        set_active(
+            shown,
+            thread_id,
+            "Working…",
+            device_id=device_id,
+            started=started.isoformat(),
+            attachments=saved_attachments,
+        )
         self._note_device(device_id, user_agent=user_agent, language=language)
         self._sse("progress", {"text": "Working…"})
 
@@ -470,20 +646,39 @@ class Handler(BaseHTTPRequestHandler):
                 update_active_progress(line)
                 self._sse("progress", {"text": line})
 
+        def status(text: str) -> None:
+            update_active_progress(text)
+            self._sse("progress", {"text": text})
+
         logger.add_listener(on_log)
         try:
             try:
-                result = run_turn(prompt, thread_id, coding=coding, git_remote=git_remote, web=web)
+                if job:
+                    result = career.run_job(prompt, status, device_id=device_id, no_model=NO_MODEL)
+                elif update_profile:
+                    result = career.run_update(document_text, prompt, status, device_id=device_id, no_model=NO_MODEL)
+                else:
+                    result = run_turn(
+                        model_prompt,
+                        thread_id,
+                        coding=coding,
+                        git_remote=None if seed_listing else git_remote,
+                        web=web,
+                    )
             except Exception as exc:
                 text = main._failure_text(exc)
                 update_active_progress(text)
                 self._sse("error", {"text": text})
                 self._sse("done", {"ok": False})
                 return
+            finished = datetime.now(timezone.utc)
             turn = {
                 "id": result.get("run_id"),
-                "time": datetime.now(timezone.utc).isoformat(),
-                "prompt": prompt,
+                "time": finished.isoformat(),
+                "started": started.isoformat(),
+                "elapsed_s": max(0, int((finished - started).total_seconds())),
+                "prompt": shown,
+                "attachments": saved_attachments,
                 "answer": result.get("answer") or "",
                 "thread_id": result.get("thread_id"),
                 "summary_url": result.get("summary_url"),
@@ -495,7 +690,9 @@ class Handler(BaseHTTPRequestHandler):
                 "git_remote": result.get("git_remote"),
                 "web": result.get("web"),
                 "pdfs": list(result.get("pdfs") or []),
+                "documents": list(result.get("documents") or []),
                 "profile_update": result.get("profile_update"),
+                "profile_record": result.get("profile_record"),
                 "notices": list(result.get("notices") or []),
                 "committee": result.get("committee"),
             }
@@ -522,7 +719,11 @@ class Handler(BaseHTTPRequestHandler):
                     "git_remote": painted.get("git_remote"),
                     "web": painted.get("web"),
                     "pdfs": painted.get("pdfs") or [],
+                    "documents": painted.get("documents") or [],
                     "profile_update": painted.get("profile_update"),
+                    "profile_record": painted.get("profile_record"),
+                    "elapsed_s": painted.get("elapsed_s"),
+                    "started": painted.get("started"),
                     "notices": notices,
                     "committee": painted.get("committee"),
                 },
@@ -599,6 +800,11 @@ class Handler(BaseHTTPRequestHandler):
         if target is None:
             self._send_json(404, {"ok": False, "error": "not_found"})
             return
+        if target.suffix.lower() in {".md", ".markdown"}:
+            body = target.read_text(encoding="utf-8", errors="replace")
+            page = _preview_page(target.name, formatter.render_markdown(body))
+            self._send_bytes(page, "text/html; charset=utf-8")
+            return
         if target.suffix.lower() == ".pdf":
             payload = target.read_bytes()
             self.send_response(200)
@@ -626,16 +832,131 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(page)
 
-    def _send_index(self) -> None:
-        if not UI_FILE.is_file():
+    def _form_parts(self, raw: bytes) -> tuple[str, list[tuple[str, bytes]]]:
+        ctype = self.headers.get("Content-Type") or ""
+        if "multipart/" not in ctype.lower():
+            raise ValueError("bad_upload")
+        header = f"Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8")
+        msg = email.message_from_bytes(header + raw, policy=email_default)
+        label = ""
+        pending = ""
+        files: list[tuple[str, bytes]] = []
+        for part in msg.walk():
+            if part.is_multipart():
+                continue
+            payload = part.get_payload(decode=True) or b""
+            field = str(part.get_param("name", header="content-disposition") or "")
+            filename = part.get_filename()
+            if field == "name":
+                label = payload.decode("utf-8", "replace").strip()
+            elif field == "rel":
+                pending = payload.decode("utf-8", "replace").strip()
+            elif filename or field == "file":
+                files.append((pending or filename or "upload", payload))
+                pending = ""
+        return label, files
+
+    def _upload(self, *, kind: str) -> None:
+        try:
+            length = int(self.headers.get("Content-Length") or "0")
+        except ValueError:
+            self._send_json(400, {"ok": False, "error": "bad_length"})
+            return
+        if length <= 0 or length > 80 * 1024 * 1024:
+            self._send_json(400, {"ok": False, "error": "file_too_large"})
+            return
+        raw = self.rfile.read(length)
+        try:
+            label, files = self._form_parts(raw)
+        except ValueError as exc:
+            self._send_json(400, {"ok": False, "error": str(exc)})
+            return
+        if kind == "file":
+            if len(files) != 1:
+                self._send_json(400, {"ok": False, "error": "one_file"})
+                return
+            label = label or Path(files[0][0]).name
+        else:
+            label = label or "Folder"
+        try:
+            result = career.store_files(files, label=label, kind=kind)
+        except ValueError as exc:
+            self._send_json(400, {"ok": False, "error": str(exc)})
+            return
+        self._send_json(200, result)
+
+    def _update_resume(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length") or "0")
+        except ValueError:
+            self._send_json(400, {"ok": False, "error": "bad_length"})
+            return
+        raw = self.rfile.read(max(length, 0)) if length else b"{}"
+        try:
+            body = json.loads(raw.decode("utf-8") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_json(400, {"ok": False, "error": "bad_json"})
+            return
+        device = parse_device_id((body or {}).get("device"))
+        if not device:
+            self._send_json(400, {"ok": False, "error": "missing_device"})
+            return
+        data = (body or {}).get("profile")
+        if not isinstance(data, dict):
+            self._send_json(400, {"ok": False, "error": "bad_profile"})
+            return
+        saved = career.save_resume(device, data, merge=bool((body or {}).get("merge")))
+        self._send_json(200, {"ok": True, "profile": saved})
+
+    def _send_download(self) -> None:
+        qs = parse_qs(urlparse(self.path).query)
+        target = resolve_download((qs.get("dir") or [""])[0], (qs.get("file") or [""])[0])
+        if target is None:
+            self._send_json(404, {"ok": False, "error": "not_found"})
+            return
+        download = str((qs.get("download") or [""])[0]).strip() in {"1", "true", "yes"}
+        suffix = target.suffix.lower()
+        if download or suffix == ".pdf":
+            payload = target.read_bytes()
+            kind = "application/pdf" if suffix == ".pdf" else "application/octet-stream"
+            if suffix in {".md", ".markdown", ".txt", ".py", ".csv", ".json", ".js", ".css", ".html"}:
+                kind = "text/plain; charset=utf-8"
+            self.send_response(200)
+            self.send_header("Content-Type", kind)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(payload)))
+            disposition = "attachment" if download else "inline"
+            self.send_header("Content-Disposition", f'{disposition}; filename="{target.name}"')
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        body = target.read_text(encoding="utf-8", errors="replace")
+        if suffix in {".html", ".htm"}:
+            self._send_bytes(formatter.wrap_document(body).encode("utf-8"), "text/html; charset=utf-8")
+            return
+        if suffix in {".md", ".markdown"}:
+            inner = formatter.render_markdown(body)
+        else:
+            lang = html.escape(suffix.lstrip(".") or "text")
+            inner = f'<pre class="code" data-lang="{lang}"><code>{html.escape(body)}</code></pre>'
+        self._send_bytes(_preview_page(target.name, inner), "text/html; charset=utf-8")
+
+    def _send_ui(self, path: Path) -> None:
+        if not path.is_file():
             self._send_json(500, {"ok": False, "error": "ui_missing"})
             return
-        payload = UI_FILE.read_bytes()
+        self._send_bytes(path.read_bytes(), "text/html; charset=utf-8")
+
+    def _send_bytes(self, payload: bytes, content_type: str) -> None:
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(payload)
+
+    def _send_index(self) -> None:
+        self._send_ui(UI_FILE)
 
     def _send_json(self, code: int, payload: dict[str, Any]) -> None:
         blob = json.dumps(payload, ensure_ascii=False).encode("utf-8")

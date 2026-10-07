@@ -223,6 +223,7 @@ def loadModel(role: str) -> dict[str, Any]:
             use_mmap=True,
             n_ctx=4096,
             n_gpu_layers=layers,
+            embedding=True,
             verbose=False,
         )
         _LOADED_ROLE = role
@@ -250,6 +251,7 @@ def loadModel(role: str) -> dict[str, Any]:
                     use_mmap=True,
                     n_ctx=4096,
                     n_gpu_layers=0,
+                    embedding=True,
                     verbose=False,
                 )
                 _LOADED_ROLE = role
@@ -298,6 +300,50 @@ def unloadModel() -> dict[str, Any]:
         agent_name=agent,
         result={"ok": True, "role": role},
     )
+
+
+def embed(texts: list[str]) -> dict[str, Any]:
+    """Vectors for the model already loaded. Used to compare a project description with resume text."""
+    run_id, agent = _ctx()
+    role = _LOADED_ROLE
+    if _LLM is None or not role:
+        return logger.finish(
+            event="tool",
+            tool="embed",
+            run_id=run_id,
+            agent_name=agent,
+            result={"ok": False, "error": "not_loaded"},
+        )
+    if not _INFER_LOCK.acquire(blocking=False):
+        return logger.finish(
+            event="tool",
+            tool="embed",
+            run_id=run_id,
+            agent_name=agent,
+            result={"ok": False, "error": "busy", "role": role},
+        )
+    try:
+        vectors = _LLM.embed([str(text or "") for text in texts], normalize=True)
+        if vectors and not isinstance(vectors[0], list):
+            vectors = [vectors]
+        return logger.finish(
+            event="tool",
+            tool="embed",
+            run_id=run_id,
+            agent_name=agent,
+            result={"ok": True, "role": role, "vectors": vectors},
+            summary=f"role={role} n={len(texts)}",
+        )
+    except Exception as exc:
+        return logger.finish(
+            event="tool",
+            tool="embed",
+            run_id=run_id,
+            agent_name=agent,
+            result={"ok": False, "error": type(exc).__name__, "role": role},
+        )
+    finally:
+        _INFER_LOCK.release()
 
 
 def generate(role: str, prompt: str | None = None, messages: list[dict[str, str]] | None = None, agent_name: str | None = None, **kwargs: Any) -> dict[str, Any]:

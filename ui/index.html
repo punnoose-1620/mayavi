@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ID10T</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <style>
     :root {
       --bg: #141414;
@@ -31,21 +32,88 @@
       margin: 0 auto;
       padding: 16px;
     }
-    h1 {
+    #top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
       margin: 0 0 12px;
+    }
+    h1 {
+      margin: 0;
       font-size: 15px;
       font-weight: 600;
       letter-spacing: 0.04em;
       color: var(--muted);
     }
+    #profile-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      flex: 0 0 36px;
+      border-radius: 50%;
+      border: 1px solid #454545;
+      background: linear-gradient(180deg, #323232 0%, #262626 100%);
+      color: var(--accent);
+      text-decoration: none;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    #profile-btn:hover { background: #383838; }
+    #profile-btn .tip {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      padding: 4px 8px;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid #4a4a4a;
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      font-size: 12px;
+      white-space: nowrap;
+      z-index: 5;
+    }
+    #profile-btn:hover .tip,
+    #profile-btn:focus-visible .tip { display: block; }
     #log {
       flex: 1;
       overflow: auto;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--bg);
+      border: 1px solid #4a4a4a;
+      border-radius: 14px;
+      padding: 14px;
     }
-    .msg { margin: 0 0 10px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
+    .empty {
+      margin: 0;
+      color: var(--muted);
+      font-style: italic;
+    }
+    .card {
+      max-width: calc(100% - max(80px, 20%));
+      padding: 10px 14px 12px;
+      background: #1e1e1e;
+      border: 1px solid #3a3a3a;
+      border-radius: 16px;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 2px 8px rgba(0, 0, 0, 0.35);
+    }
+    .card.you { align-self: flex-end; }
+    .card.bot { align-self: flex-start; }
+    .card-title {
+      margin-bottom: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .card.you .card-title { color: #8ab4f8; }
+    .card.bot .card-title { color: #81c995; }
+    .msg { margin: 0; padding: 0; white-space: pre-wrap; word-break: break-word; }
     .msg.md { white-space: normal; }
     .msg.md p { margin: 0.4em 0; }
     .msg.md h1, .msg.md h2, .msg.md h3, .msg.md h4, .msg.md h5, .msg.md h6 {
@@ -69,24 +137,39 @@
       margin: 0.5em 0;
       padding: 8px 10px;
       background: #111;
+      border-radius: 10px;
       overflow: auto;
       white-space: pre-wrap;
+    }
+    .msg.md pre.code { position: relative; padding-top: 28px; }
+    .msg.md pre.code::before {
+      content: attr(data-lang);
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 3px 10px;
+      background: #1a1a1a;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.04em;
     }
     .msg.md code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
     .msg.md table { border-collapse: collapse; margin: 0.5em 0; }
     .msg.md th, .msg.md td { border: 1px solid var(--line); padding: 4px 8px; }
     .msg.md hr { border: 0; border-top: 1px solid var(--line); margin: 0.8em 0; }
-    .you { background: var(--you); }
-    .bot { background: var(--bot); border-left: 3px solid var(--accent); }
     .progress {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       gap: 8px;
+      align-self: stretch;
       color: var(--progress);
       font-size: 13px;
-      margin: 0 0 4px;
-      padding: 0 10px;
+      font-style: italic;
+      margin: 0;
+      padding: 0 4px;
     }
+    .progress-time { font-style: normal; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .spinner {
       width: 12px;
       height: 12px;
@@ -100,15 +183,28 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
-    .meta { color: var(--muted); font-size: 12px; margin: 4px 10px 12px; }
-    .summary-link { color: var(--muted); font-size: 13px; margin: 0 10px 12px; }
+    .meta {
+      align-self: stretch;
+      color: var(--muted);
+      font-size: 12px;
+      font-style: italic;
+      margin: 0;
+    }
+    .notice {
+      align-self: stretch;
+      color: var(--accent);
+      font-size: 13px;
+      margin: 0;
+      padding: 0 4px;
+    }
+    .summary-link { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
     .summary-link a { color: var(--accent); }
     .artifact {
       display: flex;
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
-      margin: 0 10px 10px;
+      margin: 8px 0 0;
       color: var(--muted);
       font-size: 13px;
     }
@@ -120,15 +216,19 @@
     }
     .artifact-name { color: var(--text); flex: 1; min-width: 140px; }
     .artifact-btn {
-      background: transparent;
+      background: linear-gradient(180deg, #323232 0%, #262626 100%);
       color: var(--accent);
-      border: 1px solid var(--accent);
-      padding: 4px 10px;
+      border: 1px solid #454545;
+      border-radius: 10px;
+      padding: 5px 12px;
       font: inherit;
       font-size: 13px;
       cursor: pointer;
       text-decoration: none;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 2px 4px rgba(0, 0, 0, 0.4);
     }
+    .artifact-btn:hover { background: #383838; }
+    .artifact-btn:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
     .artifact-btn:disabled { opacity: 0.45; cursor: default; }
     #composer {
       display: flex;
@@ -140,21 +240,27 @@
       resize: vertical;
       min-height: 48px;
       max-height: 160px;
-      background: var(--panel);
+      background: var(--bg);
       color: var(--text);
-      border: 1px solid var(--line);
-      padding: 10px;
+      border: 1px solid #4a4a4a;
+      border-radius: 14px;
+      padding: 10px 12px;
       font: inherit;
     }
+    #prompt:focus { outline: none; border-color: #6a6a6a; }
     #send {
       min-width: 88px;
-      background: var(--accent);
+      background: linear-gradient(180deg, #d4b56e 0%, #c8a45a 100%);
       color: #1a1a1a;
       border: 0;
+      border-radius: 14px;
       font: inherit;
       font-weight: 600;
       cursor: pointer;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 3px 8px rgba(0, 0, 0, 0.4);
     }
+    #send:hover { filter: brightness(1.06); }
+    #send:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45); }
     #send:disabled { opacity: 0.45; cursor: wait; }
     #task-row, #notebook-row {
       margin-top: 8px;
@@ -164,35 +270,107 @@
       color: var(--muted);
       font-size: 13px;
     }
-    #task-row { margin-top: 0; margin-bottom: 8px; flex-wrap: wrap; }
-    #coding-label, #web-label { display: flex; align-items: center; gap: 6px; margin-top: 10px; cursor: pointer; white-space: nowrap; }
-    #web-label.disabled { opacity: 0.45; cursor: not-allowed; }
-    #web-label.disabled input { pointer-events: none; }
-    #repo-wrap {
-      display: none;
-      flex: 1;
+    #task-row { margin-top: 12px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+    #task-row > label,
+    #repo-wrap,
+    #task-row > .field.open {
+      display: flex;
       align-items: center;
       gap: 8px;
-      min-width: 220px;
+      margin: 0;
+      min-height: 32px;
     }
+    #task-row > .field {
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      min-height: 32px;
+    }
+    #coding-label, #web-label, #job-label, #update-label { cursor: pointer; white-space: nowrap; }
+    .field { display: none; }
+    .field.open { display: flex; }
+    .pick {
+      background: linear-gradient(180deg, #323232 0%, #262626 100%);
+      color: var(--text);
+      border: 1px solid #454545;
+      border-radius: 10px;
+      padding: 6px 12px;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    .pick:hover { background: #383838; }
+    .pick:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+    .pick-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      max-width: 280px;
+      color: var(--text);
+      font-size: 13px;
+    }
+    .folder-title { font-weight: 600; }
+    .file-line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .file-line .mark { color: var(--muted); width: 10px; flex: 0 0 10px; }
+    .file-line i { color: var(--accent); width: 14px; text-align: center; flex: 0 0 14px; }
+    .file-line span:last-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .actions { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; flex-wrap: wrap; }
+    .actions button, .actions a {
+      background: linear-gradient(180deg, #323232 0%, #262626 100%);
+      color: var(--accent);
+      border: 1px solid #454545;
+      border-radius: 10px;
+      padding: 5px 12px;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    .actions button.icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      font-size: 14px;
+    }
+    .actions button:hover, .actions a:hover { background: #383838; }
+    .actions button:active, .actions a:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+    .actions .elapsed { color: var(--muted); font-size: 12px; }
+    #web-label.disabled { opacity: 0.45; cursor: not-allowed; }
+    #web-label.disabled input { pointer-events: none; }
+    #repo-wrap { display: none; flex: 1; min-width: 220px; }
     #repo-wrap.open { display: flex; }
-    #repo-wrap label { margin-top: 10px; }
     #repo {
       flex: 1;
-      margin-top: 10px;
-      background: var(--panel);
+      background: var(--bg);
       color: var(--text);
-      border: 1px solid var(--line);
-      padding: 6px;
+      border: 1px solid #4a4a4a;
+      border-radius: 10px;
+      padding: 6px 10px;
       font: inherit;
     }
     #thread {
       flex: 1;
       min-width: 0;
-      background: var(--panel);
+      background: var(--bg);
       color: var(--text);
-      border: 1px solid var(--line);
-      padding: 6px;
+      border: 1px solid #4a4a4a;
+      border-radius: 10px;
+      padding: 6px 10px;
       font: inherit;
     }
     .notebook-help {
@@ -249,7 +427,8 @@
       padding: 8px 10px;
       background: var(--panel);
       color: var(--text);
-      border: 1px solid var(--line);
+      border: 1px solid #4a4a4a;
+      border-radius: 12px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
       font-size: 12px;
       line-height: 1.45;
@@ -263,14 +442,37 @@
   </style>
 </head>
 <body>
-  <h1>ID10T - Your personal AI Assistant</h1>
-  <div id="log" aria-live="polite"></div>
+  <header id="top">
+    <h1>ID10T - Your personal AI Assistant</h1>
+    <a id="profile-btn" href="/profile" aria-label="View Profile">
+      <i class="fa-solid fa-user" aria-hidden="true"></i>
+      <span class="tip">View Profile</span>
+    </a>
+  </header>
+  <div id="log" aria-live="polite"><p class="empty">No messages yet…</p></div>
   <div id="task-row">
     <label id="web-label" for="web" title="Live web search"><input type="checkbox" id="web"> Web</label>
     <label id="coding-label" for="coding"><input type="checkbox" id="coding"> Coding</label>
+    <label id="job-label" for="job" title="The message is the job description. Writes a resume, cover letter, and match summary from your profile."><input type="checkbox" id="job"> Job application</label>
+    <label id="update-label" for="update" title="The attached resume is the source. The message is an optional instruction."><input type="checkbox" id="update"> Update profile</label>
     <div id="repo-wrap">
       <label for="repo">GitHub</label>
       <input id="repo" type="url" placeholder="https://github.com/owner/repo" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="seed-wrap" class="field">
+      <button type="button" class="pick" id="seed-btn">Select project folder</button>
+      <div id="seed-name" class="pick-list"></div>
+      <input id="seed-input" type="file" webkitdirectory directory multiple hidden>
+    </div>
+    <div id="attach-wrap" class="field open">
+      <button type="button" class="pick" id="attach-btn">Select folder</button>
+      <div id="attach-name" class="pick-list"></div>
+      <input id="attach-input" type="file" webkitdirectory directory multiple hidden>
+    </div>
+    <div id="file-wrap" class="field open">
+      <button type="button" class="pick" id="file-btn">Select file</button>
+      <div id="file-name" class="pick-list"></div>
+      <input id="file-input" type="file" accept=".pdf,.docx,.xlsx,.txt,.md,.csv,.html" hidden>
     </div>
   </div>
   <div id="composer">
@@ -297,17 +499,431 @@
     const sendEl = document.getElementById("send");
     const threadEl = document.getElementById("thread");
     const codingEl = document.getElementById("coding");
+    const jobEl = document.getElementById("job");
+    const updateEl = document.getElementById("update");
     const webEl = document.getElementById("web");
     const webLabel = document.getElementById("web-label");
     const repoEl = document.getElementById("repo");
     const repoWrap = document.getElementById("repo-wrap");
+    const seedWrap = document.getElementById("seed-wrap");
+    const attachWrap = document.getElementById("attach-wrap");
+    const fileWrap = document.getElementById("file-wrap");
+    let folderUpload = null;
+    let fileUpload = null;
+    let seedUpload = null;
 
-    function syncRepoField() {
-      repoWrap.classList.toggle("open", codingEl.checked);
+    function syncModes() {
+      if (jobEl.checked) {
+        codingEl.checked = false;
+        updateEl.checked = false;
+        webEl.checked = false;
+      }
+      if (codingEl.checked) jobEl.checked = false;
+      if (updateEl.checked) jobEl.checked = false;
+      const coding = codingEl.checked;
+      const job = jobEl.checked;
+      const update = updateEl.checked;
+      repoWrap.classList.toggle("open", coding);
+      seedWrap.classList.toggle("open", coding);
+      attachWrap.classList.toggle("open", !job && !update);
+      fileWrap.classList.toggle("open", !job);
     }
-    codingEl.addEventListener("change", syncRepoField);
+    codingEl.addEventListener("change", () => { syncModes(); rememberUpdate(); });
+    jobEl.addEventListener("change", () => { syncModes(); rememberUpdate(); });
+    updateEl.addEventListener("change", () => { syncModes(); rememberUpdate(); });
+    syncModes();
+
+    function rememberUpdate() {
+      try { localStorage.setItem("id10t-draft-update", updateEl.checked ? "1" : "0"); } catch (e) {}
+    }
+
+    function fileIcon(name) {
+      const ext = String(name || "").split(".").pop().toLowerCase();
+      const icons = {
+        pdf: "fa-file-pdf",
+        doc: "fa-file-word",
+        docx: "fa-file-word",
+        xls: "fa-file-excel",
+        xlsx: "fa-file-excel",
+        csv: "fa-file-csv",
+        txt: "fa-file-lines",
+        md: "fa-file-lines",
+        html: "fa-file-code",
+        py: "fa-file-code",
+        json: "fa-file-code",
+      };
+      return icons[ext] || "fa-file";
+    }
+
+    function fileLine(name, dashed) {
+      const row = document.createElement("div");
+      row.className = "file-line";
+      if (dashed) {
+        const mark = document.createElement("span");
+        mark.className = "mark";
+        mark.textContent = "-";
+        row.appendChild(mark);
+      }
+      const icon = document.createElement("i");
+      icon.className = "fa-solid " + fileIcon(name);
+      icon.setAttribute("aria-hidden", "true");
+      const label = document.createElement("span");
+      label.textContent = name;
+      row.appendChild(icon);
+      row.appendChild(label);
+      return row;
+    }
+
+    function appendSelection(host, item) {
+      if (!host || !item) return;
+      const entries = item.entries || [];
+      if (item.kind === "file") {
+        const name = (entries[0] && entries[0].name) || item.name || "file";
+        host.appendChild(fileLine(name, false));
+        return;
+      }
+      const title = document.createElement("div");
+      title.className = "folder-title";
+      title.textContent = item.name || "Folder";
+      host.appendChild(title);
+      for (const entry of entries) {
+        if (entry && entry.name) host.appendChild(fileLine(entry.name, true));
+      }
+      if (item.truncated) {
+        const more = document.createElement("div");
+        more.className = "file-line";
+        more.textContent = "- … only the first 40 files";
+        host.appendChild(more);
+      }
+    }
+
+    function showSelection(el, item) {
+      el.replaceChildren();
+      if (item) appendSelection(el, item);
+    }
+
+    async function uploadPicked(url, items, label) {
+      const body = new FormData();
+      body.append("name", label);
+      for (const item of items) {
+        const file = item.file || item;
+        const rel = item.rel || file.webkitRelativePath || file.name;
+        body.append("rel", rel);
+        body.append("file", file, file.name);
+      }
+      const res = await fetch(url, { method: "POST", body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        const known = {
+          no_readable_files: "No pdf, docx, xlsx, txt, md, csv, or html files were in that selection.",
+          file_too_large: "That upload is too large.",
+          one_file: "Select one file.",
+        };
+        throw new Error(known[data.error] || data.error || "Upload failed");
+      }
+      return data;
+    }
+
+    function bindPick(buttonId, inputId, nameId, url, assign) {
+      const button = document.getElementById(buttonId);
+      const input = document.getElementById(inputId);
+      const nameEl = document.getElementById(nameId);
+      button.addEventListener("click", () => input.click());
+      input.addEventListener("change", async () => {
+        const files = [...(input.files || [])];
+        if (!files.length) return;
+        const label = (files[0].webkitRelativePath || "").split(/[\\/]/)[0] || files[0].name;
+        nameEl.textContent = "Uploading…";
+        try {
+          const picked = await uploadPicked(url, files, label);
+          showSelection(nameEl, picked);
+          assign(picked);
+        } catch (err) {
+          nameEl.replaceChildren();
+          assign(null);
+          setProgress(String(err && err.message ? err.message : err));
+        }
+      });
+    }
+
+    const DRAFT_KEY = "id10t-draft-prompt";
+    const DOC_EXT = new Set(["pdf", "docx", "xlsx", "txt", "md", "csv", "html", "py"]);
+    let fileHandle = null;
+    let folderHandle = null;
+    let seedHandle = null;
+    let errorEl = null;
+
+    function draftDb() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open("id10t-draft", 1);
+        req.onupgradeneeded = () => {
+          if (!req.result.objectStoreNames.contains("handles")) req.result.createObjectStore("handles");
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function idbPut(key, value) {
+      const db = await draftDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("handles", "readwrite");
+        tx.objectStore("handles").put(value, key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    }
+
+    async function idbGet(key) {
+      const db = await draftDb();
+      const value = await new Promise((resolve, reject) => {
+        const tx = db.transaction("handles", "readonly");
+        const req = tx.objectStore("handles").get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+      db.close();
+      return value;
+    }
+
+    async function idbDelete(key) {
+      const db = await draftDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("handles", "readwrite");
+        tx.objectStore("handles").delete(key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    }
+
+    function handleSlot(key) {
+      if (key === "file") return { get: () => fileHandle, set: (value) => { fileHandle = value; }, nameId: "file-name" };
+      if (key === "folder") return { get: () => folderHandle, set: (value) => { folderHandle = value; }, nameId: "attach-name" };
+      return { get: () => seedHandle, set: (value) => { seedHandle = value; }, nameId: "seed-name" };
+    }
+
+    async function dropHandle(key) {
+      const slot = handleSlot(key);
+      slot.set(null);
+      document.getElementById(slot.nameId).replaceChildren();
+      try { await idbDelete(key); } catch (e) {}
+    }
+
+    async function rememberHandle(key, handle) {
+      handleSlot(key).set(handle);
+      await idbPut(key, handle);
+    }
+
+    const held = { file: null, folder: null, seed: null };
+
+    function pickerAvailable() {
+      return typeof window.showOpenFilePicker === "function" && typeof window.showDirectoryPicker === "function";
+    }
+
+    function rememberHeld(key, file, list) {
+      if (key === "file") held.file = file;
+      else if (key === "folder") held.folder = list;
+      else held.seed = list;
+    }
+
+    function bindPick(buttonId, inputId, nameId, key) {
+      const button = document.getElementById(buttonId);
+      const input = document.getElementById(inputId);
+      const nameEl = document.getElementById(nameId);
+      button.addEventListener("click", () => input.click());
+      input.addEventListener("change", async () => {
+        const files = [...(input.files || [])];
+        if (!files.length) return;
+        const label = (files[0].webkitRelativePath || "").split(/[\\/]/)[0] || files[0].name;
+        if (key === "file") {
+          rememberHeld(key, files[0], null);
+          showSelection(nameEl, { kind: "file", name: files[0].name, entries: [{ name: files[0].name }] });
+        } else {
+          rememberHeld(key, null, files.map((file) => ({ file, rel: file.webkitRelativePath || file.name })));
+          showSelection(nameEl, {
+            kind: "folder",
+            name: label,
+            entries: files.slice(0, 40).map((file) => ({ name: file.name })),
+            truncated: files.length >= 40,
+          });
+        }
+        handleSlot(key).set(null);
+        try { await idbDelete(key); } catch (e) {}
+        input.value = "";
+      });
+    }
+
+    async function allowRead(handle) {
+      const opts = { mode: "read" };
+      if (await handle.queryPermission(opts) === "granted") return true;
+      return await handle.requestPermission(opts) === "granted";
+    }
+
+    async function collectFiles(dirHandle) {
+      const files = [];
+      async function walk(handle, prefix) {
+        for await (const [name, child] of handle.entries()) {
+          if (files.length >= 40) return;
+          const rel = prefix ? prefix + "/" + name : name;
+          if (child.kind === "file") {
+            const ext = name.split(".").pop().toLowerCase();
+            if (!DOC_EXT.has(ext)) continue;
+            files.push({ file: await child.getFile(), rel });
+          } else if (child.kind === "directory") {
+            await walk(child, rel);
+          }
+        }
+      }
+      await walk(dirHandle, "");
+      return { files, truncated: files.length >= 40 };
+    }
+
+    function selectionFromHandle(handle, collected) {
+      if (handle.kind === "file") {
+        return { kind: "file", name: handle.name, entries: [{ name: handle.name }] };
+      }
+      const files = collected ? collected.files : [];
+      return {
+        kind: "folder",
+        name: handle.name,
+        entries: files.map((item) => ({ name: item.file.name })),
+        truncated: Boolean(collected && collected.truncated),
+      };
+    }
+
+    async function showHandle(key, handle) {
+      const slot = handleSlot(key);
+      const nameEl = document.getElementById(slot.nameId);
+      if (!handle) {
+        nameEl.replaceChildren();
+        return;
+      }
+      let collected = null;
+      if (handle.kind === "directory") {
+        try {
+          if (await handle.queryPermission({ mode: "read" }) === "granted") collected = await collectFiles(handle);
+        } catch (e) {
+          await dropHandle(key);
+          return;
+        }
+      }
+      showSelection(nameEl, selectionFromHandle(handle, collected));
+    }
+
+    function unavailable(message) {
+      const err = new Error(message || "That selection is no longer available. Select it again.");
+      err.unavailable = true;
+      return err;
+    }
+
+    async function uploadHandle(handle, url) {
+      let permitted = false;
+      try {
+        permitted = await allowRead(handle);
+      } catch (e) {
+        throw unavailable();
+      }
+      if (!permitted) throw unavailable();
+      try {
+        if (handle.kind === "file") {
+          const file = await handle.getFile();
+          return uploadPicked(url, [{ file, rel: file.name }], file.name);
+        }
+        const collected = await collectFiles(handle);
+        if (!collected.files.length) {
+          throw new Error("No pdf, docx, xlsx, txt, md, csv, or html files were in that selection.");
+        }
+        return uploadPicked("/upload-folder", collected.files, handle.name);
+      } catch (err) {
+        if (err && err.unavailable) throw err;
+        const name = err && err.name;
+        if (name === "NotFoundError" || name === "NotAllowedError") throw unavailable();
+        throw err;
+      }
+    }
+
+    async function chooseFile() {
+      let handle;
+      try {
+        const picked = await window.showOpenFilePicker({
+          multiple: false,
+          excludeAcceptAllOption: false,
+          types: [{
+            description: "Documents",
+            accept: {
+              "application/pdf": [".pdf"],
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+              "text/plain": [".txt", ".md", ".csv", ".html", ".py"],
+            },
+          }],
+        });
+        handle = picked && picked[0];
+      } catch (err) {
+        if (err && err.name === "AbortError") return;
+        showError(String(err && err.message ? err.message : err));
+        return;
+      }
+      if (!handle) return;
+      await rememberHandle("file", handle);
+      await showHandle("file", handle);
+    }
+
+    async function chooseDirectory(key) {
+      let handle;
+      try {
+        handle = await window.showDirectoryPicker();
+      } catch (err) {
+        if (err && err.name === "AbortError") return;
+        showError(String(err && err.message ? err.message : err));
+        return;
+      }
+      if (!handle) return;
+      await rememberHandle(key, handle);
+      await showHandle(key, handle);
+    }
+
+    function wirePickers() {
+      bindPick("file-btn", "file-input", "file-name", "file");
+      bindPick("attach-btn", "attach-input", "attach-name", "folder");
+      bindPick("seed-btn", "seed-input", "seed-name", "seed");
+    }
+
+    async function restoreDraft() {
+      try {
+        const text = localStorage.getItem(DRAFT_KEY);
+        if (text) promptEl.value = text;
+        if (localStorage.getItem("id10t-draft-update") === "1") updateEl.checked = true;
+      } catch (e) {}
+      syncModes();
+      rememberUpdate();
+      for (const key of ["file", "folder", "seed"]) {
+        try {
+          const handle = await idbGet(key);
+          if (!handle || typeof handle.queryPermission !== "function") {
+            await dropHandle(key);
+            continue;
+          }
+          const perm = await handle.queryPermission({ mode: "read" });
+          if (perm !== "granted") {
+            await dropHandle(key);
+            continue;
+          }
+          handleSlot(key).set(handle);
+          await showHandle(key, handle);
+        } catch (e) {
+          await dropHandle(key);
+        }
+      }
+    }
+
+    wirePickers();
 
     let progressEl = null;
+    let progressTimer = null;
+    let progressOrigin = 0;
     let profileApplied = new Set();
 
     const DEVICE_KEY = "id10t-device-id";
@@ -351,19 +967,57 @@
       }, extra || {});
     }
 
-    function add(cls, text) {
-      if (!text) return;
+    function clearEmpty() {
+      const empty = logEl.querySelector(".empty");
+      if (empty) empty.remove();
+    }
+
+    function card(side) {
+      clearEmpty();
       const el = document.createElement("div");
-      el.className = cls;
-      el.textContent = text;
+      el.className = "card " + side;
+      const title = document.createElement("div");
+      title.className = "card-title";
+      title.textContent = side === "you" ? "You" : "Model";
+      el.appendChild(title);
       logEl.appendChild(el);
       logEl.scrollTop = logEl.scrollHeight;
       return el;
     }
 
-    function setProgress(text) {
+    function add(cls, text, host) {
       if (!text) return;
-      text = text+'....';
+      clearEmpty();
+      const el = document.createElement("div");
+      el.className = cls;
+      el.textContent = text;
+      (host || logEl).appendChild(el);
+      logEl.scrollTop = logEl.scrollHeight;
+      return el;
+    }
+
+    function paintClock() {
+      const time = progressEl && progressEl.querySelector(".progress-time");
+      if (!time || !progressOrigin) return;
+      const seconds = Math.max(0, Math.round((Date.now() - progressOrigin) / 1000));
+      time.textContent = elapsedWords(seconds);
+    }
+
+    function beginClock(spec) {
+      if (progressTimer || !progressEl) return;
+      const time = document.createElement("span");
+      time.className = "progress-time";
+      const label = progressEl.querySelector(".progress-text");
+      progressEl.insertBefore(time, label);
+      const stamp = spec && spec.started ? Date.parse(spec.started) : NaN;
+      const recovered = Boolean(spec && spec.recovered);
+      progressOrigin = Number.isNaN(stamp) ? Date.now() : stamp - (recovered ? 3000 : 0);
+      paintClock();
+      progressTimer = setInterval(paintClock, 1000);
+    }
+
+    function setProgress(text, clock) {
+      if (!text) return;
       if (!progressEl || !progressEl.isConnected) {
         progressEl = document.createElement("div");
         progressEl.className = "progress";
@@ -372,28 +1026,83 @@
         spin.setAttribute("aria-hidden", "true");
         const label = document.createElement("span");
         label.className = "progress-text";
-        label.textContent = text;
         progressEl.appendChild(spin);
         progressEl.appendChild(label);
+        clearEmpty();
         logEl.appendChild(progressEl);
-        logEl.scrollTop = logEl.scrollHeight;
-        return;
       }
       const label = progressEl.querySelector(".progress-text");
       if (label) label.textContent = text;
-      else progressEl.textContent = text;
+      if (clock) beginClock(clock);
       logEl.scrollTop = logEl.scrollHeight;
     }
 
     function clearProgress() {
+      if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+      }
+      progressOrigin = 0;
       if (progressEl && progressEl.isConnected) progressEl.remove();
       progressEl = null;
     }
 
+    function clearError() {
+      if (errorEl && errorEl.isConnected) errorEl.remove();
+      errorEl = null;
+    }
+
+    function showError(text) {
+      clearProgress();
+      if (!text) return;
+      if (!errorEl || !errorEl.isConnected) {
+        errorEl = document.createElement("div");
+        errorEl.className = "notice";
+        clearEmpty();
+        logEl.appendChild(errorEl);
+      }
+      errorEl.textContent = text;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearDraftPrompt() {
+      try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+    }
+
+    async function clearDraft() {
+      const typed = promptEl.value;
+      if (typed) {
+        try { localStorage.setItem(DRAFT_KEY, typed); } catch (e) {}
+      } else {
+        clearDraftPrompt();
+      }
+      try { localStorage.removeItem("id10t-draft-update"); } catch (e) {}
+      fileUpload = null;
+      folderUpload = null;
+      seedUpload = null;
+      held.file = null;
+      held.folder = null;
+      held.seed = null;
+      await dropHandle("file");
+      await dropHandle("folder");
+      await dropHandle("seed");
+    }
+
+    function paintUser(prompt, attachments) {
+      const items = attachments || [];
+      if (!prompt && !items.length) return;
+      const host = card("you");
+      for (const item of items) appendSelection(host, item);
+      if (prompt) add("msg", prompt, host);
+    }
+
     function paintTurn(turn) {
-      add("msg you", turn.prompt || "");
-      addBot(turn);
-      addArtifacts(turn);
+      paintUser(turn.prompt || "", turn.attachments || []);
+      const host = card("bot");
+      addBot(turn, host);
+      addArtifacts(turn, host);
+      addDocuments(turn, host);
+      addActions(turn, host);
       const bits = [];
       if (turn.level) bits.push("level=" + turn.level);
       if (turn.shape) bits.push("shape=" + turn.shape);
@@ -416,19 +1125,20 @@
       }
     }
 
-    function addBot(turn) {
+    function addBot(turn, host) {
+      const box = host || logEl;
       const html = String(turn.answer_html || "").trim();
       const raw = turn.answer || turn.text || "";
       const pages = turn.html_pages || [];
       if (html) {
         const el = document.createElement("div");
-        el.className = "msg bot md";
+        el.className = "msg md";
         el.innerHTML = html;
-        logEl.appendChild(el);
+        box.appendChild(el);
       } else if (String(raw).trim() && !pages.length) {
-        add("msg bot", raw);
+        add("msg", raw, box);
       } else if (!pages.length) {
-        add("msg bot", "(empty)");
+        add("msg", "(empty)", box);
       }
       const summaryUrl = turn.summary_url;
       if (!summaryUrl) {
@@ -444,7 +1154,7 @@
       link.rel = "noopener";
       link.textContent = "view complete summary";
       row.appendChild(link);
-      logEl.appendChild(row);
+      box.appendChild(row);
       logEl.scrollTop = logEl.scrollHeight;
     }
 
@@ -461,7 +1171,135 @@
       return svg;
     }
 
-    function addArtifacts(turn) {
+    function elapsedWords(seconds) {
+      const total = Math.max(0, Number(seconds) || 0);
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const secs = Math.floor(total % 60);
+      const parts = [];
+      if (hours) parts.push(hours === 1 ? "1 hr" : hours + " hrs");
+      if (minutes) parts.push(minutes + " min");
+      if (secs || !parts.length) parts.push(secs + " sec");
+      return parts.join(", ");
+    }
+
+    function addDocuments(turn, host) {
+      const box = host || logEl;
+      for (const doc of turn.documents || []) {
+        if (!doc || !doc.dir || !doc.name) continue;
+        const row = document.createElement("div");
+        row.className = "artifact";
+        const label = document.createElement("span");
+        label.className = "artifact-name";
+        label.textContent = doc.name;
+        row.appendChild(label);
+        const query = "dir=" + encodeURIComponent(doc.dir) + "&file=" + encodeURIComponent(doc.name);
+        if (doc.kind !== "pdf") {
+          const view = document.createElement("a");
+          view.className = "artifact-btn";
+          view.href = "/download?" + query;
+          view.target = "_blank";
+          view.rel = "noopener";
+          view.textContent = "View";
+          row.appendChild(view);
+        }
+        const down = document.createElement("a");
+        down.className = "artifact-btn";
+        down.href = "/download?" + query + "&download=1";
+        down.setAttribute("download", doc.name);
+        down.textContent = "Download";
+        row.appendChild(down);
+        box.appendChild(row);
+      }
+    }
+
+    function turnElapsed(turn) {
+      if (turn.elapsed_s != null && turn.elapsed_s !== "") return Number(turn.elapsed_s);
+      const started = Date.parse(turn.started || "");
+      const finished = Date.parse(turn.time || "");
+      if (!Number.isNaN(started) && !Number.isNaN(finished) && finished >= started) {
+        return Math.round((finished - started) / 1000);
+      }
+      return null;
+    }
+
+    function iconButton(name, label) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "icon";
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+      const icon = document.createElement("i");
+      icon.className = "fa-solid " + name;
+      icon.setAttribute("aria-hidden", "true");
+      btn.appendChild(icon);
+      return btn;
+    }
+
+    function setIcon(btn, name, label) {
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+      const icon = btn.querySelector("i");
+      if (icon) icon.className = "fa-solid " + name;
+    }
+
+    function addActions(turn, host) {
+      const raw = turn.answer || turn.text || "";
+      const row = document.createElement("div");
+      row.className = "actions";
+      const reply = iconButton("fa-reply", "Reply");
+      reply.addEventListener("click", () => {
+        const quote = String(raw).trim().slice(0, 500);
+        promptEl.value = quote ? "> " + quote + "\n\n" : promptEl.value;
+        promptEl.focus();
+      });
+      const copy = iconButton("fa-copy", "Copy");
+      copy.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(String(raw));
+          setIcon(copy, "fa-check", "Copied");
+          setTimeout(() => setIcon(copy, "fa-copy", "Copy"), 1600);
+        } catch {
+          setIcon(copy, "fa-triangle-exclamation", "Copy failed");
+          setTimeout(() => setIcon(copy, "fa-copy", "Copy"), 1600);
+        }
+      });
+      row.appendChild(reply);
+      row.appendChild(copy);
+      if (turn.profile_record) {
+        const save = document.createElement("button");
+        save.type = "button";
+        save.textContent = "Save to profile";
+        save.addEventListener("click", async () => {
+          save.disabled = true;
+          try {
+            const res = await fetch("/update-profile", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(devicePayload({ profile: turn.profile_record, merge: false })),
+            });
+            const data = await res.json().catch(() => ({}));
+            save.textContent = data.ok ? "Saved" : "Save failed";
+            if (!data.ok) save.disabled = false;
+          } catch {
+            save.textContent = "Save failed";
+            save.disabled = false;
+          }
+        });
+        row.appendChild(save);
+      }
+      const seconds = turnElapsed(turn);
+      if (seconds != null && !Number.isNaN(seconds)) {
+        const time = document.createElement("span");
+        time.className = "elapsed";
+        time.textContent = elapsedWords(seconds);
+        row.appendChild(time);
+      }
+      (host || logEl).appendChild(row);
+    }
+
+    function addArtifacts(turn, host) {
+      const box = host || logEl;
       for (const pdf of turn.pdfs || []) {
         if (!pdf || !pdf.url || !pdf.name) continue;
         const row = document.createElement("div");
@@ -477,7 +1315,7 @@
         link.setAttribute("download", pdf.name);
         link.textContent = "Save to PDF";
         row.appendChild(link);
-        logEl.appendChild(row);
+        box.appendChild(row);
       }
       for (const page of turn.html_pages || []) {
         if (!page || !page.url) continue;
@@ -494,9 +1332,9 @@
         link.rel = "noopener";
         link.textContent = "View HTML page";
         row.appendChild(link);
-        logEl.appendChild(row);
+        box.appendChild(row);
       }
-      addProfileChip(turn);
+      addProfileChip(turn, box);
       logEl.scrollTop = logEl.scrollHeight;
     }
 
@@ -510,7 +1348,7 @@
       return bits.join(" · ");
     }
 
-    function addProfileChip(turn) {
+    function addProfileChip(turn, host) {
       const update = turn.profile_update;
       if (!update || typeof update !== "object") return;
       const preview = previewProfile(update);
@@ -549,12 +1387,12 @@
       });
       row.appendChild(label);
       row.appendChild(btn);
-      logEl.appendChild(row);
+      (host || logEl).appendChild(row);
     }
 
     async function loadProfileState() {
       try {
-        const res = await fetch(withDevice("/profile"));
+        const res = await fetch(withDevice("/board"));
         const data = await res.json();
         profileApplied = new Set(data.applied_runs || []);
       } catch {
@@ -578,7 +1416,10 @@
           continue;
         }
         if (data.active) {
-          setProgress(data.active.progress || "Working…");
+          setProgress(data.active.progress || "Working…", {
+            started: data.active.started,
+            recovered: true,
+          });
           continue;
         }
         const turns = data.turns || [];
@@ -601,9 +1442,12 @@
       const data = await res.json();
       const turns = data.turns || [];
       for (const turn of turns) paintTurn(turn);
-      if (data.active && data.active.prompt) {
-        add("msg you", data.active.prompt);
-        setProgress(data.active.progress || "Working…");
+      if (data.active && (data.active.prompt || (data.active.attachments || []).length)) {
+        paintUser(data.active.prompt || "", data.active.attachments || []);
+        setProgress(data.active.progress || "Working…", {
+          started: data.active.started,
+          recovered: true,
+        });
         if (data.active.thread_id) await loadThreads(data.active.thread_id);
         watchActive(turns.length);
       }
@@ -631,11 +1475,80 @@
 
     async function send() {
       const prompt = promptEl.value.trim();
-      if (!prompt || sendEl.disabled) return;
+      const updating = updateEl.checked;
+      if ((!prompt && !updating) || sendEl.disabled) return;
       sendEl.disabled = true;
-      add("msg you", prompt);
-      promptEl.value = "";
+      clearError();
+      let host = null;
+      let answered = false;
+      let failed = false;
+      const undo = (text) => {
+        if (answered || failed) return;
+        failed = true;
+        if (host) host.remove();
+        host = null;
+        clearProgress();
+        try {
+          const saved = localStorage.getItem(DRAFT_KEY);
+          promptEl.value = saved != null ? saved : prompt;
+        } catch (e) {
+          promptEl.value = prompt;
+        }
+        showError(text);
+      };
       try {
+        if (held.file && !jobEl.checked) {
+          fileUpload = await uploadPicked("/upload-file", [{ file: held.file, rel: held.file.name }], held.file.name);
+        } else if (fileHandle && !jobEl.checked) {
+          try {
+            fileUpload = await uploadHandle(fileHandle, "/upload-file");
+          } catch (err) {
+            if (err && err.name === "NotFoundError") await dropHandle("file");
+            undo(err && err.name === "NotFoundError"
+              ? "That selection is no longer available. Select it again."
+              : "Select the file again. The browser did not allow the saved file to be read.");
+            return;
+          }
+        }
+        if (held.folder && !jobEl.checked && !updating) {
+          const label = (held.folder[0].rel || "").split(/[\\/]/)[0] || held.folder[0].file.name;
+          folderUpload = await uploadPicked("/upload-folder", held.folder.slice(0, 40), label);
+        } else if (folderHandle && !jobEl.checked && !updating) {
+          try {
+            folderUpload = await uploadHandle(folderHandle, "/upload-folder");
+          } catch (err) {
+            if (err && err.name === "NotFoundError") await dropHandle("folder");
+            undo(err && err.name === "NotFoundError"
+              ? "That selection is no longer available. Select it again."
+              : "Select the folder again. The browser did not allow the saved folder to be read.");
+            return;
+          }
+        }
+        if (codingEl.checked && held.seed) {
+          const label = (held.seed[0].rel || "").split(/[\\/]/)[0] || held.seed[0].file.name;
+          seedUpload = await uploadPicked("/upload-folder", held.seed.slice(0, 40), label);
+        } else if (codingEl.checked && seedHandle) {
+          try {
+            seedUpload = await uploadHandle(seedHandle, "/upload-folder");
+          } catch (err) {
+            if (err && err.name === "NotFoundError") await dropHandle("seed");
+            undo(err && err.name === "NotFoundError"
+              ? "That selection is no longer available. Select it again."
+              : "Select the project folder again. The browser did not allow the saved folder to be read.");
+            return;
+          }
+        }
+        if (updating && !fileUpload) {
+          undo("Select a resume file first.");
+          return;
+        }
+        host = card("you");
+        if (fileUpload && !jobEl.checked) appendSelection(host, fileUpload);
+        if (folderUpload && !jobEl.checked && !updating) appendSelection(host, folderUpload);
+        if (codingEl.checked && seedUpload) appendSelection(host, seedUpload);
+        add("msg", prompt || (updating ? "Update profile" : ""), host);
+        promptEl.value = "";
+        setProgress("Working…", {});
         const res = await fetch("/turns", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -643,17 +1556,33 @@
             prompt,
             thread_id: threadEl.value || null,
             coding: codingEl.checked,
-            web: webEl.checked && !webEl.disabled,
+            job: jobEl.checked,
+            update_profile: updating,
+            web: webEl.checked && !webEl.disabled && !jobEl.checked && !updating,
             git_remote: codingEl.checked ? (repoEl.value || "").trim() : "",
+            seed_id: codingEl.checked && seedUpload ? seedUpload.id : "",
+            folder_id: folderUpload && !jobEl.checked && !updating ? folderUpload.id : "",
+            file_id: fileUpload && !jobEl.checked ? fileUpload.id : "",
           })),
         });
         if (res.status === 409) {
-          setProgress("Busy — wait for the current turn to finish.");
+          undo("Busy — wait for the current turn to finish.");
           return;
         }
         if (!res.ok || !res.body) {
           const err = await res.json().catch(() => ({ error: res.statusText }));
-          setProgress(err.error || "Request failed");
+          const known = {
+            empty_profile: "Open View profile and write your professional background first.",
+            resume_required: "Select a resume file first.",
+            unknown_upload: "That file could not be read. Select it again.",
+            no_readable_files: "No pdf, docx, xlsx, txt, md, csv, or html files were in that selection.",
+            job_and_coding: "Use Job application or Coding, not both.",
+            job_and_update: "Use Job application or Update profile, not both.",
+            git_and_folder: "Use a GitHub URL or a project folder, not both.",
+            folder_not_found: "That folder was not found on this computer.",
+            unsupported_file: "Use a pdf, docx, xlsx, txt, md, csv, or html file.",
+          };
+          undo(known[err.error] || err.error || "Request failed");
           return;
         }
         const reader = res.body.getReader();
@@ -676,12 +1605,18 @@
             if (!data) continue;
             let payload = {};
             try { payload = JSON.parse(data); } catch { payload = { text: data }; }
-            if (ev === "progress") setProgress(payload.text || "");
-            else if (ev === "error") setProgress(payload.text || "Run stopped");
+            if (ev === "progress") setProgress(payload.text || "", {});
+            else if (ev === "error") undo(payload.text || "Run stopped");
             else if (ev === "answer") {
+              answered = true;
+              clearError();
+              await clearDraft();
               clearProgress();
-              addBot(payload);
-              addArtifacts(payload);
+              const bot = card("bot");
+              addBot(payload, bot);
+              addArtifacts(payload, bot);
+              addDocuments(payload, bot);
+              addActions(payload, bot);
               const bits = [];
               if (payload.level) bits.push("level=" + payload.level);
               if (payload.shape) bits.push("shape=" + payload.shape);
@@ -696,8 +1631,9 @@
             }
           }
         }
+        if (!answered && !failed && host) undo("The run stopped before a reply.");
       } catch (err) {
-        setProgress(String(err && err.message ? err.message : err));
+        undo(String(err && err.message ? err.message : err));
       } finally {
         sendEl.disabled = false;
         promptEl.focus();
@@ -705,6 +1641,9 @@
     }
 
     sendEl.addEventListener("click", send);
+    promptEl.addEventListener("input", () => {
+      try { localStorage.setItem(DRAFT_KEY, promptEl.value); } catch (e) {}
+    });
     promptEl.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter" && !ev.shiftKey) {
         ev.preventDefault();
@@ -735,6 +1674,7 @@
       }
     }
 
+    restoreDraft().catch(() => {});
     loadHistory().catch((err) => add("progress", String(err)));
     loadThreads().catch((err) => add("progress", String(err)));
     loadWebStatus().catch(() => {});

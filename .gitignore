@@ -237,3 +237,6 @@ createdIndex.json
 /docs
 /essential-auths
 /usb-chat
+/scripts/seeds/csv-sql/data
+/scripts
+/_tmp_write_box
