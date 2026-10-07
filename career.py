@@ -257,6 +257,13 @@ def run_job(job_text: str, status, *, device_id: str, no_model: bool = False) ->
         return {"ok": False, "error": "empty_profile", "answer": ""}
     role = _pick_role()
     complete = _complete(role)
+    try:
+        return _run_job(complete, job_text, status, device_id)
+    finally:
+        models.unloadModel()
+
+
+def _run_job(complete, job_text: str, status, device_id: str) -> dict:
     folder, dir_name = _doc_dir()
     result = jobapp.run_job_application(
         complete=complete,
@@ -308,6 +315,13 @@ def run_update(source_text: str, instruction: str, status, *, device_id: str = "
     follow_up = profiledoc.is_follow_up(current)
     role = _pick_role()
     complete = _complete(role)
+    try:
+        return _run_update(complete, source_text, instruction, status, current, follow_up)
+    finally:
+        models.unloadModel()
+
+
+def _run_update(complete, source_text: str, instruction: str, status, current: dict, follow_up: bool) -> dict:
     status("Update profile: reading the resume")
     if follow_up:
         prose = complete(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import importlib.util
 import json
@@ -199,7 +200,17 @@ def loadModel(role: str) -> dict[str, Any]:
             agent_name=agent,
             result={"ok": False, "error": resolved.get("error", "resolve_failed"), "role": role},
         )
-    if _LOADED_ROLE and _LOADED_ROLE != role:
+    path = Path(resolved["path"])
+    if _LLM is not None and _LOADED_ROLE == role and _LOADED_PATH == path:
+        return logger.finish(
+            event="factory",
+            tool="loadModel",
+            run_id=run_id,
+            agent_name=agent,
+            result={"ok": True, "role": role, "root": _LOADED_ROOT, "path": str(path), "reused": True},
+            summary=f"role={role} reused",
+        )
+    if _LLM is not None:
         unloadModel()
     try:
         from llama_cpp import Llama
@@ -211,7 +222,6 @@ def loadModel(role: str) -> dict[str, Any]:
             agent_name=agent,
             result={"ok": False, "error": "llama_cpp_missing", "role": role},
         )
-    path = Path(resolved["path"])
     try:
         gpu = _gpu_check().use_gpu(role, path)
     except Exception as exc:
@@ -289,10 +299,20 @@ def unloadModel() -> dict[str, Any]:
     global _LLM, _LOADED_ROLE, _LOADED_PATH, _LOADED_ROOT
     run_id, agent = _ctx()
     role = _LOADED_ROLE
+    llm = _LLM
     _LLM = None
     _LOADED_ROLE = None
     _LOADED_PATH = None
     _LOADED_ROOT = None
+    if llm is not None:
+        close = getattr(llm, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
+        del llm
+        gc.collect()
     return logger.finish(
         event="factory",
         tool="unloadModel",
