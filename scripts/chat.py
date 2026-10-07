@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 import threading
+import time
 import tkinter as tk
+from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, font as tkfont, messagebox, ttk
 
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
@@ -20,13 +23,60 @@ import profiledoc
 import usbchat
 
 
+def _clock_label(seconds: int) -> str:
+    seconds = max(0, int(seconds))
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
+
+
+def _elapsed_words(seconds: int) -> str:
+    seconds = max(0, int(seconds))
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    parts: list[str] = []
+    if hours:
+        parts.append("1 hr" if hours == 1 else f"{hours} hrs")
+    if minutes:
+        parts.append(f"{minutes} min")
+    if secs or not parts:
+        parts.append(f"{secs} sec")
+    return ", ".join(parts)
+
+
+def _turn_elapsed_seconds(turn: dict) -> int | None:
+    """Seconds from the stored send time to the stored reply time."""
+    started = turn.get("started")
+    finished = turn.get("time")
+    if isinstance(started, str) and isinstance(finished, str):
+        try:
+            begin = datetime.fromisoformat(started)
+            end = datetime.fromisoformat(finished)
+        except ValueError:
+            begin = end = None
+        if begin is not None and end is not None:
+            return max(0, int((end - begin).total_seconds()))
+    raw = turn.get("elapsed_s")
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return max(0, int(raw))
+    return None
+
+
+CHAT_PAGE = "#f7f7f7"
+CHAT_WELL = "#ffffff"
+CHAT_BUBBLE = "#e8eaed"
+CHAT_LINE = "#d8dce3"
+
+
 class _HoverTip:
     def __init__(self, widget: tk.Widget, text: str) -> None:
         self.widget = widget
         self.text = text
         self.tip: tk.Toplevel | None = None
-        widget.bind("<Enter>", self._show)
-        widget.bind("<Leave>", self._hide)
+        widget.bind("<Enter>", self._show, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
 
     def _show(self, _event=None) -> None:
         if self.tip is not None:
@@ -87,6 +137,9 @@ class UsbChatApp:
         self._step_got_text = False
         self._step_tick = 0
         self._step_after: str | None = None
+        self._clock_after: str | None = None
+        self._turn_started = 0.0
+        self._turn_started_at = ""
         self.attach_truncated = False
         self._doc_resume: dict | None = None
         self.quote = ""
@@ -107,6 +160,7 @@ class UsbChatApp:
         self.job_var = tk.BooleanVar(value=False)
         self.update_var = tk.BooleanVar(value=False)
         self._profile_turn: dict | None = None
+        self._profile_window = None
         self.github_var = tk.StringVar(value="")
         self.seed_dir: Path | None = None
         self.seed_var = tk.StringVar(value="No project folder")
@@ -126,94 +180,84 @@ class UsbChatApp:
         self.root.title("USB chat")
         self.root.geometry("920x700")
         self.root.minsize(420, 360)
+        self._page_bg = CHAT_PAGE
+        self._bubble_bg = CHAT_BUBBLE
+        self.root.configure(bg=CHAT_PAGE)
 
         pad, gap = 16, 8
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
 
-        shell = ttk.Frame(self.root)
+        shell = tk.Frame(self.root, bg=CHAT_PAGE)
         shell.grid(row=0, column=0, sticky="nsew")
         shell.columnconfigure(0, weight=1)
         shell.rowconfigure(0, weight=1)
 
-        self._canvas = tk.Canvas(shell, highlightthickness=0, borderwidth=0)
+        self._canvas = tk.Canvas(shell, highlightthickness=0, borderwidth=0, bg=CHAT_PAGE)
         page_scroll = ttk.Scrollbar(shell, orient="vertical", command=self._canvas.yview)
         self._canvas.configure(yscrollcommand=page_scroll.set)
         self._canvas.grid(row=0, column=0, sticky="nsew")
         page_scroll.grid(row=0, column=1, sticky="ns")
 
-        self._page = ttk.Frame(self._canvas)
+        self._page = tk.Frame(self._canvas, bg=CHAT_PAGE)
         self._page_id = self._canvas.create_window((0, 0), window=self._page, anchor="nw")
         self._page.columnconfigure(0, weight=1)
         self._page.rowconfigure(2, weight=1)
 
-        top = ttk.Frame(self._page, padding=(pad, 12, pad, gap))
-        top.grid(row=0, column=0, sticky="ew")
-        ttk.Label(top, text="Model").pack(side="left")
+        top = tk.Frame(self._page, bg=CHAT_PAGE)
+        top.grid(row=0, column=0, sticky="ew", padx=pad, pady=(12, gap))
+        tk.Label(top, text="Model", bg=CHAT_PAGE, fg="#202124", font=self._ui_font).pack(side="left")
         self.model_var = tk.StringVar()
         self.model_box = ttk.Combobox(top, textvariable=self.model_var, state="readonly", width=52)
         self.model_box.pack(side="left", padx=(gap, gap), fill="x", expand=True)
-        ttk.Button(top, text="Reload", command=self.refresh_models).pack(side="left")
+        self._pill(top, "Reload", self.refresh_models).pack(side="left")
 
-        ttk.Label(self._page, text="History", font=self._title_font, padding=(pad, 12, pad, 6)).grid(
-            row=1, column=0, sticky="w"
+        tk.Label(self._page, text="History", bg=CHAT_PAGE, fg="#202124", font=self._title_font).grid(
+            row=1, column=0, sticky="w", padx=pad, pady=(12, 6)
         )
 
-        mid = ttk.Frame(self._page, padding=(pad, 0, pad, 0))
-        mid.grid(row=2, column=0, sticky="nsew")
+        mid = tk.Frame(self._page, bg=CHAT_PAGE)
+        mid.grid(row=2, column=0, sticky="nsew", padx=pad)
         mid.columnconfigure(0, weight=1)
         mid.rowconfigure(0, weight=1)
-        self.transcript = tk.Text(
-            mid,
-            wrap="word",
-            height=12,
-            state="disabled",
-            font=self._ui_font,
-            padx=16,
-            pady=12,
-            background="#f7f7f7",
-        )
-        scroll = ttk.Scrollbar(mid, command=self.transcript.yview)
-        self.transcript.configure(yscrollcommand=self._on_scroll(scroll))
-        self.transcript.grid(row=0, column=0, sticky="nsew")
-        scroll.grid(row=0, column=1, sticky="ns")
-        self.transcript.tag_configure("user", foreground="#0b57d0", spacing3=4)
-        self.transcript.tag_configure("assistant", foreground="#1a7f37", spacing3=4)
-        self.transcript.tag_configure("system", foreground="#5f6368", spacing1=6, spacing3=4)
-        self.transcript.tag_configure("title_user", foreground="#0b57d0", font=self._title_font)
-        self.transcript.tag_configure("title_assistant", foreground="#1a7f37", font=self._title_font)
-        self.transcript.tag_configure("title_system", foreground="#5f6368", font=self._title_font)
-        self.transcript.tag_configure("heading1", foreground="#1a7f37", font=(self._ui_font[0], 16, "bold"), spacing1=8, spacing3=4)
-        self.transcript.tag_configure("heading2", foreground="#1a7f37", font=(self._ui_font[0], 13, "bold"), spacing1=6, spacing3=4)
-        self.transcript.tag_configure("heading3", foreground="#1a7f37", font=self._title_font, spacing1=4, spacing3=2)
-        self.transcript.tag_configure("empty", foreground="#8a8a8a", font=(self._ui_font[0], 11, "italic"))
-        self.transcript.bind("<Button-3>", self._reply_menu)
-        self.transcript.bind("<Control-c>", lambda e: None)
+        self.history_well = tk.Canvas(mid, bg=CHAT_PAGE, highlightthickness=0, borderwidth=0, height=180)
+        self.history_well.grid(row=0, column=0, sticky="nsew")
+        self.history_canvas = tk.Canvas(self.history_well, bg=CHAT_WELL, highlightthickness=0, borderwidth=0)
+        self.history_scroll = ttk.Scrollbar(self.history_well, command=self.history_canvas.yview)
+        self.history_canvas.configure(yscrollcommand=self._on_history_scroll)
+        self.history = tk.Frame(self.history_canvas, bg=CHAT_WELL)
+        self.history_window = self.history_canvas.create_window((0, 0), window=self.history, anchor="nw")
+        self.history.bind("<Configure>", self._history_region)
+        self.history_canvas.bind("<Configure>", self._layout_history)
+        self.history_well.bind("<Configure>", self._paint_history_well)
+        self._cover_history(self.history_well)
         self._show_history_empty()
 
-        self.quote_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
+        self.quote_row = tk.Frame(self._page, bg=CHAT_PAGE)
         self.quote_var = tk.StringVar(value="")
-        ttk.Label(self.quote_row, textvariable=self.quote_var, foreground="#5f6368").pack(
+        tk.Label(self.quote_row, textvariable=self.quote_var, bg=CHAT_PAGE, fg="#5f6368", font=self._ui_font).pack(
             side="left", fill="x", expand=True
         )
-        ttk.Button(self.quote_row, text="Clear quote", command=self.clear_quote).pack(side="right")
+        self._pill(self.quote_row, "Clear quote", self.clear_quote).pack(side="right")
 
-        self.attach_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
-        self.attach_row.grid(row=4, column=0, sticky="ew")
+        self.attach_row = tk.Frame(self._page, bg=CHAT_PAGE)
+        self.attach_row.grid(row=4, column=0, sticky="ew", padx=pad, pady=(gap, 0))
         self.attach_var = tk.StringVar(value="No document attached")
-        ttk.Label(self.attach_row, textvariable=self.attach_var).pack(side="left", fill="x", expand=True)
-        folder_attach = ttk.Button(self.attach_row, text="Attach folder…", command=self.attach_folder)
+        tk.Label(self.attach_row, textvariable=self.attach_var, bg=CHAT_PAGE, fg="#202124", font=self._ui_font).pack(
+            side="left", fill="x", expand=True
+        )
+        folder_attach = self._pill(self.attach_row, "Attach folder…", self.attach_folder)
         folder_attach.pack(side="right", padx=(gap, 0))
         _HoverTip(
             folder_attach,
             "Read pdf, docx, xlsx, txt, md, and csv in this folder before the model starts. "
             "Other files are skipped. A long folder is read in parts so it fits the context window.",
         )
-        ttk.Button(self.attach_row, text="Attach…", command=self.attach).pack(side="right", padx=(gap, 0))
-        ttk.Button(self.attach_row, text="Clear", command=self.clear_attach).pack(side="right")
+        self._pill(self.attach_row, "Attach…", self.attach).pack(side="right", padx=(gap, 0))
+        self._pill(self.attach_row, "Clear", self.clear_attach).pack(side="right")
 
-        self.coding_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
-        self.coding_row.grid(row=5, column=0, sticky="ew")
+        self.coding_row = tk.Frame(self._page, bg=CHAT_PAGE)
+        self.coding_row.grid(row=5, column=0, sticky="ew", padx=pad, pady=(gap, 0))
         coding_box = ttk.Checkbutton(
             self.coding_row,
             text="Coding",
@@ -236,7 +280,7 @@ class UsbChatApp:
         _HoverTip(
             job_box,
             "The message is the job description. Writes an English resume and cover letter "
-            "from Profile… only, then a short match summary.",
+            "from your profile only, then a short match summary.",
         )
         update_box = ttk.Checkbutton(
             self.coding_row,
@@ -251,8 +295,8 @@ class UsbChatApp:
             "Save to profile writes profile.json after you confirm.",
         )
 
-        self.github_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
-        ttk.Label(self.github_row, text="GitHub URL").pack(side="left")
+        self.github_row = tk.Frame(self._page, bg=CHAT_PAGE)
+        tk.Label(self.github_row, text="GitHub URL", bg=CHAT_PAGE, fg="#202124", font=self._ui_font).pack(side="left")
         self.github_entry = ttk.Entry(self.github_row, textvariable=self.github_var)
         self.github_entry.pack(side="left", fill="x", expand=True, padx=(10, 8))
         _HoverTip(
@@ -260,22 +304,20 @@ class UsbChatApp:
             "Optional public https://github.com/owner/repo. Used only while Coding is on. "
             "Leave empty if you pick a local folder.",
         )
-        ttk.Label(self.github_row, textvariable=self.seed_var, foreground="#5f6368").pack(
+        tk.Label(self.github_row, textvariable=self.seed_var, bg=CHAT_PAGE, fg="#5f6368", font=self._ui_font).pack(
             side="left", padx=(0, 8)
         )
-        folder_btn = ttk.Button(self.github_row, text="Folder…", command=self.pick_seed_folder)
+        folder_btn = self._pill(self.github_row, "Folder…", self.pick_seed_folder)
         folder_btn.pack(side="right")
         _HoverTip(
             folder_btn,
             "Pick a local folder. Files are copied into a new work folder on the stick; "
             "your original folder is not edited. Cannot be used with a GitHub URL.",
         )
-        ttk.Button(self.github_row, text="Clear folder", command=self.clear_seed_folder).pack(
-            side="right", padx=(0, 8)
-        )
+        self._pill(self.github_row, "Clear folder", self.clear_seed_folder).pack(side="right", padx=(0, 8))
         self.github_var.trace_add("write", self._on_github_edit)
 
-        self.web_row = ttk.Frame(self._page, padding=(pad, gap, pad, 0))
+        self.web_row = tk.Frame(self._page, bg=CHAT_PAGE)
         self.web_search_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             self.web_row,
@@ -290,31 +332,57 @@ class UsbChatApp:
             "Web Search takes extra time and model passes. Use it only when you need live internet.",
         )
 
-        ttk.Label(self._page, text="Message", font=self._title_font, padding=(pad, 16, pad, 6)).grid(
-            row=8, column=0, sticky="w"
+        tk.Label(self._page, text="Message", bg=CHAT_PAGE, fg="#202124", font=self._title_font).grid(
+            row=8, column=0, sticky="w", padx=pad, pady=(16, 6)
         )
-        input_row = ttk.Frame(self._page, padding=(pad, 0, pad, 16))
-        input_row.grid(row=9, column=0, sticky="ew")
-        self.input = tk.Text(
+        input_row = tk.Frame(self._page, bg=CHAT_PAGE)
+        input_row.grid(row=9, column=0, sticky="ew", padx=pad, pady=(0, 16))
+        input_shell = _Round(
             input_row,
+            fill="#ffffff",
+            parent_bg=CHAT_PAGE,
+            radius=14,
+            padx=12,
+            pady=8,
+            outline=CHAT_LINE,
+        )
+        input_shell.pack(side="left", fill="x", expand=True)
+        self.input = tk.Text(
+            input_shell.body,
             height=4,
             wrap="word",
             font=self._ui_font,
             background="#ffffff",
-            padx=12,
-            pady=10,
+            fg="#1a1a1a",
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            insertbackground="#202124",
         )
-        self.input.pack(side="left", fill="x", expand=True)
-        self.send_btn = ttk.Button(input_row, text="Send", command=self.send)
-        self.send_btn.pack(side="right", padx=(12, 0), fill="y")
-        self.spin_host = ttk.Frame(input_row)
+        self.input.pack(fill="x")
+        self.send_btn = _RoundButton(
+            input_row,
+            "Send",
+            self.send,
+            parent_bg=CHAT_PAGE,
+            fill="#1a7f37",
+            fg="#ffffff",
+            outline="#1a7f37",
+            hover="#176f31",
+            radius=14,
+            padx=18,
+            pady=12,
+            font=(self._ui_font[0], 11, "bold"),
+        )
+        self.send_btn.pack(side="right", padx=(12, 0))
+        self.spin_host = tk.Frame(input_row, bg=CHAT_PAGE)
         self.spin = tk.Canvas(
             self.spin_host,
             width=36,
             height=36,
             highlightthickness=0,
             borderwidth=0,
-            background=self.root.cget("background"),
+            background=CHAT_PAGE,
         )
         self.spin.pack(expand=True)
         self.input.bind("<Control-Return>", self._send_shortcut)
@@ -322,20 +390,25 @@ class UsbChatApp:
         self.input.bind("<FocusOut>", self._restore_input_hint)
         self._restore_input_hint()
 
-        buttons = ttk.Frame(self._page, padding=(pad, 0, pad, 12))
-        buttons.grid(row=10, column=0, sticky="ew")
-        ttk.Button(buttons, text="Stop", command=self.stop).pack(side="left")
-        ttk.Button(buttons, text="New session", command=self.new_session).pack(side="left", padx=(gap, 0))
-        ttk.Button(buttons, text="Save transcript PDF", command=self.save_pdf).pack(side="right")
-        ttk.Button(buttons, text="Print", command=self.print_pdf).pack(side="right", padx=(0, gap))
-        ttk.Button(buttons, text="Notes…", command=self.notes_dialog).pack(side="right", padx=(0, gap))
-        ttk.Button(buttons, text="View profile", command=self.profile_dialog).pack(side="right", padx=(0, gap))
-        ttk.Button(buttons, text="Profile…", command=self.profile_dialog).pack(side="right", padx=(0, gap))
+        buttons = tk.Frame(self._page, bg=CHAT_PAGE)
+        buttons.grid(row=10, column=0, sticky="ew", padx=pad, pady=(0, 12))
+        self._pill(buttons, "Stop", self.stop).pack(side="left")
+        self._pill(buttons, "New session", self.new_session).pack(side="left", padx=(gap, 0))
+        self._pill(buttons, "Save transcript PDF", self.save_pdf).pack(side="right")
+        self._pill(buttons, "Print", self.print_pdf).pack(side="right", padx=(0, gap))
+        self._pill(buttons, "Notes…", self.notes_dialog).pack(side="right", padx=(0, gap))
+        self._pill(buttons, "View profile", self.profile_dialog).pack(side="right", padx=(0, gap))
 
         self.status_var = tk.StringVar(value="")
-        ttk.Label(self._page, textvariable=self.status_var, padding=(pad, 0, pad, 16)).grid(
-            row=11, column=0, sticky="ew"
-        )
+        tk.Label(
+            self._page,
+            textvariable=self.status_var,
+            bg=CHAT_PAGE,
+            fg="#5f6368",
+            font=self._ui_font,
+            anchor="w",
+            justify="left",
+        ).grid(row=11, column=0, sticky="ew", padx=pad, pady=(0, 16))
 
         self._page.bind("<Configure>", self._sync_page)
         self._canvas.bind("<Configure>", self._sync_page)
@@ -357,8 +430,19 @@ class UsbChatApp:
 
     def _on_page_wheel(self, event) -> str | None:
         widget = self.root.winfo_containing(event.x_root, event.y_root)
+        profile = self._profile_window
+        source = widget if widget is not None else getattr(event, "widget", None)
+        if profile is not None and source is not None:
+            try:
+                top = source.winfo_toplevel()
+            except tk.TclError:
+                top = None
+            if top is profile.win:
+                return profile._wheel(event)
         while widget is not None:
-            if widget in {self.transcript, self.input}:
+            if widget in (self.history_well, self.history_canvas, self.history):
+                return self._history_wheel(event)
+            if widget is self.input:
                 return None
             if widget.winfo_toplevel() is not self.root:
                 return None
@@ -369,16 +453,102 @@ class UsbChatApp:
             self._canvas.yview_scroll(1, "units")
         return "break"
 
-    def _on_scroll(self, scrollbar: ttk.Scrollbar):
-        def set_view(*args):
-            scrollbar.set(*args)
-            if self._pin_bottom:
-                return None
-            if args and float(args[0]) <= 0.001:
-                self.root.after(50, self.load_older)
-            return None
+    def _pill(self, parent, text: str, command, **kwargs) -> _RoundButton:
+        return _RoundButton(parent, text, command, parent_bg=CHAT_PAGE, font=self._ui_font, **kwargs)
 
-        return set_view
+    def _cover_history(self, widget) -> None:
+        widget.bind("<MouseWheel>", self._history_wheel)
+        widget.bind("<Button-4>", self._history_wheel)
+        widget.bind("<Button-5>", self._history_wheel)
+        for child in widget.winfo_children():
+            self._cover_history(child)
+
+    def _history_wheel(self, event) -> str:
+        if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0:
+            self.history_canvas.yview_scroll(-1, "units")
+        else:
+            self.history_canvas.yview_scroll(1, "units")
+        return "break"
+
+    def _on_history_scroll(self, first, last) -> None:
+        self.history_scroll.set(first, last)
+        if self._pin_bottom or self.loading_older:
+            return
+        if float(first) <= 0.001:
+            self._queue_older()
+
+    def _queue_older(self) -> None:
+        job = getattr(self, "_older_job", None)
+        if job is not None:
+            self.root.after_cancel(job)
+        self._older_job = self.root.after(80, self._run_older)
+
+    def _run_older(self) -> None:
+        self._older_job = None
+        if self._pin_bottom or self.loading_older:
+            return
+        if self.history_canvas.yview()[0] > 0.001:
+            return
+        self.load_older()
+
+    def _paint_history_well(self, _event=None) -> None:
+        well = self.history_well
+        width = well.winfo_width()
+        height = well.winfo_height()
+        if width < 40 or height < 40:
+            return
+        well.delete("edge")
+        points = _round_points(1, 1, width - 2, height - 2, 14)
+        well.create_polygon(points, fill=CHAT_WELL, outline=CHAT_LINE, width=1, tags="edge")
+        well.tag_lower("edge")
+        inset = 10
+        bar = 16
+        view = self.history_canvas.yview()
+        self.history_canvas.place(x=inset, y=inset, width=max(40, width - inset * 2 - bar), height=max(40, height - inset * 2))
+        self.history_scroll.place(x=width - inset - bar, y=inset + 4, height=max(20, height - inset * 2 - 8), width=bar)
+        if self._pin_bottom:
+            self.history_canvas.yview_moveto(1)
+        elif view[0] > 0.001:
+            self.history_canvas.yview_moveto(view[0])
+
+    def _history_region(self, _event=None) -> None:
+        bbox = self.history_canvas.bbox("all")
+        if bbox:
+            self.history_canvas.configure(scrollregion=bbox)
+
+    def _layout_history(self, _event=None) -> None:
+        width = self.history_canvas.winfo_width()
+        if width < 40:
+            return
+        self.history_canvas.itemconfigure(self.history_window, width=width)
+        self.history.update_idletasks()
+        for child in self.history.winfo_children():
+            bubble = getattr(child, "_bubble", None)
+            if bubble is not None:
+                bubble.layout(width)
+            elif isinstance(child, tk.Label):
+                child.configure(wraplength=max(200, width - 24))
+        self.history.update_idletasks()
+        self._history_region()
+
+    def _history_see_end(self) -> None:
+        self.history.update_idletasks()
+        self._layout_history()
+        self.history_canvas.yview_moveto(1)
+
+    def _pack_history(self, widget, *, top: bool = False) -> None:
+        # pack_slaves is visual order. winfo_children is creation order, so the
+        # first child stays the last message and everything else stacks above it.
+        slaves = [child for child in self.history.pack_slaves() if child is not widget]
+        if top and slaves:
+            widget.pack(fill="x", before=slaves[0])
+            return
+        widget.pack(fill="x")
+
+    def _copy_reply(self, text: str) -> None:
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        self._status("Copied the reply")
 
     def _status(self, text: str) -> None:
         self.status_var.set(text)
@@ -391,8 +561,31 @@ class UsbChatApp:
         self._step_chars = 0
         self._step_got_text = False
         self._step_tick = 0
-        self._status(step)
+        self._paint_status()
         self._schedule_step_tail()
+
+    def _elapsed_seconds(self) -> int:
+        if not self._turn_started:
+            return 0
+        return max(0, int(time.monotonic() - self._turn_started))
+
+    def _paint_status(self) -> None:
+        if not self.busy or not self._step:
+            return
+        text = f"{_clock_label(self._elapsed_seconds())} · {self._step}"
+        if self._step_got_text:
+            text += f" · {self._step_chars} chars"
+        else:
+            tails = ("", " · still working", " · this can take a while on a large model")
+            text += tails[self._step_tick]
+        self._status(text)
+
+    def _tick_clock(self) -> None:
+        self._clock_after = None
+        if not self.busy:
+            return
+        self._paint_status()
+        self._clock_after = self.root.after(1000, self._tick_clock)
 
     def _schedule_step_tail(self) -> None:
         if self._step_after is not None:
@@ -407,8 +600,7 @@ class UsbChatApp:
         if not self.busy or self._step_got_text or not self._step:
             return
         self._step_tick = (self._step_tick + 1) % 3
-        tails = ("", " · still working", " · this can take a while on a large model")
-        self._status(self._step + tails[self._step_tick])
+        self._paint_status()
         self._schedule_step_tail()
 
     def _add_step_chars(self, count: int) -> None:
@@ -421,14 +613,13 @@ class UsbChatApp:
             if self._step_after is not None:
                 self.root.after_cancel(self._step_after)
                 self._step_after = None
-            label = self._step or "Writing the answer"
-            self._status(f"{label} · {self._step_chars} chars")
+            self._paint_status()
 
         self.root.after(0, apply)
 
     def _set_web_row(self, online: bool) -> None:
         if online:
-            self.web_row.grid(row=7, column=0, sticky="ew")
+            self.web_row.grid(row=7, column=0, sticky="ew", padx=16, pady=(8, 0))
             self.web_visible = True
         elif not self.web_search_var.get():
             self.web_row.grid_remove()
@@ -439,7 +630,7 @@ class UsbChatApp:
         if self.coding_var.get():
             self.job_var.set(False)
             self.update_var.set(False)
-            self.github_row.grid(row=6, column=0, sticky="ew")
+            self.github_row.grid(row=6, column=0, sticky="ew", padx=16, pady=(8, 0))
         else:
             self.github_row.grid_remove()
         self._sync_page()
@@ -525,37 +716,42 @@ class UsbChatApp:
         self._probe_web_search()
         self.root.after(60_000, self._schedule_web_probe)
 
+    def _system_line(self, text: str, *, top: bool = False) -> None:
+        label = tk.Label(
+            self.history,
+            text=text,
+            bg=CHAT_WELL,
+            fg="#6b7280",
+            font=(self._ui_font[0], 11, "italic"),
+            anchor="w",
+            justify="left",
+            wraplength=640,
+        )
+        self._pack_history(label, top=top)
+        self._layout_history()
+
     def _show_no_earlier_history(self) -> None:
         if self._history_empty or self._end_of_history:
             return
         self._end_of_history = True
-        self.transcript.configure(state="normal")
-        self.transcript.insert(
-            "1.0",
-            "No earlier history. Nothing is stored before this, or older logs were deleted.\n\n",
-            "empty",
+        self._system_line(
+            "No earlier history. Nothing is stored before this, or older logs were deleted.",
+            top=True,
         )
-        self.transcript.configure(state="disabled")
 
     def _show_history_empty(self) -> None:
         self._history_empty = True
         self._end_of_history = False
-        self.transcript.configure(state="normal")
-        self.transcript.delete("1.0", "end")
-        self.transcript.insert(
-            "1.0",
-            "No messages yet. Type below and press Send.",
-            "empty",
-        )
-        self.transcript.configure(state="disabled")
+        for child in list(self.history.winfo_children()):
+            child.destroy()
+        self._system_line("No messages yet. Type below and press Send.")
 
     def _clear_history_empty(self) -> None:
         if not self._history_empty:
             return
         self._history_empty = False
-        self.transcript.configure(state="normal")
-        self.transcript.delete("1.0", "end")
-        self.transcript.configure(state="disabled")
+        for child in list(self.history.winfo_children()):
+            child.destroy()
 
     def _input_text(self) -> str:
         if self._input_hint:
@@ -621,7 +817,14 @@ class UsbChatApp:
             self._draw_spinner()
             if self._spin_after is None:
                 self._spin_after = self.root.after(50, self._tick_spinner)
+            self._turn_started = time.monotonic()
+            self._turn_started_at = usbchat.utc_now()
+            if self._clock_after is None:
+                self._clock_after = self.root.after(1000, self._tick_clock)
             return
+        if self._clock_after is not None:
+            self.root.after_cancel(self._clock_after)
+            self._clock_after = None
         if self._spin_after is not None:
             self.root.after_cancel(self._spin_after)
             self._spin_after = None
@@ -629,67 +832,16 @@ class UsbChatApp:
             self.root.after_cancel(self._step_after)
             self._step_after = None
         self.spin_host.pack_forget()
-        self.send_btn.pack(side="right", padx=(12, 0), fill="y")
+        self.send_btn.pack(side="right", padx=(12, 0))
         self.input.configure(state="normal", background="#ffffff")
         self._restore_input_hint()
 
     def _role_look(self, role: str) -> tuple[str, str, str]:
         if role == "user":
-            return "👤", "You", "title_user"
+            return "👤", "You", "#0b57d0"
         if role == "assistant":
-            return "🤖", "Model", "title_assistant"
-        return "•", "System", "title_system"
-
-    def _quote_button(self, body: str) -> ttk.Button:
-        holder = {"text": body}
-
-        def quote() -> None:
-            self._set_quote(holder["text"])
-
-        btn = ttk.Button(self.transcript, text="↩", width=3, command=quote)
-        btn.holder = holder  # type: ignore[attr-defined]
-        _HoverTip(btn, "Reply to this message")
-        return btn
-
-    def _action_bar(self, body: str, extras: dict | None) -> ttk.Frame:
-        extras = extras or {}
-        pages = extras.get("html_pages")
-        if pages is None:
-            pages = formatter.html_pages(formatter.format_blocks(body))
-        pdfs = [p for p in (extras.get("pdf_paths") or []) if p]
-        profile = extras.get("profile_update") or {}
-        record = extras.get("profile_record")
-        frame = ttk.Frame(self.transcript)
-        if record:
-            save = ttk.Button(
-                frame,
-                text="Save to profile",
-                command=lambda rec=record: self._save_profile_record(rec),
-            )
-            save.pack(side="left")
-            _HoverTip(save, "Merge these checked details into profile.json")
-        else:
-            save = ttk.Button(
-                frame,
-                text="Save to notes",
-                command=lambda b=body, p=profile: self._save_turn_notes(b, p),
-            )
-            save.pack(side="left")
-            _HoverTip(save, "Append this reply, or the saved personal details, to notes.md")
-        if pages:
-            view = ttk.Button(frame, text="View HTML", command=lambda ps=pages: self._view_html(ps))
-            view.pack(side="left", padx=(8, 0))
-        saves = [item for item in (extras.get("pdf_saves") or []) if item.get("path")]
-        if saves:
-            for item in saves:
-                path = str(item["path"])
-                label = str(item.get("label") or "Save PDF")
-                pdf_btn = ttk.Button(frame, text=label, command=lambda p=path: self._save_turn_pdf([p]))
-                pdf_btn.pack(side="left", padx=(8, 0))
-        elif pdfs:
-            pdf_btn = ttk.Button(frame, text="Save PDF", command=lambda paths=pdfs: self._save_turn_pdf(paths))
-            pdf_btn.pack(side="left", padx=(8, 0))
-        return frame
+            return "🤖", "Model", "#1a7f37"
+        return "•", "System", "#5f6368"
 
     def _save_turn_notes(self, body: str, profile: dict | None) -> None:
         snippet = committee.profile_snippet(profile or {}) or str(body or "").strip()
@@ -741,102 +893,21 @@ class UsbChatApp:
         Path(dest).write_bytes(src.read_bytes())
         self._status(f"Saved {dest}")
 
-    def _insert_blocks(self, index: str, text: str) -> None:
-        blocks = formatter.format_blocks(text)
-        if index == "end":
-            for block in blocks:
-                self._write_block("end", block)
-            return
-        for block in reversed(blocks):
-            self._write_block(index, block)
+    def _place_card(self, card: _ChatCard, *, top: bool = False) -> None:
+        self._pack_history(card.row, top=top)
+        card.layout(max(self.history_canvas.winfo_width(), 320))
+        self._history_region()
 
-    def _write_block(self, index: str, block) -> None:
-        kind = block.kind
-        if kind == "heading":
-            level = 3 if block.level > 3 else max(1, block.level)
-            self.transcript.insert(index, block.text + "\n", f"heading{level}")
-            return
-        if kind == "code":
-            lines = max(2, min(14, block.text.count("\n") + 1))
-            mono = ("Consolas", 10) if sys.platform == "win32" else ("monospace", 10)
-            box = tk.Text(
-                self.transcript,
-                height=lines,
-                wrap="word",
-                font=mono,
-                background="#ececec",
-                padx=8,
-                pady=6,
-                highlightthickness=0,
-                borderwidth=0,
-            )
-            box.insert("1.0", block.text)
-            box.configure(state="disabled")
-            if index == "end":
-                self.transcript.window_create("end", window=box)
-                self.transcript.insert("end", "\n")
-            else:
-                self.transcript.insert(index, "\n")
-                self.transcript.window_create(index, window=box)
-            return
-        if kind == "list":
-            rows = [
-                (f"{i}. " if block.ordered else "• ") + item
-                for i, item in enumerate(block.items, 1)
-            ]
-            self.transcript.insert(index, "\n".join(rows) + "\n", "assistant")
-            return
-        if kind == "quote":
-            self.transcript.insert(index, block.text + "\n", "system")
-            return
-        if kind == "rule":
-            self.transcript.insert(index, "—\n", "system")
-            return
-        if kind == "html_doc":
-            self.transcript.insert(index, f"HTML page: {block.name}\n", "system")
-            return
-        self.transcript.insert(index, (block.text or "") + "\n", "assistant")
-
-    def _embed_actions(self, index: str, body: str, extras: dict | None) -> None:
-        bar = self._action_bar(body, extras)
-        if index == "end":
-            self.transcript.insert("end", "\n")
-            self.transcript.window_create("end", window=bar)
-            self.transcript.insert("end", "\n")
-            return
-        self.transcript.insert(index, "\n")
-        self.transcript.window_create(index, window=bar)
-        self.transcript.insert(index, "\n")
-
-    def _insert_header(self, role: str, body: str) -> dict:
-        icon, title, title_tag = self._role_look(role)
-        holder = {"text": body}
-        self.transcript.configure(state="normal")
-        if self.transcript.get("1.0", "end-1c").strip():
-            self.transcript.insert("end", "\n")
-        if role in {"user", "assistant"}:
-            btn = self._quote_button(body)
-            holder = btn.holder  # type: ignore[attr-defined]
-            self.transcript.window_create("end", window=btn)
-            self.transcript.insert("end", "  ")
-        self.transcript.insert("end", f"{icon}  {title}\n", title_tag)
-        self.transcript.configure(state="disabled")
-        return holder
-
-    def _append(self, role: str, text: str, *, remember: bool = True, extras: dict | None = None) -> None:
+    def _append(self, role: str, text: str, *, remember: bool = True, extras: dict | None = None, elapsed: int | None = None) -> None:
         self._clear_history_empty()
-        holder = self._insert_header(role, text)
-        self.transcript.configure(state="normal")
-        if role == "assistant":
-            self._insert_blocks("end", text)
-            self._embed_actions("end", text, extras)
+        if role == "system":
+            self._system_line(text)
         else:
-            self.transcript.insert("end", f"{text}\n", role)
-        self.transcript.configure(state="disabled")
+            card = _ChatCard(self, role, text, extras=extras, elapsed=elapsed if role == "assistant" else None)
+            self._place_card(card)
         if remember:
             self.messages.append((role, text))
-        self.transcript.see("end")
-        holder["text"] = text
+        self._history_see_end()
 
     def refresh_models(self) -> None:
         free = usbchat.free_ram()
@@ -938,24 +1009,14 @@ class UsbChatApp:
         shown = text if len(text) <= 80 else text[:77] + "…"
         self.quote_var.set(f"Replying to: {shown}")
         if not self.quote_row.winfo_ismapped():
-            self.quote_row.grid(row=3, column=0, sticky="ew")
+            self.quote_row.grid(row=3, column=0, sticky="ew", padx=16, pady=(8, 0))
             self._sync_page()
 
     def reply_selection(self) -> None:
-        try:
-            text = self.transcript.get("sel.first", "sel.last").strip()
-        except tk.TclError:
-            text = ""
-        if not text:
-            return
-        self._set_quote(text)
+        return
 
-    def _reply_menu(self, event) -> None:
-        try:
-            if self.transcript.tag_ranges("sel"):
-                self.reply_selection()
-        except tk.TclError:
-            pass
+    def _reply_menu(self, _event=None) -> None:
+        return
 
     def new_session(self) -> None:
         if self.busy:
@@ -972,7 +1033,7 @@ class UsbChatApp:
         self._status(f"New session {self.session_path.name}")
 
     def _show_latest(self) -> None:
-        self.transcript.see("end")
+        self._history_see_end()
         self._pin_bottom = False
 
     def load_older(self) -> None:
@@ -1001,18 +1062,22 @@ class UsbChatApp:
                         "profile_update": turn.get("profile_update") or {},
                         "profile_record": turn.get("profile_record"),
                     }
-                    self._prepend_message("assistant", str(turn["response"]), extras)
+                    elapsed = _turn_elapsed_seconds(turn)
+                    self._prepend_message(
+                        "assistant",
+                        str(turn["response"]),
+                        extras,
+                        elapsed,
+                    )
                     self.messages.insert(0, ("assistant", str(turn["response"])))
                 user_line = usbchat.display_user_prompt(turn)
                 if user_line:
                     self._prepend_message("user", user_line)
                     self.messages.insert(0, ("user", user_line))
-            self.transcript.configure(state="normal")
-            self.transcript.insert("1.0", f"— earlier session {nxt.name} —\n", "system")
-            self.transcript.configure(state="disabled")
+            self._system_line(f"— earlier session {nxt.name} —", top=True)
         self.loading_older = False
         if initial:
-            self.transcript.see("end")
+            self._history_see_end()
             self.root.after_idle(self._show_latest)
         self._status(f"Loaded older log {nxt.name} as earlier turns")
         loaded = {p.resolve() for p in self.older_files}
@@ -1124,7 +1189,7 @@ class UsbChatApp:
             if not profile.strip():
                 messagebox.showerror(
                     "Job application",
-                    "Open Profile… and write your professional background first.",
+                    "Open View profile and write your professional background first.",
                 )
                 return
         if use_web:
@@ -1285,6 +1350,7 @@ class UsbChatApp:
             source,
             status=self._ui_status,
             stop_event=self.stop_event,
+            n_ctx=self.n_ctx,
         )
         if result.get("stopped"):
             return True
@@ -1373,6 +1439,7 @@ class UsbChatApp:
             source,
             status=self._ui_status,
             stop_event=self.stop_event,
+            n_ctx=self.n_ctx,
         )
         if result.get("stopped"):
             return "stopped", picked
@@ -1745,6 +1812,8 @@ class UsbChatApp:
         prompt_tokens = self._turn_prompt_tokens
         completion_tokens = self._turn_completion_tokens
         reply = "".join(reply_parts).strip()
+        elapsed_s = self._elapsed_seconds()
+        started_at = self._turn_started_at
         if err and not reply:
             reply = "Stopped." if err == "stopped" else f"(error: {err})"
         elif not doc_answer and not job and not coding and not stakes and not reply.startswith("(error:"):
@@ -1756,9 +1825,9 @@ class UsbChatApp:
                 self._append("system", reply)
             elif reply:
                 if streamed:
-                    self._finish_stream(reply, extras)
+                    self._finish_stream(reply, extras, elapsed_s)
                 else:
-                    self._append("assistant", reply, extras=extras)
+                    self._append("assistant", reply, extras=extras, elapsed=elapsed_s)
             shown = user_text
             if quote:
                 shown = f"> {quote[: usbchat.QUOTE_CAP]}\n\n{user_text}"
@@ -1776,12 +1845,14 @@ class UsbChatApp:
                 shown = f"folder: {seed_dir}\n{shown}".strip()
             turn = {
                 "time": usbchat.utc_now(),
+                "started": started_at,
                 "model": choice.label,
                 "prompt": user_text,
                 "shown": shown,
                 "response": reply,
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
+                "elapsed_s": elapsed_s,
                 "attached": [a.get("path") or a["name"] for a in attachments],
                 "attach_dir": attach_dir,
                 "quote": quote,
@@ -1810,49 +1881,43 @@ class UsbChatApp:
 
         self.root.after(0, finish)
 
-    def _prepend_message(self, role: str, text: str, extras: dict | None = None) -> None:
-        self.transcript.configure(state="normal")
-        if role == "assistant":
-            self._embed_actions("1.0", text, extras)
-            self._insert_blocks("1.0", text)
-        else:
-            self.transcript.insert("1.0", f"{text}\n\n", role)
-        icon, title, title_tag = self._role_look(role)
-        self.transcript.insert("1.0", f"{icon}  {title}\n", title_tag)
-        if role in {"user", "assistant"}:
-            self.transcript.insert("1.0", "  ")
-            self.transcript.window_create("1.0", window=self._quote_button(text))
-        self.transcript.configure(state="disabled")
+    def _prepend_message(self, role: str, text: str, extras: dict | None = None, elapsed: int | None = None) -> None:
+        card = _ChatCard(
+            self,
+            role,
+            text,
+            extras=extras,
+            elapsed=elapsed if role == "assistant" else None,
+        )
+        self._place_card(card, top=True)
 
     def _begin_assistant(self) -> None:
         self._clear_history_empty()
-        self._stream_holder = self._insert_header("assistant", "")
-        self.transcript.configure(state="normal")
-        self.transcript.mark_set("stream_start", "end")
-        self.transcript.mark_gravity("stream_start", "left")
-        self.transcript.configure(state="disabled")
-        self.transcript.see("end")
+        card = _ChatCard(self, "assistant", "", streaming=True)
+        self._stream_card = card
+        self._place_card(card)
+        self._history_see_end()
 
-    def _finish_stream(self, reply: str, extras: dict | None) -> None:
-        self.transcript.configure(state="normal")
-        try:
-            self.transcript.delete("stream_start", "end")
-        except tk.TclError:
-            pass
-        self._insert_blocks("end", reply)
-        self._embed_actions("end", reply, extras)
-        self.transcript.configure(state="disabled")
-        if self._stream_holder is not None:
-            self._stream_holder["text"] = reply
+    def _finish_stream(self, reply: str, extras: dict | None, elapsed: int | None = None) -> None:
+        card = getattr(self, "_stream_card", None)
+        if card is None:
+            self._append("assistant", reply, extras=extras, elapsed=elapsed)
+            return
+        card.finish(reply, extras, elapsed)
+        card.layout(max(self.history_canvas.winfo_width(), 320))
+        self._history_region()
         self.messages.append(("assistant", reply))
-        self._stream_holder = None
-        self.transcript.see("end")
+        self._stream_card = None
+        self._history_see_end()
 
     def _stream_piece(self, piece: str) -> None:
-        self.transcript.configure(state="normal")
-        self.transcript.insert("end", piece, "assistant")
-        self.transcript.configure(state="disabled")
-        self.transcript.see("end")
+        card = getattr(self, "_stream_card", None)
+        if card is None:
+            return
+        card.set_stream(card.text + piece)
+        card.layout(max(self.history_canvas.winfo_width(), 320))
+        self._history_region()
+        self.history_canvas.yview_moveto(1)
 
     def stop(self) -> None:
         self.stop_event.set()
@@ -1910,16 +1975,412 @@ class UsbChatApp:
         ProfileWindow(self)
 
 
+def _round_points(x1: float, y1: float, x2: float, y2: float, radius: float, steps: int = 8) -> list[float]:
+    radius = min(radius, max(0.0, (x2 - x1) / 2), max(0.0, (y2 - y1) / 2))
+    if radius <= 0:
+        return [x1, y1, x2, y1, x2, y2, x1, y2]
+    points: list[float] = []
+
+    def arc(cx: float, cy: float, start: float, end: float) -> None:
+        for step in range(steps + 1):
+            angle = math.radians(start + (end - start) * step / steps)
+            points.extend((cx + radius * math.cos(angle), cy - radius * math.sin(angle)))
+
+    arc(x1 + radius, y1 + radius, 90, 180)
+    arc(x1 + radius, y2 - radius, 180, 270)
+    arc(x2 - radius, y2 - radius, 270, 360)
+    arc(x2 - radius, y1 + radius, 0, 90)
+    return points
+
+
+class _Round(tk.Canvas):
+    """Full-width panel. Widgets go in ``body``; the canvas paints the rounded edge."""
+
+    def __init__(
+        self,
+        parent,
+        *,
+        fill: str,
+        parent_bg: str,
+        radius: int = 12,
+        padx: int = 12,
+        pady: int = 10,
+        outline: str = "",
+    ) -> None:
+        super().__init__(parent, bg=parent_bg, highlightthickness=0, bd=0, height=pady * 2 + 8, takefocus=0)
+        self.fill = fill
+        self.radius = radius
+        self.outline = outline
+        self._padx = padx
+        self._pady = pady
+        self._height = pady * 2 + 8
+        self.body = tk.Frame(self, bg=fill)
+        self._window = self.create_window((padx, pady), window=self.body, anchor="nw")
+        self.body.bind("<Configure>", self._on_body)
+        self.bind("<Configure>", self._on_canvas)
+
+    def _on_body(self, event) -> None:
+        need = event.height + self._pady * 2
+        if need > 1 and need != self._height:
+            self._height = need
+            self.configure(height=need)
+
+    def _on_canvas(self, event) -> None:
+        inner = max(event.width - self._padx * 2, 1)
+        try:
+            current = int(float(self.itemcget(self._window, "width")))
+        except (TypeError, ValueError):
+            current = -1
+        if current != inner:
+            self.itemconfigure(self._window, width=inner)
+        self._redraw(event.width, max(event.height, self._height))
+
+    def _redraw(self, width: int, height: int) -> None:
+        self.delete("shape")
+        if width < 4 or height < 4:
+            return
+        outer = _round_points(1, 1, width - 2, height - 2, self.radius)
+        if self.outline:
+            self.create_polygon(outer, smooth=False, fill=self.outline, outline="", tags="shape")
+            inner = _round_points(2, 2, width - 3, height - 3, max(0, self.radius - 1))
+            self.create_polygon(inner, smooth=False, fill=self.fill, outline="", tags="shape")
+        else:
+            self.create_polygon(outer, smooth=False, fill=self.fill, outline="", tags="shape")
+        self.tag_lower("shape")
+
+
+class _RoundButton(tk.Canvas):
+    """Compact rounded button. The canvas background matches the parent so the corners disappear."""
+
+    def __init__(
+        self,
+        parent,
+        text: str,
+        command,
+        *,
+        parent_bg: str,
+        fill: str = "#ffffff",
+        fg: str = "#202124",
+        outline: str = CHAT_LINE,
+        hover: str | None = None,
+        radius: int = 12,
+        padx: int = 14,
+        pady: int = 7,
+        font=None,
+    ) -> None:
+        super().__init__(parent, bg=parent_bg, highlightthickness=0, bd=0, takefocus=0, cursor="hand2")
+        self._text = text
+        self._command = command
+        self._fill = fill
+        self._hover_fill = hover or "#eef1f4"
+        self._fg = fg
+        self._outline = outline
+        self._radius = radius
+        self._padx = padx
+        self._pady = pady
+        self._font = font or ("Segoe UI", 11)
+        self._hot = False
+        self.bind("<Button-1>", self._click)
+        self.bind("<Enter>", self._enter)
+        self.bind("<Leave>", self._leave)
+        self._paint()
+
+    def _click(self, _event=None) -> None:
+        if self._command:
+            self._command()
+
+    def _enter(self, _event=None) -> None:
+        self._hot = True
+        self._paint()
+
+    def _leave(self, _event=None) -> None:
+        self._hot = False
+        self._paint()
+
+    def _paint(self) -> None:
+        self.delete("all")
+        face = tkfont.Font(font=self._font)
+        width = face.measure(self._text) + self._padx * 2
+        height = face.metrics("linespace") + self._pady * 2
+        self.configure(width=width, height=height)
+        points = _round_points(1, 1, width - 2, height - 2, self._radius)
+        self.create_polygon(
+            points,
+            smooth=False,
+            fill=self._hover_fill if self._hot else self._fill,
+            outline=self._outline,
+        )
+        self.create_text(width / 2, height / 2, text=self._text, fill=self._fg, font=self._font)
+
+
+class _IconButton(tk.Canvas):
+    """Small reply or copy mark, drawn rather than taken from a font."""
+
+    def __init__(self, parent, kind: str, command, bg: str) -> None:
+        super().__init__(
+            parent,
+            width=28,
+            height=28,
+            bg=bg,
+            highlightthickness=0,
+            bd=0,
+            takefocus=0,
+            cursor="hand2",
+        )
+        self.kind = kind
+        self._command = command
+        self._bg = bg
+        self._fg = "#5f6368"
+        self._hot = False
+        self.bind("<Button-1>", lambda _e: command())
+        self.bind("<Enter>", self._enter)
+        self.bind("<Leave>", self._leave)
+        self._draw()
+
+    def _enter(self, _event=None) -> None:
+        self._hot = True
+        self._draw()
+
+    def _leave(self, _event=None) -> None:
+        self._hot = False
+        self._draw()
+
+    def _draw(self) -> None:
+        self.delete("all")
+        if self._hot:
+            points = _round_points(1, 1, 27, 27, 8)
+            self.create_polygon(points, smooth=False, fill="#dfe3e8", outline="")
+        ink = self._fg
+        plate = "#dfe3e8" if self._hot else self._bg
+        if self.kind == "copy":
+            self.create_rectangle(12, 5, 22, 15, outline=ink, width=1.4)
+            self.create_rectangle(6, 9, 16, 19, outline=ink, width=1.4, fill=plate)
+            return
+        self.create_line(18, 10, 11, 10, 11, 18, fill=ink, width=1.6, smooth=True)
+        self.create_line(11, 18, 16, 14, fill=ink, width=1.6)
+        self.create_line(11, 18, 7, 14, fill=ink, width=1.6)
+
+
+class _ChatCard:
+    """One rounded message. Yours sits on the right; the model's sits on the left."""
+
+    def __init__(self, app: "UsbChatApp", role: str, text: str, *, extras=None, elapsed: int | None = None, streaming: bool = False) -> None:
+        self.app = app
+        self.role = role
+        self.text = text
+        self.fill = CHAT_BUBBLE
+        self.row = tk.Frame(app.history, bg=CHAT_WELL)
+        self.row._bubble = self  # type: ignore[attr-defined]
+        self.row.pack_propagate(False)
+        self.canvas = tk.Canvas(self.row, bg=CHAT_WELL, highlightthickness=0, bd=0, takefocus=0)
+        self.body = tk.Frame(self.canvas, bg=self.fill)
+        self._win = self.canvas.create_window((14, 12), window=self.body, anchor="nw")
+        _icon, title, color = app._role_look(role)
+        tk.Label(
+            self.body,
+            text=f"{_icon}  {title}",
+            bg=self.fill,
+            fg=color,
+            font=app._title_font,
+        ).pack(anchor="w")
+        self.content = tk.Frame(self.body, bg=self.fill)
+        self.content.pack(anchor="w", fill="x", pady=(6, 0))
+        self.footer = tk.Frame(self.body, bg=self.fill)
+        self._labels: list[tk.Label] = []
+        self._host_width = 640
+        if streaming:
+            self._add_label(text or "…")
+        elif role == "assistant":
+            self._render_blocks(text)
+            self._render_footer(extras, elapsed)
+        else:
+            self._add_label(text)
+            self._render_footer(None, None)
+        app._cover_history(self.row)
+
+    def _add_label(self, text: str, *, fg: str = "#202124", font=None, bg: str | None = None) -> tk.Label:
+        label = tk.Label(
+            self.content,
+            text=text,
+            bg=bg or self.fill,
+            fg=fg,
+            font=font or self.app._ui_font,
+            justify="left",
+            anchor="w",
+            wraplength=320,
+        )
+        label.pack(anchor="w", pady=(2, 0))
+        self._labels.append(label)
+        return label
+
+    def _render_blocks(self, text: str) -> None:
+        family = self.app._ui_font[0]
+        mono = ("Consolas", 10) if sys.platform == "win32" else ("monospace", 10)
+        for block in formatter.format_blocks(text or ""):
+            kind = block.kind
+            if kind == "heading":
+                size = 16 if block.level <= 1 else 13 if block.level == 2 else 11
+                self._add_label(block.text, fg="#1a7f37", font=(family, size, "bold"))
+            elif kind == "code":
+                box = tk.Frame(self.content, bg="#dfe3e8")
+                box.pack(anchor="w", pady=(4, 2))
+                label = tk.Label(
+                    box,
+                    text=block.text,
+                    bg="#dfe3e8",
+                    fg="#202124",
+                    font=mono,
+                    justify="left",
+                    anchor="w",
+                    wraplength=320,
+                )
+                label.pack(padx=8, pady=6, anchor="w")
+                self._labels.append(label)
+            elif kind == "list":
+                rows = [
+                    (f"{i}. " if block.ordered else "• ") + item
+                    for i, item in enumerate(block.items, 1)
+                ]
+                self._add_label("\n".join(rows))
+            elif kind == "quote":
+                self._add_label(block.text, fg="#5f6368")
+            elif kind == "rule":
+                self._add_label("—", fg="#8a8a8a")
+            elif kind == "html_doc":
+                self._add_label(f"HTML page: {block.name}", fg="#5f6368")
+            else:
+                self._add_label(block.text or "")
+
+    def _render_footer(self, extras: dict | None, elapsed: int | None) -> None:
+        for child in self.footer.winfo_children():
+            child.destroy()
+        if not self.footer.winfo_manager():
+            self.footer.pack(fill="x", pady=(8, 0))
+        left = tk.Frame(self.footer, bg=self.fill)
+        right = tk.Frame(self.footer, bg=self.fill)
+        left.pack(side="left")
+        right.pack(side="right")
+        reply = _IconButton(left, "reply", lambda: self.app._set_quote(self.text), self.fill)
+        reply.pack(side="left")
+        _HoverTip(reply, "Reply to this message")
+        if self.role != "assistant":
+            return
+        copy = _IconButton(left, "copy", lambda: self.app._copy_reply(self.text), self.fill)
+        copy.pack(side="left", padx=(2, 0))
+        _HoverTip(copy, "Copy reply")
+        save_pills, side_pills = self._footer_pills(extras or {})
+        for label, command in save_pills:
+            self._footer_pill(left, label, command).pack(side="left", padx=(6, 0))
+        if elapsed is not None:
+            tk.Label(
+                left,
+                text=_elapsed_words(elapsed),
+                bg=self.fill,
+                fg="#5f6368",
+                font=(self.app._ui_font[0], 10),
+            ).pack(side="left", padx=(8, 0))
+        for label, command in side_pills:
+            self._footer_pill(right, label, command).pack(side="right", padx=(6, 0))
+
+    def _footer_pills(self, extras: dict) -> tuple[list[tuple[str, object]], list[tuple[str, object]]]:
+        pages = extras.get("html_pages")
+        if pages is None and self.text:
+            pages = formatter.html_pages(formatter.format_blocks(self.text))
+        pdfs = [p for p in (extras.get("pdf_paths") or []) if p]
+        profile = extras.get("profile_update") or {}
+        record = extras.get("profile_record")
+        save: list[tuple[str, object]] = []
+        side: list[tuple[str, object]] = []
+        if record:
+            save.append(("Save to profile", lambda rec=record: self.app._save_profile_record(rec)))
+        else:
+            save.append(("Save to notes", lambda body=self.text, prof=profile: self.app._save_turn_notes(body, prof)))
+        saves = [item for item in (extras.get("pdf_saves") or []) if item.get("path")]
+        if saves:
+            for item in saves:
+                path = str(item["path"])
+                label = str(item.get("label") or "Save PDF")
+                side.append((label, lambda p=path: self.app._save_turn_pdf([p])))
+        elif pdfs:
+            side.append(("Save PDF", lambda paths=list(pdfs): self.app._save_turn_pdf(paths)))
+        if pages:
+            side.append(("View HTML", lambda ps=pages: self.app._view_html(ps)))
+        return save, side
+
+    def _footer_pill(self, parent, label: str, command) -> _RoundButton:
+        return _RoundButton(
+            parent,
+            label,
+            command,
+            parent_bg=self.fill,
+            fill="#ffffff",
+            fg="#1a7f37" if label == "Save to profile" else "#202124",
+            radius=10,
+            padx=10,
+            pady=4,
+            font=(self.app._ui_font[0], 10),
+        )
+
+    def set_stream(self, text: str) -> None:
+        self.text = text
+        if self._labels:
+            self._labels[0].configure(text=text or "…")
+
+    def finish(self, text: str, extras: dict | None, elapsed: int | None) -> None:
+        self.text = text
+        for child in list(self.content.winfo_children()):
+            child.destroy()
+        self._labels.clear()
+        self._render_blocks(text)
+        self._render_footer(extras, elapsed)
+        self.app._cover_history(self.row)
+
+    def layout(self, host_width: int) -> None:
+        self._host_width = host_width
+        edge = 12
+        gutter = max(80, int(host_width * 0.20))
+        max_outer = host_width - edge - gutter
+        if max_outer < 180:
+            gutter = max(16, host_width - edge - 180)
+            max_outer = max(120, host_width - edge - gutter)
+        inner = max(100, max_outer - 28)
+        for label in self._labels:
+            label.configure(wraplength=inner)
+        self.body.update_idletasks()
+        body_w = min(max(self.body.winfo_reqwidth(), 48), max_outer - 28)
+        body_h = max(self.body.winfo_reqheight(), 24)
+        outer_w = body_w + 28
+        outer_h = body_h + 24
+        self.canvas.configure(width=outer_w, height=outer_h)
+        self.canvas.itemconfigure(self._win, width=body_w)
+        self.canvas.delete("shape")
+        points = _round_points(1, 1, outer_w - 2, outer_h - 2, 16)
+        self.canvas.create_polygon(points, smooth=False, fill=self.fill, outline=CHAT_LINE, tags="shape")
+        self.canvas.tag_lower("shape")
+        self.row.configure(height=outer_h + 10)
+        if self.role == "user":
+            self.canvas.place(x=max(gutter, host_width - outer_w - edge), y=4, anchor="nw")
+        else:
+            self.canvas.place(x=edge, y=4, anchor="nw")
+
+
 class ProfileWindow:
-    """Editable profile cards. Profile… and View profile open this same window."""
+    """Editable profile cards. View profile opens this window."""
 
     _PAGE = "#f7f7f7"
-    _CARD = "#ffffff"
+    _FIELD = "#ffffff"
+    _FIELD_LINE = "#d5d9e0"
     _GREEN = "#1a7f37"
     _GRAY = "#5f6368"
     _MUTED = "#8a8a8a"
-    _CHIP = "#e7f5ec"
-    _LINE = "#dadce0"
+    _TINTS = {
+        "contact": {"base": "#ffffff", "light": "#ffffff", "dark": "#eef1f4", "line": "#e1e4e8"},
+        "summary": {"base": "#fde8ef", "light": "#fff4f7", "dark": "#f8d4e0", "line": "#f3c6d4"},
+        "experience": {"base": "#e3f0fc", "light": "#f4f9fe", "dark": "#d0e4f8", "line": "#c3daf2"},
+        "projects": {"base": "#fff3cc", "light": "#fffdf4", "dark": "#ffe7a3", "line": "#f0d98a"},
+        "skills": {"base": "#f2ebfe", "light": "#faf7ff", "dark": "#e4d8fc", "line": "#d9c8f6"},
+        "education": {"base": "#e3f6ea", "light": "#f4fbf7", "dark": "#cfeeda", "line": "#bfe4cc"},
+    }
 
     def __init__(self, app: UsbChatApp) -> None:
         self.app = app
@@ -1937,8 +2398,12 @@ class ProfileWindow:
         self.profile = profiledoc.load_profile(app.profile_json)
         self.role_rows: list[dict] = []
         self.school_rows: list[dict] = []
+        self.project_rows: list[dict] = []
+        self.link_rows: list[dict] = []
         self.skills: list[str] = list(self.profile["skills"])
         self._cards = 0
+        self._placing = False
+        self.app._profile_window = self
 
         shell = tk.Frame(self.win, bg=self._PAGE)
         shell.pack(fill="both", expand=True)
@@ -1951,27 +2416,58 @@ class ProfileWindow:
         self.page_id = self.canvas.create_window((0, 0), window=self.page, anchor="nw")
         self.page.bind("<Configure>", lambda _e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.bind("<Configure>", self._fit_width)
-        self.canvas.bind("<MouseWheel>", self._wheel)
-        self.canvas.bind("<Button-4>", self._wheel)
-        self.canvas.bind("<Button-5>", self._wheel)
 
+        self._build_intro()
         self._build_header()
         self._build_summary()
         self._build_experience()
+        self._build_projects()
         self._build_skills()
         self._build_education()
 
         bar = tk.Frame(self.win, bg=self._PAGE, padx=16, pady=12)
         bar.pack(fill="x")
         ttk.Button(bar, text="Close", command=self.close).pack(side="right")
-        ttk.Button(bar, text="Save profile", command=self.save).pack(side="right", padx=(0, 8))
+        self.save_btn = ttk.Button(bar, text="Save profile", command=self.save, state="disabled")
+        self.save_btn.pack(side="right", padx=(0, 8))
         self.win.protocol("WM_DELETE_WINDOW", self.close)
         self._loading = False
+        self._saved_form = self._form_state()
         self.dirty = False
+        self._cover_wheel(self.win)
         self.win.after_idle(self._place_skills)
 
+    def _cover_wheel(self, widget) -> None:
+        """One scroll handler for the profile window. Child cards do not keep their own."""
+        widget.bind("<MouseWheel>", self._wheel)
+        widget.bind("<Button-4>", self._wheel)
+        widget.bind("<Button-5>", self._wheel)
+        for child in widget.winfo_children():
+            self._cover_wheel(child)
+
     def _fit_width(self, event) -> None:
-        self.canvas.itemconfigure(self.page_id, width=max(event.width, 1))
+        width = max(event.width, 1)
+        self.canvas.itemconfigure(self.page_id, width=width)
+        intro = getattr(self, "intro", None)
+        if intro is not None:
+            intro.configure(wraplength=max(200, width - 48))
+
+    def _build_intro(self) -> None:
+        self.intro = tk.Label(
+            self.page,
+            text=(
+                "This is your professional background, saved on the stick. "
+                "Job application writes the resume and cover letter only from what is saved here. "
+                "Type it in yourself, or attach a resume in the chat with Update profile and save the result."
+            ),
+            bg=self._PAGE,
+            fg=self._GRAY,
+            font=self.font,
+            wraplength=640,
+            justify="left",
+            anchor="w",
+        )
+        self.intro.pack(fill="x", padx=16, pady=(16, 4))
 
     def _wheel(self, event) -> str:
         if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0:
@@ -1981,90 +2477,206 @@ class ProfileWindow:
         return "break"
 
     def _touch(self, *_args) -> None:
-        if not self._loading:
-            self.dirty = True
+        if self._loading:
+            return
+        try:
+            changed = self._form_state() != getattr(self, "_saved_form", None)
+        except tk.TclError:
+            return
+        self.dirty = changed
+        if hasattr(self, "save_btn"):
+            self.save_btn.configure(state="normal" if changed else "disabled")
 
-    def _card(self, title: str) -> tk.Frame:
-        outer = tk.Frame(self.page, bg=self._PAGE, padx=16)
-        outer.pack(fill="x", pady=(12 if self._cards == 0 else 0, 0))
+    def _on_modified(self, event) -> None:
+        widget = event.widget
+        if not widget.edit_modified():
+            return
+        widget.edit_modified(False)
+        self._touch()
+
+    def _rerender(self, build) -> None:
+        self._loading = True
+        try:
+            build()
+        finally:
+            self._loading = False
+        self._touch()
+
+    def _shade(self, kind: str, index: int) -> str:
+        spec = self._TINTS[kind]
+        return spec["light"] if index % 2 == 0 else spec["dark"]
+
+    def _card(self, title: str, kind: str) -> tuple[tk.Frame, str]:
+        spec = self._TINTS[kind]
+        outer = tk.Frame(self.page, bg=self._PAGE)
+        outer.pack(fill="x", padx=16, pady=(12 if self._cards == 0 else 0, 0))
         self._cards += 1
-        box = tk.Frame(outer, bg=self._CARD, padx=16, pady=14, highlightbackground=self._LINE, highlightthickness=1)
-        box.pack(fill="x", pady=(0, 12))
-        tk.Label(box, text=title, bg=self._CARD, fg=self._GRAY, font=self.small).pack(anchor="w")
-        return box
+        panel = _Round(
+            outer,
+            fill=spec["base"],
+            parent_bg=self._PAGE,
+            radius=18,
+            padx=18,
+            pady=16,
+            outline=spec["line"],
+        )
+        panel.pack(fill="x", pady=(0, 12))
+        tk.Label(panel.body, text=title, bg=spec["base"], fg=self._GRAY, font=self.small).pack(anchor="w")
+        return panel.body, spec["base"]
 
-    def _entry(self, parent, value: str, font=None, fg=None) -> tk.Entry:
-        field = tk.Entry(
+    def _subcard(self, parent, kind: str, index: int, parent_bg: str) -> tuple[tk.Frame, str]:
+        bg = self._shade(kind, index)
+        panel = _Round(
             parent,
+            fill=bg,
+            parent_bg=parent_bg,
+            radius=14,
+            padx=14,
+            pady=12,
+            outline=self._TINTS[kind]["line"],
+        )
+        panel.pack(fill="x", pady=(8, 0))
+        return panel.body, bg
+
+    def _entry(self, parent, value: str, bg: str, font=None, fg=None, watch: bool = True) -> tk.Entry:
+        shell = _Round(
+            parent,
+            fill=self._FIELD,
+            parent_bg=bg,
+            radius=10,
+            padx=10,
+            pady=6,
+            outline=self._FIELD_LINE,
+        )
+        shell.pack(fill="x", pady=(6, 0))
+        var = tk.StringVar(value=value)
+        field = tk.Entry(
+            shell.body,
+            textvariable=var,
             font=font or self.font,
             fg=fg or "#202124",
-            bg=self._CARD,
-            relief="solid",
-            borderwidth=1,
+            bg=self._FIELD,
+            insertbackground="#202124",
+            relief="flat",
+            borderwidth=0,
             highlightthickness=0,
         )
-        field.insert(0, value)
-        field.bind("<KeyRelease>", self._touch)
-        field.pack(fill="x", pady=(6, 0))
+        field.pack(fill="x")
+        field._var = var
+        if watch:
+            var.trace_add("write", self._touch)
         return field
 
-    def _text(self, parent, value: str, height: int) -> tk.Text:
-        field = tk.Text(
+    def _labeled(self, parent, label: str, value: str, bg: str) -> tk.Entry:
+        tk.Label(parent, text=label, bg=bg, fg=self._GRAY, font=self.small).pack(anchor="w", pady=(8, 0))
+        return self._entry(parent, value, bg)
+
+    def _text(self, parent, value: str, height: int, bg: str) -> tk.Text:
+        shell = _Round(
             parent,
+            fill=self._FIELD,
+            parent_bg=bg,
+            radius=10,
+            padx=10,
+            pady=8,
+            outline=self._FIELD_LINE,
+        )
+        shell.pack(fill="x", pady=(6, 0))
+        field = tk.Text(
+            shell.body,
             height=height,
             wrap="word",
             font=self.font,
-            bg=self._CARD,
-            relief="solid",
-            borderwidth=1,
+            bg=self._FIELD,
+            fg="#202124",
+            insertbackground="#202124",
+            relief="flat",
+            borderwidth=0,
             highlightthickness=0,
-            padx=6,
-            pady=4,
         )
         if value:
             field.insert("1.0", value)
-        field.bind("<KeyRelease>", self._touch)
-        field.pack(fill="x", pady=(6, 0))
+        field.bind("<<Modified>>", self._on_modified)
+        field.edit_modified(False)
+        field.pack(fill="x")
         return field
 
-    def _empty(self, parent, shown: bool) -> None:
+    def _empty(self, parent, shown: bool, bg: str) -> None:
         if shown:
             tk.Label(
                 parent,
                 text="Nothing saved in this section.",
-                bg=self._CARD,
+                bg=bg,
                 fg=self._MUTED,
                 font=(self.font[0], 11, "italic"),
             ).pack(anchor="w", pady=(8, 0))
 
     def _build_header(self) -> None:
-        box = self._card("CONTACT")
+        box, tint = self._card("CONTACT", "contact")
         contact = self.profile["contact"]
-        self.name = self._entry(box, contact["name"], font=self.name_font, fg=self._GREEN)
-        self.email = self._entry(box, contact["email"])
-        self.phone = self._entry(box, contact["phone"])
-        self.location = self._entry(box, contact["location"])
-        tk.Label(box, text="Links, one per line", bg=self._CARD, fg=self._GRAY, font=self.small).pack(anchor="w", pady=(8, 0))
-        self.links = self._text(box, "\n".join(contact["links"]), 3)
+        self.name = self._entry(box, contact["name"], tint, font=self.name_font, fg=self._GREEN)
+        self.email = self._entry(box, contact["email"], tint)
+        self.phone = self._entry(box, contact["phone"], tint)
+        self.location = self._entry(box, contact["location"], tint)
+        tk.Label(box, text="Links", bg=tint, fg=self._GRAY, font=self.small).pack(anchor="w", pady=(8, 0))
+        self.link_host = tk.Frame(box, bg=tint)
+        self.link_host.pack(fill="x")
+        self._contact_tint = tint
+        ttk.Button(box, text="Add link", command=self._add_link).pack(anchor="w", pady=(8, 0))
+        self._render_links()
         if usbchat.read_profile(self.app.profile_file).strip() and profiledoc.profile_is_empty(self.profile):
             tk.Label(
                 box,
                 text="profile.md is still on the stick. Saving writes profile.json, which the job committee uses.",
-                bg=self._CARD,
+                bg=tint,
                 fg=self._GRAY,
                 font=self.small,
                 wraplength=620,
                 justify="left",
             ).pack(anchor="w", pady=(8, 0))
 
+    def _render_links(self) -> None:
+        for child in self.link_host.winfo_children():
+            child.destroy()
+        self.link_rows = []
+        links = self.profile["contact"]["links"]
+        tint = self._contact_tint
+        self._empty(self.link_host, not links, tint)
+        for index, link in enumerate(links):
+            block, bg = self._subcard(self.link_host, "contact", index, tint)
+            fresh = bool(link.get("fresh"))
+            title = link.get("title") or ""
+            url = link.get("url") or ""
+            if fresh:
+                title_field = self._labeled(block, "Title", title, bg)
+                value = self._labeled(block, "Address", url, bg)
+            else:
+                tk.Label(block, text=title or "Link", bg=bg, fg=self._GRAY, font=self.small).pack(anchor="w")
+                title_field = title
+                value = self._entry(block, url, bg)
+            row = {"title": title_field, "value": value, "fresh": fresh}
+            self.link_rows.append(row)
+            ttk.Button(block, text="Remove", command=lambda item=row: self._remove_link(item)).pack(anchor="w", pady=(6, 0))
+        self._cover_wheel(self.link_host)
+
+    def _add_link(self) -> None:
+        self.profile["contact"]["links"] = self._links_from_rows(strip=True) + [{"title": "", "url": "", "fresh": True}]
+        self._rerender(self._render_links)
+
+    def _remove_link(self, item: dict) -> None:
+        links = self._links_from_rows(strip=True)
+        del links[self.link_rows.index(item)]
+        self.profile["contact"]["links"] = links
+        self._rerender(self._render_links)
+
     def _build_summary(self) -> None:
-        box = self._card("SUMMARY")
-        self.summary = self._text(box, self.profile["summary"], 4)
-        self._empty(box, not self.profile["summary"])
+        box, tint = self._card("SUMMARY", "summary")
+        self.summary = self._text(box, self.profile["summary"], 4, tint)
+        self._empty(box, not self.profile["summary"], tint)
 
     def _build_experience(self) -> None:
-        self.exp_box = self._card("EXPERIENCE")
-        self.exp_host = tk.Frame(self.exp_box, bg=self._CARD)
+        self.exp_box, self._exp_tint = self._card("EXPERIENCE", "experience")
+        self.exp_host = tk.Frame(self.exp_box, bg=self._exp_tint)
         self.exp_host.pack(fill="x")
         ttk.Button(self.exp_box, text="Add role", command=self._add_role).pack(anchor="w", pady=(8, 0))
         self._render_roles()
@@ -2074,101 +2686,141 @@ class ProfileWindow:
             child.destroy()
         self.role_rows = []
         roles = self.profile["experience"]
-        self._empty(self.exp_host, not roles)
-        for role in roles:
-            block = tk.Frame(self.exp_host, bg=self._CARD, pady=8)
-            block.pack(fill="x")
-            title = self._entry(block, role.get("title") or "")
-            employer = self._entry(block, role.get("employer") or "")
-            dates = tk.Frame(block, bg=self._CARD)
+        tint = self._exp_tint
+        self._empty(self.exp_host, not roles, tint)
+        for index, role in enumerate(roles):
+            block, bg = self._subcard(self.exp_host, "experience", index, tint)
+            position = self._labeled(block, "Position", role.get("position") or "", bg)
+            company = self._labeled(block, "Company", role.get("company") or "", bg)
+            location = self._labeled(block, "Location", role.get("location") or "", bg)
+            dates = tk.Frame(block, bg=bg)
             dates.pack(fill="x")
-            start = self._entry(dates, role.get("start") or "")
-            end = self._entry(dates, role.get("end") or "")
-            start.pack_forget()
-            end.pack_forget()
-            start.pack(in_=dates, side="left", fill="x", expand=True, pady=(6, 0))
-            end.pack(in_=dates, side="left", fill="x", expand=True, padx=(8, 0), pady=(6, 0))
-            highlights = self._text(block, "\n".join(role.get("highlights") or []), 3)
-            row = {"title": title, "employer": employer, "start": start, "end": end, "highlights": highlights}
+            start_box = tk.Frame(dates, bg=bg)
+            end_box = tk.Frame(dates, bg=bg)
+            start_box.pack(side="left", fill="x", expand=True)
+            end_box.pack(side="left", fill="x", expand=True, padx=(8, 0))
+            start = self._labeled(start_box, "Start", role.get("start") or "", bg)
+            end = self._labeled(end_box, "End", role.get("end") or "", bg)
+            tk.Label(block, text="Description", bg=bg, fg=self._GRAY, font=self.small).pack(anchor="w", pady=(8, 0))
+            description = self._text(block, role.get("description") or "", 4, bg)
+            row = {
+                "position": position,
+                "company": company,
+                "location": location,
+                "start": start,
+                "end": end,
+                "description": description,
+            }
             self.role_rows.append(row)
             ttk.Button(block, text="Remove", command=lambda item=row: self._remove_role(item)).pack(anchor="w", pady=(6, 0))
+        self._cover_wheel(self.exp_host)
 
     def _read_roles(self) -> list[dict]:
-        roles = []
-        for row in self.role_rows:
-            highlights = [line.strip() for line in row["highlights"].get("1.0", "end").splitlines() if line.strip()]
-            roles.append(
-                {
-                    "title": row["title"].get().strip(),
-                    "employer": row["employer"].get().strip(),
-                    "start": row["start"].get().strip(),
-                    "end": row["end"].get().strip(),
-                    "highlights": highlights,
-                }
-            )
-        return roles
+        return [
+            {
+                "position": row["position"].get().strip(),
+                "company": row["company"].get().strip(),
+                "location": row["location"].get().strip(),
+                "start": row["start"].get().strip(),
+                "end": row["end"].get().strip(),
+                "description": row["description"].get("1.0", "end").strip(),
+            }
+            for row in self.role_rows
+        ]
 
     def _add_role(self) -> None:
-        self.profile["experience"] = self._read_roles() + [
-            {"title": "", "employer": "", "start": "", "end": "", "highlights": []}
-        ]
-        self._touch()
-        self._render_roles()
+        self.profile["experience"] = self._read_roles() + [profiledoc.empty_role()]
+        self._rerender(self._render_roles)
 
     def _remove_role(self, item: dict) -> None:
         roles = self._read_roles()
         index = self.role_rows.index(item)
         del roles[index]
         self.profile["experience"] = roles
-        self._touch()
-        self._render_roles()
+        self._rerender(self._render_roles)
 
     def _build_skills(self) -> None:
-        self.skill_box = self._card("SKILLS")
-        self.skill_host = tk.Frame(self.skill_box, bg=self._CARD)
+        self.skill_box, self._skill_tint = self._card("SKILLS", "skills")
+        self.skill_host = tk.Frame(self.skill_box, bg=self._skill_tint)
         self.skill_host.pack(fill="x", pady=(8, 0))
-        self.skill_host.bind("<Configure>", lambda _e: self._place_skills())
-        add = tk.Frame(self.skill_box, bg=self._CARD)
+        self.skill_host.bind("<Configure>", self._place_skills)
+        add = tk.Frame(self.skill_box, bg=self._skill_tint)
         add.pack(fill="x", pady=(8, 0))
-        self.skill_entry = tk.Entry(add, font=self.font)
-        self.skill_entry.pack(side="left", fill="x", expand=True)
+        entry_host = tk.Frame(add, bg=self._skill_tint)
+        entry_host.pack(side="left", fill="x", expand=True)
+        self.skill_entry = self._entry(entry_host, "", self._skill_tint, watch=False)
         self.skill_entry.bind("<Return>", lambda _e: self._add_skill())
-        ttk.Button(add, text="Add skill", command=self._add_skill).pack(side="left", padx=(8, 0))
+        ttk.Button(add, text="Add skill", command=self._add_skill).pack(side="left", padx=(8, 0), pady=(6, 0))
         self._place_skills()
 
-    def _place_skills(self) -> None:
-        for child in self.skill_host.winfo_children():
-            child.destroy()
-        if not self.skills:
-            self._empty(self.skill_host, True)
-            self.skill_host.configure(height=28)
+    def _place_skills(self, _event=None) -> None:
+        if self._placing:
             return
-        width = max(self.skill_host.winfo_width(), 560)
-        x = y = row_h = 0
-        for index, skill in enumerate(self.skills):
-            chip = tk.Frame(self.skill_host, bg=self._CHIP, padx=8, pady=3)
-            tk.Label(chip, text=skill, bg=self._CHIP, fg=self._GREEN, font=self.font).pack(side="left")
-            tk.Button(
-                chip,
-                text="×",
-                relief="flat",
-                bg=self._CHIP,
-                fg=self._GREEN,
-                command=lambda n=index: self._remove_skill(n),
-                padx=2,
-                pady=0,
-            ).pack(side="left")
-            chip.update_idletasks()
-            w = chip.winfo_reqwidth()
-            h = chip.winfo_reqheight()
-            if x and x + w > width:
-                x = 0
-                y += row_h + 6
-                row_h = 0
-            chip.place(x=x, y=y)
-            x += w + 6
-            row_h = max(row_h, h)
-        self.skill_host.configure(height=y + row_h + 4)
+        self._placing = True
+        self.skill_host.unbind("<Configure>")
+        try:
+            for child in self.skill_host.winfo_children():
+                child.destroy()
+            if not self.skills:
+                self._empty(self.skill_host, True, self._skill_tint)
+                self.skill_host.configure(height=28)
+                self._cover_wheel(self.skill_host)
+                return
+            width = max(self.skill_host.winfo_width(), 560)
+            x = y = row_h = 0
+            for index, skill in enumerate(self.skills):
+                chip = self._skill_chip(skill, index)
+                chip.update_idletasks()
+                w = chip.winfo_reqwidth()
+                h = chip.winfo_reqheight()
+                if x and x + w > width:
+                    x = 0
+                    y += row_h + 6
+                    row_h = 0
+                chip.place(x=x, y=y)
+                x += w + 6
+                row_h = max(row_h, h)
+            self.skill_host.configure(height=y + row_h + 4)
+            self._cover_wheel(self.skill_host)
+        finally:
+            self._placing = False
+            self.skill_host.bind("<Configure>", self._place_skills)
+
+    def _skill_chip(self, skill: str, index: int) -> tk.Canvas:
+        fill = self._shade("skills", index)
+        canvas = tk.Canvas(
+            self.skill_host,
+            bg=self._skill_tint,
+            highlightthickness=0,
+            bd=0,
+            takefocus=0,
+            height=1,
+            width=1,
+        )
+        inner = tk.Frame(canvas, bg=fill)
+        tk.Label(inner, text=skill, bg=fill, fg=self._GREEN, font=self.font).pack(side="left")
+        tk.Button(
+            inner,
+            text="×",
+            relief="flat",
+            bd=0,
+            bg=fill,
+            fg=self._GREEN,
+            activebackground=fill,
+            activeforeground=self._GREEN,
+            command=lambda n=index: self._remove_skill(n),
+            padx=2,
+            pady=0,
+        ).pack(side="left")
+        canvas.create_window((12, 8), window=inner, anchor="nw")
+        inner.update_idletasks()
+        width = inner.winfo_reqwidth() + 24
+        height = inner.winfo_reqheight() + 16
+        canvas.configure(width=width, height=height)
+        points = _round_points(1, 1, width - 2, height - 2, 12)
+        canvas.create_polygon(points, smooth=False, fill=fill, outline="", tags="shape")
+        canvas.tag_lower("shape")
+        return canvas
 
     def _add_skill(self) -> None:
         text = self.skill_entry.get().strip()
@@ -2186,8 +2838,8 @@ class ProfileWindow:
             self._place_skills()
 
     def _build_education(self) -> None:
-        self.edu_box = self._card("EDUCATION")
-        self.edu_host = tk.Frame(self.edu_box, bg=self._CARD)
+        self.edu_box, self._edu_tint = self._card("EDUCATION", "education")
+        self.edu_host = tk.Frame(self.edu_box, bg=self._edu_tint)
         self.edu_host.pack(fill="x")
         ttk.Button(self.edu_box, text="Add education", command=self._add_school).pack(anchor="w", pady=(8, 0))
         self._render_schools()
@@ -2197,41 +2849,162 @@ class ProfileWindow:
             child.destroy()
         self.school_rows = []
         schools = self.profile["education"]
-        self._empty(self.edu_host, not schools)
-        for school in schools:
-            block = tk.Frame(self.edu_host, bg=self._CARD, pady=8)
-            block.pack(fill="x")
-            degree = self._entry(block, school.get("degree") or "")
-            name = self._entry(block, school.get("school") or "")
-            year = self._entry(block, school.get("year") or "")
-            row = {"degree": degree, "school": name, "year": year}
+        tint = self._edu_tint
+        self._empty(self.edu_host, not schools, tint)
+        for index, school in enumerate(schools):
+            block, bg = self._subcard(self.edu_host, "education", index, tint)
+            school_name = self._labeled(block, "University / college", school.get("school") or "", bg)
+            location = self._labeled(block, "Location", school.get("location") or "", bg)
+            dates = tk.Frame(block, bg=bg)
+            dates.pack(fill="x")
+            start_box = tk.Frame(dates, bg=bg)
+            end_box = tk.Frame(dates, bg=bg)
+            start_box.pack(side="left", fill="x", expand=True)
+            end_box.pack(side="left", fill="x", expand=True, padx=(8, 0))
+            start = self._labeled(start_box, "Start", school.get("start") or "", bg)
+            end = self._labeled(end_box, "End", school.get("end") or "", bg)
+            degree = self._labeled(block, "Degree / course", school.get("degree") or "", bg)
+            specialization = self._labeled(block, "Specialization", school.get("specialization") or "", bg)
+            tk.Label(block, text="Description", bg=bg, fg=self._GRAY, font=self.small).pack(anchor="w", pady=(8, 0))
+            description = self._text(block, school.get("description") or "", 3, bg)
+            row = {
+                "school": school_name,
+                "location": location,
+                "start": start,
+                "end": end,
+                "degree": degree,
+                "specialization": specialization,
+                "description": description,
+            }
             self.school_rows.append(row)
             ttk.Button(block, text="Remove", command=lambda item=row: self._remove_school(item)).pack(anchor="w", pady=(6, 0))
+        self._cover_wheel(self.edu_host)
 
     def _read_schools(self) -> list[dict]:
         return [
             {
-                "degree": row["degree"].get().strip(),
                 "school": row["school"].get().strip(),
-                "year": row["year"].get().strip(),
+                "location": row["location"].get().strip(),
+                "start": row["start"].get().strip(),
+                "end": row["end"].get().strip(),
+                "degree": row["degree"].get().strip(),
+                "specialization": row["specialization"].get().strip(),
+                "description": row["description"].get("1.0", "end").strip(),
             }
             for row in self.school_rows
         ]
 
     def _add_school(self) -> None:
-        self.profile["education"] = self._read_schools() + [{"degree": "", "school": "", "year": ""}]
-        self._touch()
-        self._render_schools()
+        self.profile["education"] = self._read_schools() + [profiledoc.empty_school()]
+        self._rerender(self._render_schools)
 
     def _remove_school(self, item: dict) -> None:
         schools = self._read_schools()
         del schools[self.school_rows.index(item)]
         self.profile["education"] = schools
-        self._touch()
-        self._render_schools()
+        self._rerender(self._render_schools)
+
+    def _build_projects(self) -> None:
+        self.project_box, self._project_tint = self._card("PROJECTS", "projects")
+        self.project_host = tk.Frame(self.project_box, bg=self._project_tint)
+        self.project_host.pack(fill="x")
+        ttk.Button(self.project_box, text="Add project", command=self._add_project).pack(anchor="w", pady=(8, 0))
+        self._render_projects()
+
+    def _render_projects(self) -> None:
+        for child in self.project_host.winfo_children():
+            child.destroy()
+        self.project_rows = []
+        projects = self.profile["projects"]
+        tint = self._project_tint
+        self._empty(self.project_host, not projects, tint)
+        for index, project in enumerate(projects):
+            block, bg = self._subcard(self.project_host, "projects", index, tint)
+            title = self._labeled(block, "Title", project.get("title") or "", bg)
+            tk.Label(block, text="Description", bg=bg, fg=self._GRAY, font=self.small).pack(anchor="w", pady=(8, 0))
+            description = self._text(block, project.get("description") or "", 3, bg)
+            row = {"title": title, "description": description}
+            self.project_rows.append(row)
+            ttk.Button(block, text="Remove", command=lambda item=row: self._remove_project(item)).pack(anchor="w", pady=(6, 0))
+        self._cover_wheel(self.project_host)
+
+    def _read_projects(self) -> list[dict]:
+        return [
+            {
+                "title": row["title"].get().strip(),
+                "description": row["description"].get("1.0", "end").strip(),
+            }
+            for row in self.project_rows
+        ]
+
+    def _add_project(self) -> None:
+        self.profile["projects"] = self._read_projects() + [profiledoc.empty_project()]
+        self._rerender(self._render_projects)
+
+    def _remove_project(self, item: dict) -> None:
+        projects = self._read_projects()
+        del projects[self.project_rows.index(item)]
+        self.profile["projects"] = projects
+        self._rerender(self._render_projects)
+
+    def _links_from_rows(self, strip: bool = False) -> list[dict]:
+        rows = []
+        for row in self.link_rows:
+            title = row["title"].get() if row["fresh"] else str(row["title"] or "")
+            url = row["value"].get()
+            if strip:
+                title = title.strip()
+                url = url.strip()
+            item = {"title": title, "url": url}
+            if row["fresh"]:
+                item["fresh"] = True
+            rows.append(item)
+        return rows
+
+    def _form_state(self) -> tuple:
+        return (
+            self.name.get(),
+            self.email.get(),
+            self.phone.get(),
+            self.location.get(),
+            tuple((item["title"], item["url"]) for item in self._links_from_rows()),
+            self.summary.get("1.0", "end-1c"),
+            tuple(
+                (
+                    row["position"].get(),
+                    row["company"].get(),
+                    row["location"].get(),
+                    row["start"].get(),
+                    row["end"].get(),
+                    row["description"].get("1.0", "end-1c"),
+                )
+                for row in self.role_rows
+            ),
+            tuple(
+                (row["title"].get(), row["description"].get("1.0", "end-1c"))
+                for row in self.project_rows
+            ),
+            tuple(self.skills),
+            tuple(
+                (
+                    row["school"].get(),
+                    row["location"].get(),
+                    row["start"].get(),
+                    row["end"].get(),
+                    row["degree"].get(),
+                    row["specialization"].get(),
+                    row["description"].get("1.0", "end-1c"),
+                )
+                for row in self.school_rows
+            ),
+        )
 
     def _collect(self) -> dict:
-        links = [line.strip() for line in self.links.get("1.0", "end").splitlines() if line.strip()]
+        links = [
+            {"title": item["title"], "url": item["url"]}
+            for item in self._links_from_rows(strip=True)
+            if item["title"] or item["url"]
+        ]
         return profiledoc.normalize_profile(
             {
                 "contact": {
@@ -2243,6 +3016,7 @@ class ProfileWindow:
                 },
                 "summary": self.summary.get("1.0", "end").strip(),
                 "experience": self._read_roles(),
+                "projects": self._read_projects(),
                 "skills": list(self.skills),
                 "education": self._read_schools(),
             }
@@ -2253,13 +3027,20 @@ class ProfileWindow:
         if not messagebox.askyesno("profile.json", "Save these details to profile.json?"):
             return
         profiledoc.save_profile(self.app.profile_json, record)
+        self._loading = True
         self.profile = record
+        self._render_links()
+        self._loading = False
+        self._saved_form = self._form_state()
         self.dirty = False
+        self.save_btn.configure(state="disabled")
         self.app._status("Saved profile.json")
 
     def close(self) -> None:
         if self.dirty and not messagebox.askyesno("Profile", "Close without saving these edits?"):
             return
+        if self.app._profile_window is self:
+            self.app._profile_window = None
         self.win.destroy()
 
 
