@@ -312,6 +312,18 @@
       font-size: 13px;
     }
     .folder-title { font-weight: 600; }
+    .folder-summary {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      min-width: 0;
+    }
+    .folder-summary .folder-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .folder-summary .sep { color: var(--muted); }
     .file-line {
       display: flex;
       align-items: center;
@@ -599,7 +611,24 @@
 
     function showSelection(el, item) {
       el.replaceChildren();
-      if (item) appendSelection(el, item);
+      if (!item) return;
+      if (item.kind !== "folder") {
+        appendSelection(el, item);
+        return;
+      }
+      const count = Number.isInteger(item.count) ? item.count : readableFileCount(item.entries);
+      const line = document.createElement("div");
+      line.className = "folder-summary";
+      const title = document.createElement("span");
+      title.className = "folder-title";
+      title.textContent = item.name || "Folder";
+      const sep = document.createElement("span");
+      sep.className = "sep";
+      sep.textContent = "·";
+      const total = document.createElement("span");
+      total.textContent = count === 1 ? "1 file" : count + " files";
+      line.append(title, sep, total);
+      el.appendChild(line);
     }
 
     async function uploadPicked(url, items, label) {
@@ -648,6 +677,21 @@
 
     const DRAFT_KEY = "id10t-draft-prompt";
     const DOC_EXT = new Set(["pdf", "docx", "xlsx", "txt", "md", "csv", "html", "py"]);
+
+    function readableFileName(name) {
+      const text = String(name || "");
+      const dot = text.lastIndexOf(".");
+      if (dot <= 0) return false;
+      return DOC_EXT.has(text.slice(dot + 1).toLowerCase());
+    }
+
+    function readableFileCount(entries) {
+      let count = 0;
+      for (const entry of entries || []) {
+        if (readableFileName(entry && entry.name)) count += 1;
+      }
+      return count;
+    }
     let fileHandle = null;
     let folderHandle = null;
     let seedHandle = null;
@@ -745,8 +789,7 @@
           showSelection(nameEl, {
             kind: "folder",
             name: label,
-            entries: files.slice(0, 40).map((file) => ({ name: file.name })),
-            truncated: files.length >= 40,
+            count: files.filter((file) => readableFileName(file.name)).length,
           });
         }
         handleSlot(key).set(null);
@@ -788,8 +831,7 @@
       return {
         kind: "folder",
         name: handle.name,
-        entries: files.map((item) => ({ name: item.file.name })),
-        truncated: Boolean(collected && collected.truncated),
+        count: files.filter((item) => readableFileName(item.file.name)).length,
       };
     }
 
