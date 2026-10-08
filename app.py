@@ -87,6 +87,7 @@ TOOL_PHRASES = {
     "createKeepDir": "Creating keep folder",
     "updateBoard": "Updating board",
     "viewCommitteeBoard": "Reading board",
+    "viewSourceBoard": "Reading source board",
     "callVote": "Opening vote",
     "git_login": "Git login",
     "git_commit": "Git commit",
@@ -373,6 +374,47 @@ def _stage_detail(summary: str) -> str:
     return match.group(1) if match else ""
 
 
+def google_account_ready() -> bool:
+    import google_backend
+
+    return bool(config.GOOGLE_CLIENT_ID and config.GOOGLE_CLIENT_SECRET and google_backend.HAS_GOOGLE)
+
+
+def source_documents(name: str, kind: str, body: str) -> list[dict[str, str]]:
+    """Split extracted upload text into board entries. The text stays out of the user prompt."""
+    text = str(body or "").strip()
+    if not text:
+        return []
+    label = str(name or kind or "document").strip() or "document"
+    if kind == "file":
+        return [{"name": label, "kind": "file", "text": text}]
+    docs: list[dict[str, str]] = []
+    for part in re.split(r"\n(?=## )", text):
+        part = part.strip()
+        if not part:
+            continue
+        if part.startswith("## "):
+            title, _, rest = part.partition("\n")
+            title = title[3:].strip() or label
+            docs.append({"name": title, "kind": kind, "text": rest.strip() or part})
+        else:
+            docs.append({"name": label, "kind": kind, "text": part})
+    return docs or [{"name": label, "kind": kind, "text": text}]
+
+
+def _applicant_line(device_id: str) -> str:
+    """Name and place from the saved profile. Job history stays out of the report notes."""
+    try:
+        contact = (career.read_resume(device_id) or {}).get("contact") or {}
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(contact, dict):
+        return ""
+    name = str(contact.get("name") or "").strip()
+    location = str(contact.get("location") or "").strip()
+    return ", ".join(bit for bit in (name, location) if bit)
+
+
 def run_turn(
     prompt: str,
     thread_id: str | None,
@@ -380,11 +422,29 @@ def run_turn(
     coding: Any = False,
     git_remote: str | None = None,
     web: Any = False,
+    gmail: Any = False,
+    calendar: Any = False,
+    sources: list[dict[str, str]] | None = None,
+    applicant: str = "",
 ) -> dict[str, Any]:
     fields = main._route_fields(prompt, NO_MODEL)
-    fields = router.apply_user_controls(fields, coding=coding, git_remote=git_remote, web=web)
+    fields = router.apply_user_controls(
+        fields,
+        coding=coding,
+        git_remote=git_remote,
+        web=web,
+        gmail=gmail,
+        calendar=calendar,
+    )
     generate_fn = main.stub_generate if NO_MODEL else None
-    return executor.run_session(prompt, fields, generate_fn=generate_fn, thread_id=thread_id)
+    return executor.run_session(
+        prompt,
+        fields,
+        generate_fn=generate_fn,
+        thread_id=thread_id,
+        sources=sources,
+        applicant=applicant,
+    )
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -463,6 +523,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/web-status":
             self._send_json(200, search.status())
             return
+        if path == "/google-status":
+            ready = google_account_ready()
+            self._send_json(200, {"available": ready, "reason": "" if ready else "not_configured"})
+            return
         self._send_json(404, {"ok": False, "error": "not_found"})
 
     def do_POST(self) -> None:
@@ -503,6 +567,9 @@ class Handler(BaseHTTPRequestHandler):
         job = bool((body or {}).get("job"))
         update_profile = bool((body or {}).get("update_profile"))
         web = (body or {}).get("web")
+        account = google_account_ready() and not job and not update_profile
+        gmail = bool((body or {}).get("gmail")) and account
+        calendar = bool((body or {}).get("calendar")) and account
         git_remote = str((body or {}).get("git_remote") or "").strip() or None
         seed_id = str((body or {}).get("seed_id") or "").strip()
         folder_id = str((body or {}).get("folder_id") or "").strip()
@@ -528,10 +595,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(400, {"ok": False, "error": "empty_profile"})
             return
         document_text = ""
-        attach_listing = ""
-        attach_body = ""
         seed_listing = ""
-        seed_body = ""
         file_row = career.get_upload(file_id) if file_id else None
         folder_row = career.get_upload(folder_id) if folder_id and not job and not update_profile else None
         seed_row = career.get_upload(seed_id) if seed_id and coding else None
@@ -546,16 +610,15 @@ class Handler(BaseHTTPRequestHandler):
             return
         if file_row:
             document_text = file_row["body"]
-            if not update_profile and not job:
-                attach_listing = file_row["listing"]
-                attach_body = file_row["body"]
-        if folder_row:
-            extra = folder_row["listing"]
-            attach_listing = f"{attach_listing}\n{extra}".strip() if attach_listing else extra
-            attach_body = f"{attach_body}\n\n{folder_row['body']}".strip()
         if seed_row:
             seed_listing = seed_row["listing"]
-            seed_body = seed_row["body"]
+        sources: list[dict[str, str]] = []
+        if file_row and not update_profile and not job:
+            sources.extend(source_documents(str(file_row.get("name") or "file"), "file", str(file_row.get("body") or "")))
+        if folder_row:
+            sources.extend(source_documents(str(folder_row.get("name") or "folder"), "folder", str(folder_row.get("body") or "")))
+        if seed_row:
+            sources.extend(source_documents(str(seed_row.get("name") or "project"), "project", str(seed_row.get("body") or "")))
         attachments: list[dict[str, Any]] = []
         if file_row and not job:
             attachments.append(file_row)
@@ -573,17 +636,17 @@ class Handler(BaseHTTPRequestHandler):
                 coding=coding,
                 git_remote=git_remote,
                 web=web and not job and not update_profile,
+                gmail=gmail,
+                calendar=calendar,
                 device_id=device,
                 user_agent=user_agent,
                 language=language,
                 job=job,
                 update_profile=update_profile,
                 document_text=document_text,
-                attach_listing=attach_listing,
-                attach_body=attach_body,
                 seed_listing=seed_listing,
-                seed_body=seed_body,
                 attachments=attachments,
+                sources=sources,
             )
         finally:
             _BUSY.release()
@@ -596,24 +659,19 @@ class Handler(BaseHTTPRequestHandler):
         coding: Any = False,
         git_remote: str | None = None,
         web: Any = False,
+        gmail: Any = False,
+        calendar: Any = False,
         device_id: str,
         user_agent: str = "",
         language: str = "",
         job: bool = False,
         update_profile: bool = False,
         document_text: str = "",
-        attach_listing: str = "",
-        attach_body: str = "",
         seed_listing: str = "",
-        seed_body: str = "",
         attachments: list[dict[str, Any]] | None = None,
+        sources: list[dict[str, str]] | None = None,
     ) -> None:
         shown = prompt
-        model_prompt = prompt
-        if attach_body:
-            model_prompt = f"{attach_body}\n\n{prompt}".strip()
-        if seed_body:
-            model_prompt = f"Project folder:\n{seed_body}\n\n{model_prompt}".strip()
         saved_attachments = [
             {
                 "kind": "file" if row.get("kind") == "file" else "folder",
@@ -659,11 +717,15 @@ class Handler(BaseHTTPRequestHandler):
                     result = career.run_update(document_text, prompt, status, device_id=device_id, no_model=NO_MODEL)
                 else:
                     result = run_turn(
-                        model_prompt,
+                        prompt,
                         thread_id,
                         coding=coding,
                         git_remote=None if seed_listing else git_remote,
                         web=web,
+                        gmail=gmail,
+                        calendar=calendar,
+                        sources=sources,
+                        applicant=_applicant_line(device_id) if sources else "",
                     )
             except Exception as exc:
                 text = main._failure_text(exc)
@@ -689,6 +751,8 @@ class Handler(BaseHTTPRequestHandler):
                 "coding": result.get("coding"),
                 "git_remote": result.get("git_remote"),
                 "web": result.get("web"),
+                "gmail": result.get("gmail"),
+                "calendar": result.get("calendar"),
                 "pdfs": list(result.get("pdfs") or []),
                 "documents": list(result.get("documents") or []),
                 "profile_update": result.get("profile_update"),
@@ -718,6 +782,8 @@ class Handler(BaseHTTPRequestHandler):
                     "coding": painted.get("coding"),
                     "git_remote": painted.get("git_remote"),
                     "web": painted.get("web"),
+                    "gmail": painted.get("gmail"),
+                    "calendar": painted.get("calendar"),
                     "pdfs": painted.get("pdfs") or [],
                     "documents": painted.get("documents") or [],
                     "profile_update": painted.get("profile_update"),

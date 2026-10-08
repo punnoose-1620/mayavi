@@ -119,10 +119,14 @@ class Run:
     shape: str = ""
     coding: bool = False
     web: bool = False
+    gmail: bool = False
+    calendar: bool = False
     web_digest: str = ""
     web_hits: list[dict[str, Any]] = field(default_factory=list)
     web_stage: str = ""
     profile_updates: list[dict[str, Any]] = field(default_factory=list)
+    sources: list[dict[str, str]] = field(default_factory=list)
+    applicant: str = ""
 
 
 _RUNS: dict[str, Run] = {}

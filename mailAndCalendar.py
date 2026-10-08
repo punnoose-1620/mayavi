@@ -149,6 +149,8 @@ def _is_manager(run: Any, agent_id: str | None) -> bool:
     if not agent_id or agent_id not in run.agents:
         return False
     role = run.agents[agent_id].role
+    if run.committee is not None:
+        return role == "manager"
     if run.level == "large":
         return role == "executor"
     return role == "drafter"

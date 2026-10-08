@@ -262,7 +262,7 @@
     #send:hover { filter: brightness(1.06); }
     #send:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45); }
     #send:disabled { opacity: 0.45; cursor: wait; }
-    #task-row, #notebook-row {
+    #task-row, #account-row, #notebook-row {
       margin-top: 8px;
       display: flex;
       align-items: center;
@@ -270,8 +270,10 @@
       color: var(--muted);
       font-size: 13px;
     }
-    #task-row { margin-top: 12px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+    #task-row { margin-top: 12px; margin-bottom: 0; flex-wrap: wrap; align-items: center; }
+    #account-row { margin-top: 4px; margin-bottom: 8px; flex-wrap: wrap; }
     #task-row > label,
+    #account-row > label,
     #repo-wrap,
     #task-row > .field.open {
       display: flex;
@@ -286,7 +288,7 @@
       margin: 0;
       min-height: 32px;
     }
-    #coding-label, #web-label, #job-label, #update-label { cursor: pointer; white-space: nowrap; }
+    #coding-label, #web-label, #job-label, #update-label, #gmail-label, #calendar-label { cursor: pointer; white-space: nowrap; }
     .field { display: none; }
     .field.open { display: flex; }
     .pick {
@@ -302,6 +304,27 @@
     }
     .pick:hover { background: #383838; }
     .pick:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+    .field.picked > .pick { display: none; }
+    #task-row.has-attachment #file-wrap:not(.picked),
+    #task-row.has-attachment #attach-wrap:not(.picked) { display: none; }
+    #task-row > #attach-wrap.picked,
+    #task-row > #file-wrap.picked { margin-left: 12px; }
+    .clear-pick {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      flex: 0 0 28px;
+    }
+    .field.picked .clear-pick { display: inline-flex; }
+    .clear-pick:hover { color: var(--text); }
     .pick-list {
       display: flex;
       flex-direction: column;
@@ -314,10 +337,11 @@
     .folder-title { font-weight: 600; }
     .folder-summary {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 6px;
       min-width: 0;
     }
+    .folder-summary .fa-folder { color: var(--accent); }
     .folder-summary .folder-title {
       overflow: hidden;
       text-overflow: ellipsis;
@@ -362,8 +386,8 @@
     .actions button:hover, .actions a:hover { background: #383838; }
     .actions button:active, .actions a:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
     .actions .elapsed { color: var(--muted); font-size: 12px; }
-    #web-label.disabled { opacity: 0.45; cursor: not-allowed; }
-    #web-label.disabled input { pointer-events: none; }
+    #web-label.disabled, #gmail-label.disabled, #calendar-label.disabled { opacity: 0.45; cursor: not-allowed; }
+    #web-label.disabled input, #gmail-label.disabled input, #calendar-label.disabled input { pointer-events: none; }
     #repo-wrap { display: none; flex: 1; min-width: 220px; }
     #repo-wrap.open { display: flex; }
     #repo {
@@ -463,7 +487,6 @@
   </header>
   <div id="log" aria-live="polite"><p class="empty">No messages yet…</p></div>
   <div id="task-row">
-    <label id="web-label" for="web" title="Live web search"><input type="checkbox" id="web"> Web</label>
     <label id="coding-label" for="coding"><input type="checkbox" id="coding"> Coding</label>
     <label id="job-label" for="job" title="The message is the job description. Writes a resume, cover letter, and match summary from your profile."><input type="checkbox" id="job"> Job application</label>
     <label id="update-label" for="update" title="The attached resume is the source. The message is an optional instruction."><input type="checkbox" id="update"> Update profile</label>
@@ -474,18 +497,26 @@
     <div id="seed-wrap" class="field">
       <button type="button" class="pick" id="seed-btn">Select project folder</button>
       <div id="seed-name" class="pick-list"></div>
+      <button type="button" class="clear-pick" data-clear="seed" aria-label="Clear selected project folder" title="Clear selected project folder"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       <input id="seed-input" type="file" webkitdirectory directory multiple hidden>
     </div>
     <div id="attach-wrap" class="field open">
       <button type="button" class="pick" id="attach-btn">Select folder</button>
       <div id="attach-name" class="pick-list"></div>
+      <button type="button" class="clear-pick" data-clear="folder" aria-label="Clear selected folder" title="Clear selected folder"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       <input id="attach-input" type="file" webkitdirectory directory multiple hidden>
     </div>
     <div id="file-wrap" class="field open">
       <button type="button" class="pick" id="file-btn">Select file</button>
       <div id="file-name" class="pick-list"></div>
+      <button type="button" class="clear-pick" data-clear="file" aria-label="Clear selected file" title="Clear selected file"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       <input id="file-input" type="file" accept=".pdf,.docx,.xlsx,.txt,.md,.csv,.html" hidden>
     </div>
+  </div>
+  <div id="account-row">
+    <label id="web-label" for="web" title="Live web search"><input type="checkbox" id="web"> Web</label>
+    <label id="gmail-label" for="gmail" title="Read and send Gmail"><input type="checkbox" id="gmail"> Gmail</label>
+    <label id="calendar-label" for="calendar" title="Read and change Google Calendar"><input type="checkbox" id="calendar"> Calendar</label>
   </div>
   <div id="composer">
     <textarea id="prompt" placeholder="Ask something" rows="2"></textarea>
@@ -515,6 +546,10 @@
     const updateEl = document.getElementById("update");
     const webEl = document.getElementById("web");
     const webLabel = document.getElementById("web-label");
+    const gmailEl = document.getElementById("gmail");
+    const gmailLabel = document.getElementById("gmail-label");
+    const calendarEl = document.getElementById("calendar");
+    const calendarLabel = document.getElementById("calendar-label");
     const repoEl = document.getElementById("repo");
     const repoWrap = document.getElementById("repo-wrap");
     const seedWrap = document.getElementById("seed-wrap");
@@ -529,6 +564,13 @@
         codingEl.checked = false;
         updateEl.checked = false;
         webEl.checked = false;
+        gmailEl.checked = false;
+        calendarEl.checked = false;
+      }
+      if (updateEl.checked) {
+        webEl.checked = false;
+        gmailEl.checked = false;
+        calendarEl.checked = false;
       }
       if (codingEl.checked) jobEl.checked = false;
       if (updateEl.checked) jobEl.checked = false;
@@ -610,6 +652,14 @@
     }
 
     function showSelection(el, item) {
+      const field = el && el.closest ? el.closest(".field") : null;
+      if (field) field.classList.toggle("picked", Boolean(item));
+      const row = document.getElementById("task-row");
+      if (row) {
+        const fileOn = document.getElementById("file-wrap").classList.contains("picked");
+        const folderOn = document.getElementById("attach-wrap").classList.contains("picked");
+        row.classList.toggle("has-attachment", fileOn || folderOn);
+      }
       el.replaceChildren();
       if (!item) return;
       if (item.kind !== "folder") {
@@ -619,6 +669,9 @@
       const count = Number.isInteger(item.count) ? item.count : readableFileCount(item.entries);
       const line = document.createElement("div");
       line.className = "folder-summary";
+      const icon = document.createElement("i");
+      icon.className = "fa-solid fa-folder";
+      icon.setAttribute("aria-hidden", "true");
       const title = document.createElement("span");
       title.className = "folder-title";
       title.textContent = item.name || "Folder";
@@ -627,7 +680,7 @@
       sep.textContent = "·";
       const total = document.createElement("span");
       total.textContent = count === 1 ? "1 file" : count + " files";
-      line.append(title, sep, total);
+      line.append(icon, title, sep, total);
       el.appendChild(line);
     }
 
@@ -751,7 +804,8 @@
     async function dropHandle(key) {
       const slot = handleSlot(key);
       slot.set(null);
-      document.getElementById(slot.nameId).replaceChildren();
+      rememberHeld(key, null, null);
+      showSelection(document.getElementById(slot.nameId), null);
       try { await idbDelete(key); } catch (e) {}
     }
 
@@ -839,7 +893,7 @@
       const slot = handleSlot(key);
       const nameEl = document.getElementById(slot.nameId);
       if (!handle) {
-        nameEl.replaceChildren();
+        showSelection(nameEl, null);
         return;
       }
       let collected = null;
@@ -931,6 +985,9 @@
       bindPick("file-btn", "file-input", "file-name", "file");
       bindPick("attach-btn", "attach-input", "attach-name", "folder");
       bindPick("seed-btn", "seed-input", "seed-name", "seed");
+      for (const button of document.querySelectorAll(".clear-pick")) {
+        button.addEventListener("click", () => dropHandle(button.dataset.clear));
+      }
     }
 
     async function restoreDraft() {
@@ -1151,6 +1208,8 @@
       if (turn.run_id) bits.push("run_id=" + turn.run_id);
       if (turn.git_remote) bits.push("git=" + turn.git_remote);
       if (turn.web) bits.push("web");
+      if (turn.gmail) bits.push("gmail");
+      if (turn.calendar) bits.push("calendar");
       if (turn.thread_id) bits.push("thread_id=" + turn.thread_id);
       addCommittee(bits, turn.committee);
       if (bits.length) add("meta", bits.join("  "));
@@ -1601,6 +1660,8 @@
             job: jobEl.checked,
             update_profile: updating,
             web: webEl.checked && !webEl.disabled && !jobEl.checked && !updating,
+            gmail: gmailEl.checked && !gmailEl.disabled && !jobEl.checked && !updating,
+            calendar: calendarEl.checked && !calendarEl.disabled && !jobEl.checked && !updating,
             git_remote: codingEl.checked ? (repoEl.value || "").trim() : "",
             seed_id: codingEl.checked && seedUpload ? seedUpload.id : "",
             folder_id: folderUpload && !jobEl.checked && !updating ? folderUpload.id : "",
@@ -1665,6 +1726,8 @@
               if (payload.run_id) bits.push("run_id=" + payload.run_id);
               if (payload.git_remote) bits.push("git=" + payload.git_remote);
               if (payload.web) bits.push("web");
+              if (payload.gmail) bits.push("gmail");
+              if (payload.calendar) bits.push("calendar");
               if (payload.thread_id) bits.push("thread_id=" + payload.thread_id);
               addCommittee(bits, payload.committee);
               for (const notice of payload.notices || []) bits.push(notice);
@@ -1716,10 +1779,34 @@
       }
     }
 
+    async function loadGoogleStatus() {
+      try {
+        const res = await fetch("/google-status");
+        const data = await res.json().catch(() => ({}));
+        const on = Boolean(data.available);
+        for (const [box, label] of [[gmailEl, gmailLabel], [calendarEl, calendarLabel]]) {
+          box.disabled = !on;
+          box.checked = on ? box.checked : false;
+          label.classList.toggle("disabled", !on);
+          label.title = on
+            ? (box === gmailEl ? "Read and send Gmail" : "Read and change Google Calendar")
+            : "Google login is not configured";
+        }
+      } catch {
+        for (const [box, label] of [[gmailEl, gmailLabel], [calendarEl, calendarLabel]]) {
+          box.disabled = true;
+          box.checked = false;
+          label.classList.add("disabled");
+          label.title = "Google login status is unavailable";
+        }
+      }
+    }
+
     restoreDraft().catch(() => {});
     loadHistory().catch((err) => add("progress", String(err)));
     loadThreads().catch((err) => add("progress", String(err)));
     loadWebStatus().catch(() => {});
+    loadGoogleStatus().catch(() => {});
   </script>
 </body>
 </html>

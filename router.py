@@ -86,8 +86,10 @@ def apply_user_controls(
     coding: Any = None,
     git_remote: str | None = None,
     web: Any = None,
+    gmail: Any = None,
+    calendar: Any = None,
 ) -> dict[str, Any]:
-    """Operator coding flag, GitHub URL, and web-search flag win over the router."""
+    """Operator coding, web, Gmail, and Calendar flags win over the router."""
     import git_tools
 
     out = dict(fields)
@@ -95,15 +97,17 @@ def apply_user_controls(
     is_coding = _flag(flag)
     out["coding"] = is_coding
     out["web"] = _flag(web if web is not None else out.get("web"))
+    out["gmail"] = _flag(gmail if gmail is not None else out.get("gmail"))
+    out["calendar"] = _flag(calendar if calendar is not None else out.get("calendar"))
     if not out["web"]:
         out["web_ops"] = "0"
     if is_coding:
         out["needs_code_exec"] = "yes"
-        out["mail_cal"] = "off"
         out["git_remote"] = git_tools.public_github_remote(git_remote if git_remote is not None else out.get("git_remote"))
     else:
         out["needs_code_exec"] = "no"
         out["git_remote"] = None
+    out["mail_cal"] = "write" if out["gmail"] or out["calendar"] else "off"
     return out
 
 
@@ -147,12 +151,14 @@ def mapRoute(fields: dict[str, Any], run_id: str, agent_name: str) -> dict[str, 
     cleaned = normalize_fields(controlled)
     coding = bool(controlled.get("coding"))
     web = bool(controlled.get("web"))
+    gmail = bool(controlled.get("gmail"))
+    calendar = bool(controlled.get("calendar"))
     git_remote = controlled.get("git_remote") if coding else None
     if not web:
         cleaned["web_ops"] = "0"
+    cleaned["mail_cal"] = "write" if gmail or calendar else "off"
     if coding:
         cleaned["needs_code_exec"] = "yes"
-        cleaned["mail_cal"] = "off"
         level = "large"
         shape = "coding"
     elif cleaned["stakes"] == "high":
@@ -175,6 +181,8 @@ def mapRoute(fields: dict[str, Any], run_id: str, agent_name: str) -> dict[str, 
         "coding": coding,
         "git_remote": git_remote,
         "web": web,
+        "gmail": gmail,
+        "calendar": calendar,
     }
     return logger.finish(
         event="route",

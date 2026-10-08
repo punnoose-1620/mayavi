@@ -30,6 +30,8 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Live web search (CSE, then SerpAPI, then ScraperAPI). Does not pick the coding committee.",
     )
+    parser.add_argument("--gmail", action="store_true", help="Give the agent Gmail tools")
+    parser.add_argument("--calendar", action="store_true", help="Give the agent Google Calendar tools")
     parser.add_argument(
         "--repo",
         default=None,
@@ -43,7 +45,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     generate_fn = stub_generate if args.no_model else None
     fields = _route_fields(prompt, args.no_model)
-    fields = router.apply_user_controls(fields, coding=args.code, git_remote=args.repo, web=args.web)
+    fields = router.apply_user_controls(
+        fields,
+        coding=args.code,
+        git_remote=args.repo,
+        web=args.web,
+        gmail=args.gmail,
+        calendar=args.calendar,
+    )
     if not args.json:
         if fields.get("coding"):
             print("working (coding committee) — sequential models, this can take a while…", flush=True)
