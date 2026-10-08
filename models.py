@@ -23,6 +23,9 @@ _LLM = None
 _LOADED_ROLE: str | None = None
 _LOADED_PATH: Path | None = None
 _LOADED_ROOT: str | None = None
+_LETTER = None
+_LETTER_LOCK = threading.Lock()
+_LETTER_ROLE: str | None = None
 _NO_SYSTEM_ROLE = False
 RESERVE_BYTES = 2 * 1024 ** 3
 GENERATE_MIN_AVAILABLE = 256 * 1024 ** 2
@@ -320,6 +323,149 @@ def unloadModel() -> dict[str, Any]:
         agent_name=agent,
         result={"ok": True, "role": role},
     )
+
+
+def canPair(role: str) -> dict[str, Any]:
+    """True when free memory can hold a second copy of this role beside the one about to load."""
+    resolved = resolveModel(role)
+    if not resolved.get("ok"):
+        return {"ok": False, "role": role, "gpu_copies": 0}
+    path = Path(resolved["path"])
+    weight = int(path.stat().st_size * 1.2)
+    together = _available_ram() >= weight * 2 + RESERVE_BYTES
+    copies = _gpu_check().gpu_copies(path, 2) if together else 0
+    return {"ok": together, "role": role, "path": str(path), "gpu_copies": copies}
+
+
+def loadLetter(role: str, *, gpu: bool) -> dict[str, Any]:
+    """Load a second copy for the cover letter. The resume model stays loaded."""
+    global _LETTER, _LETTER_ROLE
+    run_id, agent = _ctx()
+    resolved = resolveModel(role)
+    if not resolved.get("ok"):
+        return {"ok": False, "error": resolved.get("error", "resolve_failed"), "role": role}
+    path = Path(resolved["path"])
+    layers = 999 if gpu else 0
+    try:
+        _LETTER = _open_llama(path, layers)
+        _LETTER_ROLE = role
+    except Exception:
+        if layers:
+            try:
+                _LETTER = _open_llama(path, 0)
+                _LETTER_ROLE = role
+                layers = 0
+            except Exception as exc:
+                _LETTER = None
+                _LETTER_ROLE = None
+                return logger.finish(
+                    event="factory",
+                    tool="loadLetter",
+                    run_id=run_id,
+                    agent_name=agent,
+                    result={"ok": False, "error": type(exc).__name__, "role": role},
+                )
+        else:
+            _LETTER = None
+            _LETTER_ROLE = None
+            return logger.finish(
+                event="factory",
+                tool="loadLetter",
+                run_id=run_id,
+                agent_name=agent,
+                result={"ok": False, "error": "load_failed", "role": role},
+            )
+    device = "gpu" if layers else "cpu"
+    return logger.finish(
+        event="factory",
+        tool="loadLetter",
+        run_id=run_id,
+        agent_name=agent,
+        result={"ok": True, "role": role, "device": device, "path": str(path)},
+        summary=f"role={role} device={device}",
+    )
+
+
+def unloadLetter() -> None:
+    global _LETTER, _LETTER_ROLE
+    llm = _LETTER
+    _LETTER = None
+    _LETTER_ROLE = None
+    if llm is None:
+        return
+    close = getattr(llm, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception:
+            pass
+    del llm
+    gc.collect()
+
+
+def generateLetter(role: str, messages: list[dict[str, str]] | None = None, **kwargs: Any) -> dict[str, Any]:
+    run_id, agent = _ctx()
+    if _LETTER is None or _LETTER_ROLE != role:
+        return logger.finish(
+            event="tool",
+            tool="generate",
+            run_id=run_id,
+            agent_name=agent,
+            result={"ok": False, "error": "not_loaded", "role": role},
+        )
+    with _LETTER_LOCK:
+        try:
+            text = _chat(_LETTER, messages or [], **kwargs)
+        except Exception as exc:
+            return logger.finish(
+                event="tool",
+                tool="generate",
+                run_id=run_id,
+                agent_name=agent,
+                result={"ok": False, "error": type(exc).__name__, "role": role},
+            )
+    return logger.finish(
+        event="tool",
+        tool="generate",
+        run_id=run_id,
+        agent_name=agent,
+        result={"ok": True, "role": role, "text": text},
+        summary=f"role={role} letter",
+    )
+
+
+def _open_llama(path: Path, layers: int):
+    from llama_cpp import Llama
+
+    return Llama(
+        model_path=str(path),
+        use_mmap=True,
+        n_ctx=4096,
+        n_gpu_layers=layers,
+        embedding=True,
+        verbose=False,
+    )
+
+
+def _chat(llm, messages: list[dict[str, str]], **kwargs: Any) -> str:
+    payload = _fold_system_messages(messages) if _NO_SYSTEM_ROLE else list(messages)
+    try:
+        out = llm.create_chat_completion(
+            messages=payload,
+            temperature=kwargs.get("temperature", 0.2),
+            max_tokens=kwargs.get("max_tokens", config.GENERATE_MAX_TOKENS),
+        )
+    except Exception as exc:
+        if "system role not supported" not in str(exc).lower():
+            raise
+        globals()["_NO_SYSTEM_ROLE"] = True
+        payload = _fold_system_messages(messages)
+        out = llm.create_chat_completion(
+            messages=payload,
+            temperature=kwargs.get("temperature", 0.2),
+            max_tokens=kwargs.get("max_tokens", config.GENERATE_MAX_TOKENS),
+        )
+    return out["choices"][0]["message"]["content"] or ""
 
 
 def embed(texts: list[str]) -> dict[str, Any]:

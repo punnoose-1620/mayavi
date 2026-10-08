@@ -256,14 +256,32 @@ def run_job(job_text: str, status, *, device_id: str, no_model: bool = False) ->
     if profile_is_empty(device_id):
         return {"ok": False, "error": "empty_profile", "answer": ""}
     role = _pick_role()
+    plan = models.canPair(role)
     complete = _complete(role)
+    letter_complete = None
     try:
-        return _run_job(complete, job_text, status, device_id)
+        if plan.get("ok"):
+            status("Job application: loading the resume and cover letter writers")
+            loaded = models.loadLetter(role, gpu=int(plan.get("gpu_copies") or 0) >= 2)
+            if loaded.get("ok"):
+                letter_complete = _letter_complete(role)
+        return _run_job(complete, job_text, status, device_id, letter_complete)
     finally:
+        models.unloadLetter()
         models.unloadModel()
 
 
-def _run_job(complete, job_text: str, status, device_id: str) -> dict:
+def _letter_complete(role: str):
+    def complete(messages, max_tokens: int = 512) -> str:
+        result = models.generateLetter(role, messages=messages, max_tokens=max_tokens)
+        if not result.get("ok"):
+            raise RuntimeError(str(result.get("error") or "generate_failed"))
+        return str(result.get("text") or "")
+
+    return complete
+
+
+def _run_job(complete, job_text: str, status, device_id: str, letter_complete=None) -> dict:
     folder, dir_name = _doc_dir()
     result = jobapp.run_job_application(
         complete=complete,
@@ -274,6 +292,7 @@ def _run_job(complete, job_text: str, status, device_id: str) -> dict:
         status=status,
         build_pdf=pdf_bytes,
         out_dir=folder,
+        letter_complete=letter_complete,
     )
     reply = str(result.get("reply") or "").strip()
     written = (

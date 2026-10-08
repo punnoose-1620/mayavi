@@ -53,6 +53,19 @@ def use_gpu(role: str, file_path: str | Path | None = None) -> dict[str, Any]:
     return {**base, "ok": True, "n_gpu_layers": FULL_OFFLOAD, "reason": "auto"}
 
 
+def gpu_copies(file_path: str | Path | None, limit: int = 2) -> int:
+    """How many copies of this GGUF fit in graphics memory."""
+    one = use_gpu("writer", file_path)
+    if not one.get("ok"):
+        return 0
+    need = int(one.get("need") or 0)
+    dedicated = int(one.get("dedicated") or 0)
+    usable = dedicated - DESKTOP_RESERVE
+    if need <= 0 or usable < need:
+        return 0
+    return min(limit, usable // need)
+
+
 def _cpu_only_role(role: str) -> bool:
     """The router is a short warm call; GPU layers go to the agents doing the work."""
     return str(role or "").strip().lower() in CPU_ONLY_ROLES

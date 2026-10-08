@@ -1,7 +1,8 @@
-"""Job application committee. One local model, English resume and cover letter."""
+"""Job application committee. Resume and cover letter can run together."""
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import doccompat as usbchat
@@ -70,6 +71,49 @@ def _write_pdf(build_pdf, folder: Path, stem: str, title: str, body: str) -> Pat
     return path
 
 
+def _ask_both(
+    resume_complete,
+    letter_complete,
+    status,
+    stop_event,
+    resume_label: str,
+    resume_system: str,
+    resume_blob: str,
+    letter_label: str,
+    letter_system: str,
+    letter_blob: str,
+    n_ctx: int,
+) -> tuple[str, str, bool]:
+    """Run the resume writer and the cover-letter writer at the same time."""
+    gate = threading.Lock()
+    out: dict[str, tuple[str, bool]] = {}
+    errors: dict[str, BaseException] = {}
+
+    def report(text: str) -> None:
+        with gate:
+            status(text)
+
+    def run(key: str, complete, label: str, system: str, blob: str) -> None:
+        try:
+            out[key] = _ask(complete, report, stop_event, label, system, blob, n_ctx)
+        except BaseException as exc:
+            errors[key] = exc
+
+    workers = (
+        threading.Thread(target=run, args=("resume", resume_complete, resume_label, resume_system, resume_blob)),
+        threading.Thread(target=run, args=("letter", letter_complete, letter_label, letter_system, letter_blob)),
+    )
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+    if errors:
+        raise errors.get("resume") or errors["letter"]
+    resume, resume_stopped = out["resume"]
+    letter, letter_stopped = out["letter"]
+    return resume, letter, resume_stopped or letter_stopped
+
+
 def run_job_application(
     *,
     complete,
@@ -80,6 +124,7 @@ def run_job_application(
     status,
     build_pdf,
     out_dir: Path,
+    letter_complete=None,
 ) -> dict:
     """Distill, write, check claims, then summarize. Returns reply text and PDF paths."""
     result: dict = {
@@ -148,34 +193,52 @@ def run_job_application(
         )
         if fix:
             resume_system += " Remove or rewrite only these unsupported sentences:\n" + fix
-        resume, stopped = _ask(
-            complete,
-            status,
-            stop_event,
-            resume_label,
-            resume_system,
-            "Profile board:\n" + profile_board + "\n\nJob board:\n" + jd_board,
-            n_ctx,
-        )
-        if stopped:
-            result["stopped"] = True
-            return result
         letter_system = (
             "Write a one-page cover letter in English for this role. "
             + _HONEST
-            + " Do not repeat the whole resume. No letterhead art."
+            + " Write it from the profile board and the job board. No letterhead art."
         )
         if fix:
             letter_system += " Remove or rewrite only these unsupported sentences:\n" + fix
-        letter, stopped = _ask(
-            complete,
-            status,
-            stop_event,
-            f"Job application: writing the cover letter (pass {pass_no})",
-            letter_system,
-            "Profile board:\n" + profile_board + "\n\nJob board:\n" + jd_board + "\n\nResume:\n" + resume,
-            n_ctx,
-        )
+        resume_blob = "Profile board:\n" + profile_board + "\n\nJob board:\n" + jd_board
+        letter_blob = resume_blob
+        letter_label = f"Job application: writing the cover letter (pass {pass_no})"
+        if letter_complete is not None:
+            resume, letter, stopped = _ask_both(
+                complete,
+                letter_complete,
+                status,
+                stop_event,
+                resume_label,
+                resume_system,
+                resume_blob,
+                letter_label,
+                letter_system,
+                letter_blob,
+                n_ctx,
+            )
+        else:
+            resume, stopped = _ask(
+                complete,
+                status,
+                stop_event,
+                resume_label,
+                resume_system,
+                resume_blob,
+                n_ctx,
+            )
+            if stopped:
+                result["stopped"] = True
+                return result
+            letter, stopped = _ask(
+                complete,
+                status,
+                stop_event,
+                letter_label,
+                letter_system,
+                letter_blob,
+                n_ctx,
+            )
         if stopped:
             result["stopped"] = True
             return result
