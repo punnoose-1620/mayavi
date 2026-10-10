@@ -88,6 +88,7 @@ class ModelChoice:
     label: str
     size: int
     required_ram: int
+    tags: tuple[str, ...] = ()
 
 
 def required_ram(file_size: int) -> int:
@@ -167,7 +168,31 @@ def discover_ggufs(root: Path) -> list[Path]:
     return sorted(p for p in root.glob("*.gguf") if p.is_file())
 
 
+def model_tags(root: Path) -> dict[str, tuple[str, ...]]:
+    """Filename to job tags from models.json beside the GGUFs. Missing file means no tags."""
+    path = root / "models.json"
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    found: dict[str, tuple[str, ...]] = {}
+    for item in data.get("models") or []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("filename") or "").strip()
+        raw = item.get("tags") or []
+        if not name or not isinstance(raw, list):
+            continue
+        tags = tuple(str(tag).strip() for tag in raw if str(tag).strip())
+        if tags:
+            found[name] = tags
+    return found
+
+
 def pickable_models(root: Path, free: int | None) -> list[ModelChoice]:
+    tags_by_name = model_tags(root)
     choices: list[ModelChoice] = []
     for path in discover_ggufs(root):
         size = path.stat().st_size
@@ -180,6 +205,7 @@ def pickable_models(root: Path, free: int | None) -> list[ModelChoice]:
                 label=size_label(path, size),
                 size=size,
                 required_ram=need,
+                tags=tags_by_name.get(path.name, ()),
             )
         )
     choices.sort(key=lambda c: c.size, reverse=True)
@@ -197,6 +223,86 @@ def job_model(choices: list[ModelChoice]) -> ModelChoice | None:
     band = [item for item in choices if JOB_MODEL_MIN <= item.size <= JOB_MODEL_MAX]
     pool = band or list(choices)
     return min(pool, key=lambda item: item.size)
+
+
+# Best measured file first. A name that is not listed sorts after these, larger files first.
+TAG_RANK: dict[str, tuple[str, ...]] = {
+    "coding": ("gemma-2-9b-it", "Meta-Llama-3.1-8B", "Qwen2.5-7B"),
+    "documentation": ("Qwen3-8B", "Qwen2.5-7B"),
+    "summary": ("Qwen3-8B", "gemma-2-9b-it", "qwen2.5-1.5b", "Meta-Llama-3.1-8B"),
+    "report": ("gemma-2-9b-it", "Qwen3-8B", "qwen2.5-1.5b", "Meta-Llama-3.1-8B"),
+    "ui-building": ("Qwen2.5-7B",),
+    "search": ("Qwen3-8B", "Meta-Llama-3.1-8B"),
+    "search-sift": (
+        "gemma-2-9b-it",
+        "Qwen2.5-7B",
+        "Qwen2.5-3B",
+        "Meta-Llama-3.1-8B",
+        "Qwen3-8B",
+        "qwen2.5-1.5b",
+    ),
+    "reading": ("gemma-2-9b-it", "Qwen3-8B", "Qwen2.5-7B", "Qwen2.5-3B"),
+}
+
+_INTENT_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("ui-building", ("from top to bottom", "button order", "one screen", "kitchen timer", "tea timer", "user interface")),
+    ("search-sift", ("saved search", "search result", "search page", "people also ask")),
+    ("search", ("search quer", "search for")),
+    ("summary", ("summarize", "summary", "tl;dr", "tldr", "in two sentences", "in four sentences")),
+    ("report", ("plain text report", "status report", "blocker")),
+    ("documentation", ("handoff", "coworker", "from that note")),
+    ("reading", ("saved page", "side note", "from this page")),
+    ("coding", ("debug", "buggy", "refactor", "syntax", "python", "javascript")),
+)
+
+
+def _has_phrase(text: str, phrase: str) -> bool:
+    if " " in phrase:
+        return phrase in text
+    return re.search(rf"\b{re.escape(phrase)}\b", text) is not None
+
+
+def intent_tag(text: str, *, coding: bool = False, web: bool = False) -> str:
+    """Job tag for this message. Empty means keep the model the user already picked."""
+    if coding:
+        return "coding"
+    if web:
+        return "search"
+    lowered = str(text or "").lower()
+    for tag, phrases in _INTENT_RULES:
+        if any(_has_phrase(lowered, phrase) for phrase in phrases):
+            return tag
+    return ""
+
+
+def _rank_index(filename: str, ranks: tuple[str, ...]) -> int:
+    low = filename.casefold()
+    for index, key in enumerate(ranks):
+        if key.casefold() in low:
+            return index
+    return len(ranks)
+
+
+def route_model(
+    choices: list[ModelChoice],
+    user_text: str,
+    *,
+    coding: bool = False,
+    web: bool = False,
+) -> tuple[ModelChoice | None, str]:
+    """Best loaded model whose tag matches the message. None keeps the current choice."""
+    tag = intent_tag(user_text, coding=coding, web=web)
+    if not tag:
+        return None, ""
+    pool = [item for item in choices if tag in item.tags]
+    if not pool and web:
+        tag = "search-sift"
+        pool = [item for item in choices if tag in item.tags]
+    if not pool:
+        return None, ""
+    ranks = TAG_RANK.get(tag, ())
+    best = min(pool, key=lambda item: (_rank_index(item.path.name, ranks), -item.size))
+    return best, tag
 
 
 def smallest_model(choices: list[ModelChoice]) -> ModelChoice | None:

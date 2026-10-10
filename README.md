@@ -5,6 +5,7 @@ This file stays at the **repository root** so GitHub can show it. The other proj
 - [Changelog](documentation/CHANGELOG.md)
 - [Requirements](documentation/REQUIREMENTS.md)
 - [Bench results](documentation/TestResults.md)
+- [Quality test results](documentation/Quality Test Results.md)
 
 The license is [`LICENSE`](LICENSE) in this folder, next to `.git` and `.gitignore`. Those stay at the repository root. They are not copied to the USB.
 
@@ -93,6 +94,7 @@ Copies onto the USB must follow this tree. The stick root is home. There is no `
     CHANGELOG.md
     REQUIREMENTS.md
     TestResults.md
+    Quality Test Results.md
   logs\
     YYYY-MM-DD_HHMMSS.log
     web_YYYY-MM-DD_HHMMSS.jsonl   (Web Search side log; not History)

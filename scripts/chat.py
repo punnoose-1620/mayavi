@@ -105,6 +105,159 @@ class _HoverTip:
         self.tip = None
 
 
+class _ModelPicker(tk.Frame):
+    """Closed row is the model name and size. Open rows add job tags in a smaller gray line."""
+
+    _NAME = "#202124"
+    _TAG = "#5f6368"
+    _LINE = "#d8dce3"
+    _FACE = "#ffffff"
+    _HOVER = "#f1f3f4"
+    _PICK = "#e8f0fe"
+
+    def __init__(self, master, variable: tk.StringVar, font: tuple) -> None:
+        super().__init__(master, bg=CHAT_PAGE)
+        self.var = variable
+        self.font = font
+        self._tag_font = (font[0], 9)
+        self.choices: list[usbchat.ModelChoice] = []
+        self._popup: tk.Toplevel | None = None
+        self._ignore = False
+        self.face = tk.Frame(
+            self,
+            bg=self._FACE,
+            highlightthickness=1,
+            highlightbackground=self._LINE,
+            cursor="hand2",
+        )
+        self.face.pack(fill="x", expand=True)
+        self._text = tk.Frame(self.face, bg=self._FACE, cursor="hand2")
+        self._text.pack(side="left", fill="x", expand=True)
+        self._name = tk.Label(
+            self._text,
+            text="",
+            bg=self._FACE,
+            fg=self._NAME,
+            font=self.font,
+            anchor="w",
+        )
+        self._name.pack(fill="x", padx=(10, 4), pady=5)
+        self._arrow = tk.Label(
+            self.face,
+            text="▾",
+            bg=self._FACE,
+            fg=self._TAG,
+            font=self.font,
+            cursor="hand2",
+        )
+        self._arrow.pack(side="right", padx=(0, 8))
+        for widget in (self.face, self._text, self._name, self._arrow):
+            widget.bind("<Button-1>", self._on_face)
+
+    def set_choices(self, choices: list[usbchat.ModelChoice]) -> None:
+        self.choices = list(choices)
+        self._paint_closed()
+
+    def dismiss_from(self, widget) -> None:
+        if self._ignore or self._popup is None:
+            return
+        if self._contains(widget):
+            return
+        self.close()
+
+    def close(self) -> None:
+        if self._popup is not None:
+            self._popup.destroy()
+            self._popup = None
+
+    def _on_face(self, _event=None) -> None:
+        self._ignore = True
+        if self._popup is None:
+            self._open()
+        else:
+            self.close()
+        self.after(80, self._clear_ignore)
+
+    def _clear_ignore(self) -> None:
+        self._ignore = False
+
+    def _paint_closed(self) -> None:
+        choice = self._current()
+        self._name.configure(text=choice.label if choice is not None else "No model fits")
+
+    def _current(self) -> usbchat.ModelChoice | None:
+        label = self.var.get()
+        for choice in self.choices:
+            if choice.label == label:
+                return choice
+        return self.choices[0] if self.choices else None
+
+    def _open(self) -> None:
+        if not self.choices:
+            return
+        self.close()
+        popup = tk.Toplevel(self)
+        popup.overrideredirect(True)
+        popup.configure(bg=self._LINE)
+        self._popup = popup
+        width = max(self.winfo_width(), 280)
+        inner = tk.Frame(popup, bg=self._FACE)
+        inner.pack(fill="both", expand=True, padx=1, pady=1)
+        for choice in self.choices:
+            self._add_row(inner, choice, choice.label == self.var.get())
+        popup.update_idletasks()
+        height = inner.winfo_reqheight() + 2
+        x = self.winfo_rootx()
+        y = self.winfo_rooty() + self.winfo_height()
+        if y + height > self.winfo_screenheight() - 8:
+            y = max(0, self.winfo_rooty() - height)
+        popup.geometry(f"{width}x{height}+{x}+{y}")
+        popup.bind("<Escape>", lambda _e: self.close())
+
+    def _add_row(self, parent, choice: usbchat.ModelChoice, selected: bool) -> None:
+        bg = self._PICK if selected else self._FACE
+        row = tk.Frame(parent, bg=bg, cursor="hand2")
+        row.pack(fill="x")
+        name = tk.Label(row, text=choice.label, bg=bg, fg=self._NAME, font=self.font, anchor="w", cursor="hand2")
+        name.pack(fill="x", padx=(10, 8), pady=(6, 1 if choice.tags else 6))
+        tags = tk.Label(row, text="", bg=bg, fg=self._TAG, font=self._tag_font, anchor="w", cursor="hand2")
+        if choice.tags:
+            tags.configure(text=", ".join(choice.tags))
+            tags.pack(fill="x", padx=(18, 8), pady=(0, 6))
+        widgets = (row, name, tags) if choice.tags else (row, name)
+
+        def paint(color: str) -> None:
+            row.configure(bg=color)
+            name.configure(bg=color)
+            tags.configure(bg=color)
+
+        def enter(_event=None) -> None:
+            paint(self._HOVER if not selected else self._PICK)
+
+        def leave(_event=None) -> None:
+            paint(bg)
+
+        def choose(_event=None) -> None:
+            self.select(choice.label)
+            self.close()
+
+        for widget in widgets:
+            widget.bind("<Enter>", enter)
+            widget.bind("<Leave>", leave)
+            widget.bind("<Button-1>", choose)
+
+    def select(self, label: str) -> None:
+        self.var.set(label)
+        self._paint_closed()
+
+    def _contains(self, widget) -> bool:
+        while widget is not None:
+            if widget in (self, self.face, self._popup):
+                return True
+            widget = getattr(widget, "master", None)
+        return False
+
+
 class UsbChatApp:
     def __init__(self, root: tk.Tk, args: argparse.Namespace) -> None:
         self.root = root
@@ -208,8 +361,9 @@ class UsbChatApp:
         top.grid(row=0, column=0, sticky="ew", padx=pad, pady=(12, gap))
         tk.Label(top, text="Model", bg=CHAT_PAGE, fg="#202124", font=self._ui_font).pack(side="left")
         self.model_var = tk.StringVar()
-        self.model_box = ttk.Combobox(top, textvariable=self.model_var, state="readonly", width=52)
+        self.model_box = _ModelPicker(top, self.model_var, self._ui_font)
         self.model_box.pack(side="left", padx=(gap, gap), fill="x", expand=True)
+        self.root.bind_all("<Button-1>", self._dismiss_model_menu, add="+")
         self._pill(top, "Reload", self.refresh_models).pack(side="left")
 
         tk.Label(self._page, text="History", bg=CHAT_PAGE, fg="#202124", font=self._title_font).grid(
@@ -318,18 +472,29 @@ class UsbChatApp:
         self.github_var.trace_add("write", self._on_github_edit)
 
         self.web_row = tk.Frame(self._page, bg=CHAT_PAGE)
+        self.web_row.grid(row=7, column=0, sticky="ew", padx=16, pady=(8, 0))
         self.web_search_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
+        self.web_search_btn = ttk.Checkbutton(
             self.web_row,
             text="Web Search",
             variable=self.web_search_var,
             command=self._on_web,
-        ).pack(side="left")
-        star = ttk.Label(self.web_row, text="*", foreground="#5f6368")
-        star.pack(side="left", padx=(2, 0))
+        )
+        self.web_star = ttk.Label(self.web_row, text="*", foreground="#5f6368")
         _HoverTip(
-            star,
+            self.web_star,
             "Web Search takes extra time and model passes. Use it only when you need live internet.",
+        )
+        self.retain_var = tk.BooleanVar(value=False)
+        self.retain_btn = ttk.Checkbutton(
+            self.web_row,
+            text="Retain Selected Model",
+            variable=self.retain_var,
+        )
+        self.retain_btn.pack(side="left")
+        _HoverTip(
+            self.retain_btn,
+            "On: the model shown above answers. Off: the chat picks a tagged model for this message.",
         )
 
         tk.Label(self._page, text="Message", bg=CHAT_PAGE, fg="#202124", font=self._title_font).grid(
@@ -618,12 +783,18 @@ class UsbChatApp:
         self.root.after(0, apply)
 
     def _set_web_row(self, online: bool) -> None:
+        self.web_row.grid(row=7, column=0, sticky="ew", padx=16, pady=(8, 0))
+        self.web_search_btn.pack_forget()
+        self.web_star.pack_forget()
+        self.retain_btn.pack_forget()
+        if online or self.web_search_var.get():
+            self.web_search_btn.pack(side="left")
+            self.web_star.pack(side="left", padx=(2, 16))
         if online:
-            self.web_row.grid(row=7, column=0, sticky="ew", padx=16, pady=(8, 0))
             self.web_visible = True
         elif not self.web_search_var.get():
-            self.web_row.grid_remove()
             self.web_visible = False
+        self.retain_btn.pack(side="left")
         self._sync_page()
 
     def _on_coding(self) -> None:
@@ -909,11 +1080,14 @@ class UsbChatApp:
             self.messages.append((role, text))
         self._history_see_end()
 
+    def _dismiss_model_menu(self, event) -> None:
+        self.model_box.dismiss_from(event.widget)
+
     def refresh_models(self) -> None:
         free = usbchat.free_ram()
         self.choices = usbchat.pickable_models(self.models_root, free)
         labels = [c.label for c in self.choices]
-        self.model_box["values"] = labels
+        self.model_box.set_choices(self.choices)
         if labels:
             current = self.model_var.get()
             self.model_var.set(current if current in labels else labels[0])
@@ -1238,6 +1412,17 @@ class UsbChatApp:
                         "Use a public https://github.com/owner/repo URL, or leave the field empty.",
                     )
                     return
+        routed_tag = ""
+        if not self.retain_var.get() and not job and not update:
+            picked, routed_tag = usbchat.route_model(
+                self.choices,
+                user_text,
+                coding=coding,
+                web=use_web,
+            )
+            if picked is not None:
+                choice = picked
+                self.model_box.select(choice.label)
         notes = usbchat.read_notes(self.notes_file)
         messages = usbchat.build_chat_messages(
             notes=notes,
@@ -1279,7 +1464,12 @@ class UsbChatApp:
             first = self.attach_files[0].name
             self._begin_step(f"Reading 1/{len(self.attach_files)}: {first}")
         elif self.loaded_path != choice.path:
-            self._begin_step(f"Loading {choice.label}")
+            loading = f"Loading {choice.label}"
+            if routed_tag:
+                loading = f"Loading {choice.label} for {routed_tag}"
+            self._begin_step(loading)
+        elif routed_tag:
+            self._begin_step(f"Using {choice.label} for {routed_tag}")
         else:
             self._begin_step("Writing the answer")
         threading.Thread(

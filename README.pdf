@@ -21,7 +21,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
 endobj
 8 0 obj
-<< /Length 8744 >>
+<< /Length 8958 >>
 stream
 BT
 1 0 0 1 54.0 746.0 Tm
@@ -108,7 +108,23 @@ BT
 (\(documentation/TestResults.md\)) Tj
 ET
 BT
-1 0 0 1 54.0 608.0 Tm
+1 0 0 1 76.0 613.0 Tm
+0.16 0.16 0.18 rg
+/F2 11 Tf
+(-  ) Tj
+0.10 0.35 0.72 rg
+(Quality ) Tj
+(test ) Tj
+(results) Tj
+0.40 0.40 0.42 rg
+/F1 11 Tf
+( ) Tj
+(\(documentation/Quality ) Tj
+(Test ) Tj
+(Results.md\)) Tj
+ET
+BT
+1 0 0 1 54.0 590.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (The ) Tj
@@ -144,7 +160,7 @@ BT
 (Those ) Tj
 ET
 BT
-1 0 0 1 54.0 593.0 Tm
+1 0 0 1 54.0 575.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (stay ) Tj
@@ -161,7 +177,7 @@ BT
 (USB.) Tj
 ET
 BT
-1 0 0 1 54.0 570.0 Tm
+1 0 0 1 54.0 552.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (The ) Tj
@@ -186,7 +202,7 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 54.0 555.0 Tm
+1 0 0 1 54.0 537.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (stick, ) Tj
@@ -207,7 +223,7 @@ BT
 (no ) Tj
 ET
 BT
-1 0 0 1 54.0 540.0 Tm
+1 0 0 1 54.0 522.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Markdown ) Tj
@@ -234,7 +250,7 @@ BT
 (, ) Tj
 ET
 BT
-1 0 0 1 54.0 525.0 Tm
+1 0 0 1 54.0 507.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (REQUIREMENTS.pdf) Tj
@@ -258,7 +274,7 @@ BT
 (goes ) Tj
 ET
 BT
-1 0 0 1 54.0 510.0 Tm
+1 0 0 1 54.0 492.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (in ) Tj
@@ -282,7 +298,7 @@ BT
 (do ) Tj
 ET
 BT
-1 0 0 1 54.0 495.0 Tm
+1 0 0 1 54.0 477.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (not ) Tj
@@ -291,7 +307,7 @@ BT
 (PDFs.) Tj
 ET
 BT
-1 0 0 1 54.0 472.0 Tm
+1 0 0 1 54.0 454.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (It ) Tj
@@ -315,7 +331,7 @@ BT
 (uses ) Tj
 ET
 BT
-1 0 0 1 54.0 457.0 Tm
+1 0 0 1 54.0 439.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (the ) Tj
@@ -328,7 +344,7 @@ BT
 (time.) Tj
 ET
 BT
-1 0 0 1 54.0 434.0 Tm
+1 0 0 1 54.0 416.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Features ) Tj
@@ -343,13 +359,13 @@ BT
 (do.) Tj
 ET
 BT
-1 0 0 1 54.0 393.0 Tm
+1 0 0 1 54.0 375.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (Features) Tj
 ET
 BT
-1 0 0 1 76.0 364.0 Tm
+1 0 0 1 76.0 346.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -375,7 +391,7 @@ BT
 (x ) Tj
 ET
 BT
-1 0 0 1 76.0 349.0 Tm
+1 0 0 1 76.0 331.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (1.2 ) Tj
@@ -403,7 +419,7 @@ BT
 (file's ) Tj
 ET
 BT
-1 0 0 1 76.0 334.0 Tm
+1 0 0 1 76.0 316.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (chat ) Tj
@@ -423,7 +439,7 @@ BT
 (message.) Tj
 ET
 BT
-1 0 0 1 76.0 316.0 Tm
+1 0 0 1 76.0 298.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -442,7 +458,7 @@ BT
 (on ) Tj
 ET
 BT
-1 0 0 1 76.0 301.0 Tm
+1 0 0 1 76.0 283.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (the ) Tj
@@ -462,7 +478,7 @@ BT
 (is ) Tj
 ET
 BT
-1 0 0 1 76.0 286.0 Tm
+1 0 0 1 76.0 268.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (locked ) Tj
@@ -476,7 +492,7 @@ BT
 (on.) Tj
 ET
 BT
-1 0 0 1 76.0 268.0 Tm
+1 0 0 1 76.0 250.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -506,7 +522,7 @@ BT
 (this ) Tj
 ET
 BT
-1 0 0 1 76.0 253.0 Tm
+1 0 0 1 76.0 235.0 Tm
 0.16 0.16 0.18 rg
 /F3 11 Tf
 (message) Tj
@@ -532,7 +548,7 @@ BT
 (pending.) Tj
 ET
 BT
-1 0 0 1 76.0 235.0 Tm
+1 0 0 1 76.0 217.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -572,7 +588,7 @@ BT
 (, ) Tj
 ET
 BT
-1 0 0 1 76.0 220.0 Tm
+1 0 0 1 76.0 202.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (txt) Tj
@@ -606,7 +622,7 @@ BT
 (before ) Tj
 ET
 BT
-1 0 0 1 76.0 205.0 Tm
+1 0 0 1 76.0 187.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (the ) Tj
@@ -628,7 +644,7 @@ BT
 (window. ) Tj
 ET
 BT
-1 0 0 1 76.0 190.0 Tm
+1 0 0 1 76.0 172.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (History ) Tj
@@ -649,7 +665,7 @@ BT
 (name\).) Tj
 ET
 BT
-1 0 0 1 76.0 172.0 Tm
+1 0 0 1 76.0 154.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -684,7 +700,7 @@ BT
 (token ) Tj
 ET
 BT
-1 0 0 1 76.0 157.0 Tm
+1 0 0 1 76.0 139.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (counts, ) Tj
@@ -705,7 +721,7 @@ BT
 (an ) Tj
 ET
 BT
-1 0 0 1 76.0 142.0 Tm
+1 0 0 1 76.0 124.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (older ) Tj
@@ -724,14 +740,14 @@ BT
 (stored ) Tj
 ET
 BT
-1 0 0 1 76.0 127.0 Tm
+1 0 0 1 76.0 109.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (before ) Tj
 (this.) Tj
 ET
 BT
-1 0 0 1 76.0 109.0 Tm
+1 0 0 1 76.0 91.0 Tm
 0.16 0.16 0.18 rg
 /F2 11 Tf
 (-  ) Tj
@@ -757,7 +773,7 @@ BT
 (filename ) Tj
 ET
 BT
-1 0 0 1 76.0 94.0 Tm
+1 0 0 1 76.0 76.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (\(session ) Tj
@@ -2227,7 +2243,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 14 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
 endobj
 14 0 obj
-<< /Length 7883 >>
+<< /Length 7903 >>
 stream
 BT
 1 0 0 1 76.0 745.0 Tm
@@ -2871,7 +2887,7 @@ BT
 1 0 0 1 62.0 71.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(  logs/) Tj
+(    Quality Test Results.md) Tj
 ET
 endstream
 endobj
@@ -2879,7 +2895,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 16 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> >>
 endobj
 16 0 obj
-<< /Length 9003 >>
+<< /Length 9120 >>
 stream
 q
 0.96 0.96 0.97 rg
@@ -2889,7 +2905,7 @@ BT
 1 0 0 1 62.0 746.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(    YYYY-MM-DD_HHMMSS.log) Tj
+(  logs/) Tj
 ET
 q
 0.96 0.96 0.97 rg
@@ -2899,7 +2915,7 @@ BT
 1 0 0 1 62.0 734.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(    web_YYYY-MM-DD_HHMMSS.jsonl   \(Web Search side log; not History\)) Tj
+(    YYYY-MM-DD_HHMMSS.log) Tj
 ET
 q
 0.96 0.96 0.97 rg
@@ -2909,7 +2925,7 @@ BT
 1 0 0 1 62.0 722.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(  coding-logs/         \(committee traces; not History; delete by hand\)) Tj
+(    web_YYYY-MM-DD_HHMMSS.jsonl   \(Web Search side log; not History\)) Tj
 ET
 q
 0.96 0.96 0.97 rg
@@ -2919,7 +2935,7 @@ BT
 1 0 0 1 62.0 710.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(    YYYY-MM-DD_HHMMSS_<slug>/) Tj
+(  coding-logs/         \(committee traces; not History; delete by hand\)) Tj
 ET
 q
 0.96 0.96 0.97 rg
@@ -2929,7 +2945,7 @@ BT
 1 0 0 1 62.0 698.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(      generic.jsonl    \(every role complete/tool\)) Tj
+(    YYYY-MM-DD_HHMMSS_<slug>/) Tj
 ET
 q
 0.96 0.96 0.97 rg
@@ -2939,7 +2955,7 @@ BT
 1 0 0 1 62.0 686.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(      planner.jsonl    \(phase0 + each manager plan; append\)) Tj
+(      generic.jsonl    \(every role complete/tool\)) Tj
 ET
 q
 0.96 0.96 0.97 rg
@@ -2949,7 +2965,7 @@ BT
 1 0 0 1 62.0 674.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(      critique.jsonl   \(each critique round; append\)) Tj
+(      planner.jsonl    \(phase0 + each manager plan; append\)) Tj
 ET
 q
 0.96 0.96 0.97 rg
@@ -2959,7 +2975,7 @@ BT
 1 0 0 1 62.0 662.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(      test.jsonl       \(writes, executes, qualify, ballot; append\)) Tj
+(      critique.jsonl   \(each critique round; append\)) Tj
 ET
 q
 0.96 0.96 0.97 rg
@@ -2969,10 +2985,20 @@ BT
 1 0 0 1 62.0 650.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
+(      test.jsonl       \(writes, executes, qualify, ballot; append\)) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 635.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 638.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
 (  outputs/             \(coding/review work folders and bench run folders; not git\)) Tj
 ET
 BT
-1 0 0 1 54.0 628.0 Tm
+1 0 0 1 54.0 616.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (models.json) Tj
@@ -3008,7 +3034,7 @@ BT
 (and ) Tj
 ET
 BT
-1 0 0 1 54.0 613.0 Tm
+1 0 0 1 54.0 601.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (notes.md) Tj
@@ -3037,7 +3063,7 @@ BT
 (project ) Tj
 ET
 BT
-1 0 0 1 54.0 598.0 Tm
+1 0 0 1 54.0 586.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Markdown ) Tj
@@ -3059,7 +3085,7 @@ BT
 (root.) Tj
 ET
 BT
-1 0 0 1 54.0 575.0 Tm
+1 0 0 1 54.0 563.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (This ) Tj
@@ -3098,7 +3124,7 @@ BT
 (this ) Tj
 ET
 BT
-1 0 0 1 54.0 560.0 Tm
+1 0 0 1 54.0 548.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (repo ) Tj
@@ -3126,7 +3152,7 @@ BT
 (gets ) Tj
 ET
 BT
-1 0 0 1 54.0 545.0 Tm
+1 0 0 1 54.0 533.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (copied ) Tj
@@ -3166,13 +3192,13 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 54.0 530.0 Tm
+1 0 0 1 54.0 518.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (stick.) Tj
 ET
 BT
-1 0 0 1 54.0 489.0 Tm
+1 0 0 1 54.0 477.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (Copy ) Tj
@@ -3181,7 +3207,7 @@ BT
 (stick) Tj
 ET
 BT
-1 0 0 1 54.0 461.0 Tm
+1 0 0 1 54.0 449.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Copy ) Tj
@@ -3215,7 +3241,7 @@ BT
 (, ) Tj
 ET
 BT
-1 0 0 1 54.0 446.0 Tm
+1 0 0 1 54.0 434.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (setup.bat) Tj
@@ -3249,7 +3275,7 @@ BT
 (README.md) Tj
 ET
 BT
-1 0 0 1 54.0 431.0 Tm
+1 0 0 1 54.0 419.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (in ) Tj
@@ -3283,7 +3309,7 @@ BT
 (and ) Tj
 ET
 BT
-1 0 0 1 54.0 416.0 Tm
+1 0 0 1 54.0 404.0 Tm
 0.62 0.13 0.23 rg
 /F4 10 Tf
 (.gitignore) Tj
@@ -3326,7 +3352,7 @@ BT
 (notes.md) Tj
 ET
 BT
-1 0 0 1 54.0 401.0 Tm
+1 0 0 1 54.0 389.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (, ) Tj
@@ -3356,7 +3382,7 @@ BT
 (folder.) Tj
 ET
 BT
-1 0 0 1 54.0 378.0 Tm
+1 0 0 1 54.0 366.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (On ) Tj
@@ -3383,7 +3409,7 @@ BT
 (setup ) Tj
 ET
 BT
-1 0 0 1 54.0 363.0 Tm
+1 0 0 1 54.0 351.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (from ) Tj
@@ -3392,7 +3418,7 @@ BT
 (root.) Tj
 ET
 BT
-1 0 0 1 54.0 322.0 Tm
+1 0 0 1 54.0 310.0 Tm
 0.10 0.22 0.42 rg
 /F2 15 Tf
 (What ) Tj
@@ -3405,7 +3431,7 @@ BT
 (USB\)) Tj
 ET
 BT
-1 0 0 1 54.0 294.0 Tm
+1 0 0 1 54.0 282.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (See ) Tj
@@ -3424,7 +3450,7 @@ BT
 (the ) Tj
 ET
 BT
-1 0 0 1 54.0 279.0 Tm
+1 0 0 1 54.0 267.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (visual ) Tj
@@ -3450,7 +3476,7 @@ BT
 (writable ) Tj
 ET
 BT
-1 0 0 1 54.0 264.0 Tm
+1 0 0 1 54.0 252.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (stick, ) Tj
@@ -3491,7 +3517,7 @@ BT
 (from ) Tj
 ET
 BT
-1 0 0 1 54.0 249.0 Tm
+1 0 0 1 54.0 237.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (setup. ) Tj
@@ -3503,7 +3529,7 @@ BT
 (optional.) Tj
 ET
 BT
-1 0 0 1 54.0 226.0 Tm
+1 0 0 1 54.0 214.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (From ) Tj
@@ -3513,33 +3539,23 @@ BT
 ET
 q
 0.96 0.96 0.97 rg
-54.0 196.0 504.0 14.0 re f
-Q
-BT
-1 0 0 1 62.0 199.0 Tm
-0.18 0.18 0.20 rg
-/F4 9 Tf
-(./setup.bat) Tj
-ET
-q
-0.96 0.96 0.97 rg
 54.0 184.0 504.0 14.0 re f
 Q
 BT
 1 0 0 1 62.0 187.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(./chat.bat) Tj
+(./setup.bat) Tj
 ET
 q
 0.96 0.96 0.97 rg
-54.0 158.0 504.0 14.0 re f
+54.0 172.0 504.0 14.0 re f
 Q
 BT
-1 0 0 1 62.0 161.0 Tm
+1 0 0 1 62.0 175.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(chmod +x setup.sh chat.sh) Tj
+(./chat.bat) Tj
 ET
 q
 0.96 0.96 0.97 rg
@@ -3549,7 +3565,7 @@ BT
 1 0 0 1 62.0 149.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
-(./setup.sh) Tj
+(chmod +x setup.sh chat.sh) Tj
 ET
 q
 0.96 0.96 0.97 rg
@@ -3559,10 +3575,20 @@ BT
 1 0 0 1 62.0 137.0 Tm
 0.18 0.18 0.20 rg
 /F4 9 Tf
+(./setup.sh) Tj
+ET
+q
+0.96 0.96 0.97 rg
+54.0 122.0 504.0 14.0 re f
+Q
+BT
+1 0 0 1 62.0 125.0 Tm
+0.18 0.18 0.20 rg
+/F4 9 Tf
 (./chat.sh) Tj
 ET
 BT
-1 0 0 1 54.0 115.0 Tm
+1 0 0 1 54.0 103.0 Tm
 0.16 0.16 0.18 rg
 /F1 11 Tf
 (Optional: ) Tj
@@ -3611,16 +3637,16 @@ xref
 0000000365 00000 n 
 0000000433 00000 n 
 0000000589 00000 n 
-0000009385 00000 n 
-0000009542 00000 n 
-0000015678 00000 n 
-0000015836 00000 n 
-0000026515 00000 n 
-0000026673 00000 n 
-0000034609 00000 n 
-0000034767 00000 n 
+0000009599 00000 n 
+0000009756 00000 n 
+0000015892 00000 n 
+0000016050 00000 n 
+0000026729 00000 n 
+0000026887 00000 n 
+0000034843 00000 n 
+0000035001 00000 n 
 trailer
 << /Size 17 /Root 1 0 R >>
 startxref
-43823
+44174
 %%EOF
