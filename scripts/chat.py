@@ -269,6 +269,7 @@ class UsbChatApp:
         except OSError:
             pass
         self.log_root = usbchat.logs_dir(self.data_root)
+        self.board_name = str(getattr(args, "memory_board", "") or "").strip()
         self.notes_file = usbchat.notes_path(self.data_root)
         self.profile_file = usbchat.profile_path(self.data_root)
         self.profile_json = profiledoc.profile_json_path(self.data_root)
@@ -279,7 +280,11 @@ class UsbChatApp:
         self.loaded_path: Path | None = None
         self.busy = False
         self.stop_event = threading.Event()
-        self.session_path = usbchat.new_session_path(self.log_root)
+        if self.board_name:
+            self.session_path = usbchat.open_named_session(self.log_root, self.board_name)
+        else:
+            self.session_path = usbchat.new_session_path(self.log_root)
+        self.memory = usbchat.load_board(self.session_path)
         self.session_turns: list[dict] = []
         self.older_turns: list[dict] = []
         self.older_files: list[Path] = []
@@ -324,10 +329,16 @@ class UsbChatApp:
 
         usbchat.purge_old_logs(self.log_root)
         self._build()
+        if self.board_name:
+            self.root.title(f"USB chat — {self.board_name}")
+            self._load_named_history()
         self.refresh_models()
-        self._status(
-            f"Session {self.session_path.name}  ·  models {self.models_root}  ·  notes {self.notes_file.name}"
-        )
+        if self.board_name:
+            self._status(f"Test board {self.board_name}  ·  models {self.models_root}")
+        else:
+            self._status(
+                f"Session {self.session_path.name}  ·  models {self.models_root}  ·  notes {self.notes_file.name}"
+            )
 
     def _build(self) -> None:
         self.root.title("USB chat")
@@ -1195,7 +1206,15 @@ class UsbChatApp:
     def new_session(self) -> None:
         if self.busy:
             return
-        self.session_path = usbchat.new_session_path(self.log_root)
+        if self.board_name:
+            self.session_path.write_text("", encoding="utf-8")
+            usbchat.board_path(self.session_path).unlink(missing_ok=True)
+            self.memory = usbchat.empty_board()
+            label = f"Cleared test board {self.board_name}"
+        else:
+            self.session_path = usbchat.new_session_path(self.log_root)
+            self.memory = usbchat.empty_board()
+            label = f"New session {self.session_path.name}"
         self.session_turns = []
         self.older_turns = []
         self.older_files = []
@@ -1204,7 +1223,27 @@ class UsbChatApp:
         self.completion_tokens_total = 0
         self.clear_quote()
         self._show_history_empty()
-        self._status(f"New session {self.session_path.name}")
+        self._status(label)
+
+    def _load_named_history(self) -> None:
+        turns = usbchat.load_turns(self.session_path)
+        if not turns:
+            return
+        self.session_turns = list(turns)
+        self._clear_history_empty()
+        for turn in turns:
+            user_line = usbchat.display_user_prompt(turn)
+            if user_line:
+                self._append("user", user_line)
+            if turn.get("response"):
+                extras = {
+                    "pdf_paths": list(turn.get("pdf_paths") or []),
+                    "pdf_saves": list(turn.get("pdf_saves") or []),
+                    "profile_update": turn.get("profile_update") or {},
+                    "profile_record": turn.get("profile_record"),
+                }
+                self._append("assistant", str(turn["response"]), extras=extras, elapsed=_turn_elapsed_seconds(turn))
+        self._history_see_end()
 
     def _show_latest(self) -> None:
         self._history_see_end()
@@ -1212,6 +1251,9 @@ class UsbChatApp:
 
     def load_older(self) -> None:
         if self.loading_older or self.busy:
+            return
+        if self.board_name:
+            self._show_no_earlier_history()
             return
         sessions = [p for p in usbchat.list_sessions(self.log_root) if p != self.session_path]
         already = {p.resolve() for p in self.older_files}
@@ -1492,14 +1534,15 @@ class UsbChatApp:
             daemon=True,
         ).start()
 
-    def _complete(self, messages: list[dict[str, str]], max_tokens: int | None = None) -> str:
+    def _complete(self, messages: list[dict[str, str]], max_tokens: int | None = None, *, count: bool = True) -> str:
         parts: list[str] = []
         for piece in self.engine.stream(messages, self.stop_event, max_tokens=max_tokens):
             parts.append(piece)
-            self._add_step_chars(len(piece))
+            if count:
+                self._add_step_chars(len(piece))
             if self.stop_event.is_set():
                 break
-        if self.engine is not None:
+        if count and self.engine is not None:
             prompt_tokens, completion_tokens = self.engine.last_usage
             self._turn_prompt_tokens += prompt_tokens
             self._turn_completion_tokens += completion_tokens
@@ -1758,6 +1801,85 @@ class UsbChatApp:
         outcome["block"] = block
         return outcome
 
+    def _pick_summarizer(self):
+        loaded = self.loaded_path.stat().st_size if self.loaded_path and self.loaded_path.is_file() else 0
+        return usbchat.summary_model(usbchat.models_after_unload(self.models_root, loaded))
+
+    def _summary_slice(self) -> int:
+        summarizer = self._pick_summarizer()
+        if summarizer is None:
+            return 0
+        slice_tokens, _ceiling = usbchat.summary_limits(summarizer.path.name)
+        return slice_tokens
+
+    def _summarize_working(self, flag: str) -> bool:
+        if not self.memory.get("working") or self.stop_event.is_set():
+            return False
+        self._ui_status("Summarizing chat history")
+        summarizer = self._pick_summarizer()
+        if summarizer is None:
+            return False
+        added = sum(
+            usbchat.turn_tokens(str(row.get("prompt") or ""), str(row.get("response") or ""))
+            for row in self.memory["working"]
+        )
+        continue_row = flag == "routine" and usbchat.routine_can_extend(self.memory, added, summarizer.path.name)
+        previous = ""
+        if continue_row:
+            previous = str(self.memory["summaries"][-1].get("summary") or "")
+        answer = self.loaded_path
+        self._ensure_engine(summarizer)
+        cap = 2048 if "qwen3" in summarizer.path.name.casefold() else 1024
+        raw = self._complete(usbchat.summary_request(previous, self.memory["working"]), max_tokens=cap, count=False)
+        if not usbchat.fold_working(self.memory, raw, flag, continue_row=continue_row):
+            if answer is not None:
+                match = next((item for item in self.choices if item.path == answer), None)
+                if match is not None:
+                    self._ensure_engine(match)
+            return False
+        usbchat.save_board(self.session_path, self.memory)
+        return True
+
+    def _prepare_memory(self, choice, user_text: str, quote: str, attachments: list[dict]) -> list[dict]:
+        if usbchat.audit_board(self.memory, self.session_path):
+            usbchat.save_board(self.session_path, self.memory)
+        if self.memory.get("working") and user_text.strip() and not self.stop_event.is_set():
+            self._ensure_engine(choice)
+            cap = 1024 if "qwen3" in choice.path.name.casefold() else 256
+            verdict = self._complete(usbchat.topic_messages(self.memory, user_text), max_tokens=cap, count=False)
+            changed, intent = usbchat.topic_decision(self.memory, user_text, verdict)
+            if changed and not self.stop_event.is_set():
+                if self._summarize_working("model-generated"):
+                    self.memory["topic"] = (intent or user_text).strip()[:120]
+                    usbchat.save_board(self.session_path, self.memory)
+                self._ensure_engine(choice)
+        elif not str(self.memory.get("topic") or "").strip() and user_text.strip():
+            self.memory["topic"] = user_text.strip()[:120]
+            usbchat.save_board(self.session_path, self.memory)
+        _retrieved, missing = usbchat.take_span(self.memory, self.session_path, user_text)
+        retrieved = _retrieved
+        if missing:
+            usbchat.save_board(self.session_path, self.memory)
+        elif retrieved:
+            usbchat.save_board(self.session_path, self.memory)
+        notes = usbchat.read_notes(self.notes_file)
+        return usbchat.build_chat_messages(
+            notes=notes,
+            older_turns=self.older_turns,
+            session_turns=usbchat.prompt_turns(retrieved, self.memory.get("working") or []),
+            quote=quote,
+            attachments=attachments,
+            user_text=user_text,
+            memory=usbchat.memory_text(self.memory),
+        )
+
+    def _maybe_routine_fold(self, user_text: str, reply: str) -> None:
+        if not reply or reply.startswith("(error:") or reply == "Stopped." or self.stop_event.is_set():
+            return
+        if not usbchat.routine_due(self.memory, user_text, reply, self._summary_slice()):
+            return
+        self._summarize_working("routine")
+
     def _generate(
         self,
         choice,
@@ -1791,6 +1913,8 @@ class UsbChatApp:
         doc_hold = False
         skip_main = False
         try:
+            if not continuing:
+                messages = self._prepare_memory(choice, user_text, quote, attachments)
             if continuing and self._doc_resume:
                 skip_main = True
                 err, streamed, doc_answer, choice = self._run_doc_continue(choice, user_text, reply_parts)
@@ -1805,9 +1929,13 @@ class UsbChatApp:
                     self._ui_status(f"Loading {picked.label}")
                 self._ensure_engine(picked)
                 keep = usbchat.new_keep_dir(self.data_root, "job")
+                job_input = user_text
+                note = usbchat.memory_text(self.memory)
+                if note:
+                    job_input = "Chat memory:\n" + note + "\n\nJob description:\n" + user_text
                 result = jobapp.run_job_application(
                     complete=self._complete,
-                    job_text=user_text,
+                    job_text=job_input,
                     profile_text=profile,
                     n_ctx=self.n_ctx,
                     stop_event=self.stop_event,
@@ -1927,9 +2055,13 @@ class UsbChatApp:
                 keep = usbchat.new_keep_dir(self.data_root, slug)
                 coding_log = usbchat.new_coding_log_path(self.data_root, keep.name)
                 self._ui_status("Coding committee…")
+                task = run_text
+                note = usbchat.memory_text(self.memory)
+                if note:
+                    task = "Chat memory:\n" + note + "\n\nTask:\n" + run_text
                 result = committee.run_coding(
                     complete=self._coding_complete,
-                    user_text=run_text,
+                    user_text=task,
                     keep_dir=keep,
                     github_url=github or None,
                     seed_dir=Path(seed_dir) if seed_dir else None,
@@ -1953,9 +2085,13 @@ class UsbChatApp:
                 keep = usbchat.new_keep_dir(self.data_root, user_text)
                 coding_log = usbchat.new_coding_log_path(self.data_root, keep.name)
                 self._ui_status("Review committee…")
+                task = run_text
+                note = usbchat.memory_text(self.memory)
+                if note:
+                    task = "Chat memory:\n" + note + "\n\nTask:\n" + run_text
                 result = committee.run_review(
                     complete=self._coding_complete,
-                    user_text=run_text,
+                    user_text=task,
                     keep_dir=keep,
                     web_digest=str(web_meta.get("digest") or ""),
                     stop_event=self.stop_event,
@@ -1980,12 +2116,9 @@ class UsbChatApp:
                     last["content"] = str(last.get("content") or "")[:cap]
                     messages = [dict(m) for m in messages[:-1]] + [last]
                 self._ui_status("Writing the answer")
-                self.root.after(0, self._begin_assistant)
-                streamed = True
                 for piece in self.engine.stream(messages, self.stop_event):
                     reply_parts.append(piece)
                     self._add_step_chars(len(piece))
-                    self.root.after(0, lambda p=piece: self._stream_piece(p))
                 if self.engine is not None:
                     prompt_tokens, completion_tokens = self.engine.last_usage
                     self._turn_prompt_tokens += prompt_tokens
@@ -2008,6 +2141,12 @@ class UsbChatApp:
             reply = "Stopped." if err == "stopped" else f"(error: {err})"
         elif not doc_answer and not job and not coding and not stakes and not reply.startswith("(error:"):
             reply = committee.finish_off_coding(user_text, reply)
+        if reply and err != "stopped":
+            try:
+                self._maybe_routine_fold(user_text, reply)
+            except Exception:
+                pass
+        turn_id = usbchat.fresh_message_id(self.memory, self.session_turns)
 
         def finish() -> None:
             self._set_busy(False)
@@ -2034,6 +2173,7 @@ class UsbChatApp:
             if seed_dir:
                 shown = f"folder: {seed_dir}\n{shown}".strip()
             turn = {
+                "id": turn_id,
                 "time": usbchat.utc_now(),
                 "started": started_at,
                 "model": choice.label,
@@ -2062,6 +2202,9 @@ class UsbChatApp:
             }
             usbchat.append_turn(self.session_path, turn)
             self.session_turns.append(turn)
+            if reply and reply != "Stopped." and not str(reply).startswith("(error:"):
+                usbchat.remember_turn(self.memory, turn_id, user_text, reply)
+                usbchat.save_board(self.session_path, self.memory)
             self.prompt_tokens_total += prompt_tokens
             self.completion_tokens_total += completion_tokens
             self._status(
@@ -3238,6 +3381,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Standalone USB GGUF chat")
     parser.add_argument("--models", help="Folder of GGUF files (USB root)")
     parser.add_argument("--n-ctx", type=int, default=usbchat.N_CTX_DEFAULT)
+    parser.add_argument(
+        "--memory-board",
+        default="",
+        help="Open a named test board, such as library. The same name reopens that board. Omit this to use the chat board.",
+    )
     return parser.parse_args(argv)
 
 

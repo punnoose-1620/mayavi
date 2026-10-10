@@ -674,11 +674,14 @@ def build_chat_messages(
     quote: str = "",
     attachments: list[dict] | None = None,
     user_text: str,
+    memory: str = "",
 ) -> list[dict[str, str]]:
     system = (
         "You are a local USB chat assistant. Answer helpfully and directly. "
         "Attached documents are read-only context."
     )
+    if memory.strip():
+        system += "\n\n" + memory.strip()
     if notes.strip():
         system += "\n\nUser notes:\n" + notes.strip()[:NOTES_CAP]
 
@@ -1566,6 +1569,379 @@ def flatten_prompt(messages: list[dict[str, str]]) -> str:
 
 def estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4) if text else 0
+
+
+# Routine slice, then the longest raw span one summary row may cover.
+SUMMARY_LIMITS: tuple[tuple[str, int, int], ...] = (
+    ("Qwen3-14B", 1500, 2000),
+    ("Qwen2.5-14B", 1500, 2000),
+    ("gemma-2-9b-it", 1500, 4096),
+    ("Qwen3-8B", 1000, 2000),
+    ("Meta-Llama-3.1-8B", 1000, 1500),
+    ("Qwen2.5-7B", 1000, 2000),
+    ("Qwen2.5-3B", 750, 1000),
+    ("qwen2.5-1.5b", 500, 1000),
+)
+_SUMMARY_STOP = frozenset(
+    "a an the to of and or for in on at is it this that with from also please me my you do".split()
+)
+_MONTHS = (
+    "January February March April May June July August September October November December".split()
+)
+
+
+def summary_limits(filename: str) -> tuple[int, int]:
+    low = filename.casefold()
+    for key, slice_tokens, ceiling in SUMMARY_LIMITS:
+        if key.casefold() in low:
+            return slice_tokens, ceiling
+    return 1000, 1500
+
+
+def summary_model(choices: list[ModelChoice]) -> ModelChoice | None:
+    """Best summarizer that fits. Tagged summary models come first."""
+    tagged = [item for item in choices if "summary" in item.tags]
+    pool = tagged or list(choices)
+    if not pool:
+        return None
+    ranks = TAG_RANK["summary"]
+    return min(pool, key=lambda item: (_rank_index(item.path.name, ranks), -item.size))
+
+
+def models_after_unload(root: Path, loaded_size: int) -> list[ModelChoice]:
+    free = free_ram()
+    if free is None:
+        return pickable_models(root, None)
+    extra = int(max(0, loaded_size) * RAM_HEADROOM)
+    return pickable_models(root, free + extra)
+
+
+def board_path(session: Path) -> Path:
+    return session.with_suffix(".board.json")
+
+
+def board_slug(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9._-]+", "-", str(name or "").strip().casefold()).strip(".-")
+    if not slug:
+        raise ValueError("Board name is empty.")
+    return slug[:80]
+
+
+def open_named_session(log_root: Path, name: str) -> Path:
+    """Stable log for a named test board. The chat board stays in the logs folder."""
+    slug = board_slug(name)
+    folder = log_root / "test-boards" / slug
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / f"{slug}.log"
+
+
+def empty_board() -> dict:
+    return {
+        "topic": "",
+        "working_tokens": 0,
+        "last_end_id": 0,
+        "last_flag": "",
+        "cleared_before": 0,
+        "summaries": [],
+        "working": [],
+    }
+
+
+def load_board(session: Path) -> dict:
+    path = board_path(session)
+    if not path.is_file():
+        return empty_board()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return empty_board()
+    board = empty_board()
+    if isinstance(data, dict):
+        for key in board:
+            if key in data:
+                board[key] = data[key]
+    if not isinstance(board["summaries"], list):
+        board["summaries"] = []
+    if not isinstance(board["working"], list):
+        board["working"] = []
+    board["summaries"] = [row for row in board["summaries"] if isinstance(row, dict)]
+    board["working"] = [row for row in board["working"] if isinstance(row, dict)]
+    return board
+
+
+def save_board(session: Path, board: dict) -> None:
+    path = board_path(session)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(board, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def fresh_message_id(board: dict, turns: list[dict]) -> int:
+    used = {int(turn.get("id") or 0) for turn in turns}
+    used.update(int(row.get("id") or 0) for row in board.get("working") or [])
+    stamp = int(datetime.now().timestamp() * 1000)
+    while stamp in used:
+        stamp += 1
+    return stamp
+
+
+def turn_tokens(prompt: str, response: str) -> int:
+    return estimate_tokens(prompt) + (estimate_tokens(response) if response else 0)
+
+
+def visible_reply(text: str) -> str:
+    body = str(text or "")
+    if "</think>" in body:
+        body = body.split("</think>", 1)[1]
+    elif "<think>" in body:
+        return ""
+    return body.strip()
+
+
+def _content_words(text: str) -> set[str]:
+    return {word for word in re.findall(r"[a-z0-9]+", str(text or "").lower()) if word not in _SUMMARY_STOP and len(word) > 1}
+
+
+def format_message_time(ms: int) -> str:
+    when = datetime.fromtimestamp(int(ms) / 1000)
+    return f"{when.day} {_MONTHS[when.month - 1]} {when.year}, {when:%H:%M}"
+
+
+def turns_between(path: Path, start_id: int, end_id: int) -> list[dict]:
+    found = []
+    for turn in load_turns(path):
+        mid = int(turn.get("id") or 0)
+        if mid and start_id <= mid <= end_id:
+            found.append(turn)
+    found.sort(key=lambda turn: int(turn["id"]))
+    return found
+
+
+def clear_before(board: dict, end_id: int) -> None:
+    """Drop summaries and working turns that start before end_id."""
+    end_id = int(end_id)
+    board["summaries"] = [row for row in board["summaries"] if int(row.get("start_id") or 0) >= end_id]
+    board["working"] = [row for row in board["working"] if int(row.get("id") or 0) >= end_id]
+    board["working_tokens"] = sum(turn_tokens(str(row.get("prompt") or ""), str(row.get("response") or "")) for row in board["working"])
+    if board["summaries"]:
+        last = board["summaries"][-1]
+        board["last_end_id"] = int(last.get("end_id") or 0)
+        board["last_flag"] = str(last.get("flag") or "")
+    else:
+        board["last_end_id"] = end_id
+        board["last_flag"] = ""
+    board["cleared_before"] = max(int(board.get("cleared_before") or 0), end_id)
+
+
+def audit_board(board: dict, session: Path) -> int:
+    """Clear a span whose raw turns are gone. Return that end id, or 0."""
+    for row in list(board.get("summaries") or []):
+        start_id = int(row.get("start_id") or 0)
+        end_id = int(row.get("end_id") or 0)
+        expected = int(row.get("turns") or 0)
+        if not start_id or not end_id or not expected:
+            continue
+        found = turns_between(session, start_id, end_id)
+        if len(found) < expected:
+            clear_before(board, end_id)
+            return end_id
+    return 0
+
+
+def topic_messages(board: dict, user_text: str) -> list[dict[str, str]]:
+    recent = [str(row.get("prompt") or "") for row in (board.get("working") or [])[-5:]]
+    recent_block = "\n".join(f"- {line}" for line in recent if line.strip()) or "(none)"
+    topic = str(board.get("topic") or "").strip() or "(none)"
+    return [
+        {
+            "role": "system",
+            "content": "You decide if a new message stays on the same topic. Reply with exactly two lines.",
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Stored topic: {topic}\n\nRecent prompts:\n{recent_block}\n\n"
+                f"New message:\n{user_text}\n\n"
+                "INTENT: a short phrase for the new message\n"
+                "DIFFERENT: YES or NO"
+            ),
+        },
+    ]
+
+
+def topic_decision(board: dict, user_text: str, model_text: str) -> tuple[bool, str]:
+    """True only when the model says YES and the user's words are far from the stored topic."""
+    visible = visible_reply(model_text)
+    if not visible or not board.get("working"):
+        return False, ""
+    intent = ""
+    different = False
+    for line in visible.splitlines():
+        upper = line.upper()
+        if upper.startswith("INTENT:"):
+            intent = line.split(":", 1)[1].strip()
+        if "DIFFERENT" in upper:
+            different = bool(re.search(r"\bYES\b", upper))
+    if not different:
+        return False, intent
+    new_words = _content_words(user_text)
+    if len(new_words) < 2:
+        return False, intent
+    basis = _content_words(str(board.get("topic") or ""))
+    for row in (board.get("working") or [])[-5:]:
+        basis |= _content_words(str(row.get("prompt") or ""))
+    if not basis:
+        return False, intent
+    if len(new_words & basis) / len(new_words) >= 0.34:
+        return False, intent
+    return True, intent
+
+
+def summary_request(previous: str, turns: list[dict]) -> list[dict[str, str]]:
+    blocks: list[str] = []
+    if previous.strip():
+        blocks.append("Previous summary:\n" + previous.strip())
+    lines: list[str] = []
+    for turn in turns:
+        prompt = str(turn.get("prompt") or "").strip()
+        response = str(turn.get("response") or "").strip()
+        if prompt:
+            lines.append("User: " + prompt)
+        if response:
+            lines.append("Assistant: " + response)
+    blocks.append("Messages:\n" + "\n".join(lines))
+    blocks.append("Write one summary of this stretch. Keep names, numbers, dates, and decisions.")
+    return [
+        {
+            "role": "system",
+            "content": "Summarize the chat for a later model. Leave out greetings. Write plain sentences.",
+        },
+        {"role": "user", "content": "\n\n".join(blocks)},
+    ]
+
+
+def routine_can_extend(board: dict, added_tokens: int, filename: str) -> bool:
+    if str(board.get("last_flag") or "") != "routine" or not board.get("summaries"):
+        return False
+    last = board["summaries"][-1]
+    if str(last.get("flag") or "") != "routine":
+        return False
+    _slice, ceiling = summary_limits(filename)
+    covered = int(last.get("tokens") or 0) + max(0, added_tokens)
+    return covered <= ceiling
+
+
+def fold_working(board: dict, summary: str, flag: str, *, continue_row: bool) -> bool:
+    visible = visible_reply(summary)
+    working = list(board.get("working") or [])
+    if not visible or not working:
+        return False
+    start_id = int(working[0].get("id") or 0)
+    end_id = int(working[-1].get("id") or 0)
+    count = len(working)
+    tokens = sum(turn_tokens(str(row.get("prompt") or ""), str(row.get("response") or "")) for row in working)
+    if continue_row and board["summaries"] and str(board["summaries"][-1].get("flag") or "") == "routine" and flag == "routine":
+        row = board["summaries"][-1]
+        row["end_id"] = end_id
+        row["summary"] = visible
+        row["turns"] = int(row.get("turns") or 0) + count
+        row["tokens"] = int(row.get("tokens") or 0) + tokens
+        row["flag"] = "routine"
+    else:
+        board["summaries"].append(
+            {
+                "start_id": start_id,
+                "end_id": end_id,
+                "summary": visible,
+                "flag": flag,
+                "turns": count,
+                "tokens": tokens,
+            }
+        )
+    board["working"] = []
+    board["working_tokens"] = 0
+    board["last_end_id"] = end_id
+    board["last_flag"] = flag
+    return True
+
+
+def routine_due(board: dict, prompt: str, response: str, slice_tokens: int) -> bool:
+    if slice_tokens <= 0 or not board.get("working"):
+        return False
+    extra = turn_tokens(prompt, response)
+    return int(board.get("working_tokens") or 0) + extra > int(slice_tokens * 0.9)
+
+
+def remember_turn(board: dict, turn_id: int, prompt: str, response: str) -> None:
+    board["working"].append({"id": int(turn_id), "prompt": prompt, "response": response})
+    board["working_tokens"] = int(board.get("working_tokens") or 0) + turn_tokens(prompt, response)
+
+
+def span_for_prompt(board: dict, user_text: str) -> dict | None:
+    new_words = _content_words(user_text)
+    if len(new_words) < 2:
+        return None
+    work_words: set[str] = set()
+    for row in board.get("working") or []:
+        work_words |= _content_words(str(row.get("prompt") or "") + " " + str(row.get("response") or ""))
+    best_score = (len(new_words & work_words) / len(new_words)) if work_words else 0.0
+    best: dict | None = None
+    for row in board.get("summaries") or []:
+        score = len(new_words & _content_words(str(row.get("summary") or ""))) / len(new_words)
+        if score > best_score and score >= 0.2:
+            best = row
+            best_score = score
+    return best
+
+
+def take_span(board: dict, session: Path, user_text: str) -> tuple[list[dict], int]:
+    row = span_for_prompt(board, user_text)
+    if row is None:
+        return [], 0
+    start_id = int(row.get("start_id") or 0)
+    end_id = int(row.get("end_id") or 0)
+    found = turns_between(session, start_id, end_id)
+    expected = int(row.get("turns") or 0)
+    if not found or (expected and len(found) < expected):
+        clear_before(board, end_id)
+        return [], end_id
+    return found, 0
+
+
+def memory_text(board: dict) -> str:
+    parts: list[str] = []
+    cleared = int(board.get("cleared_before") or 0)
+    if cleared:
+        stamp = format_message_time(cleared)
+        parts.append(
+            f"The user cleared the chat logs from before {stamp}. "
+            "Do not answer about anything before that time. "
+            f"If they ask, say the logs were cleared and you cannot read or respond about anything before {stamp}."
+        )
+    lines = [str(row.get("summary") or "").strip() for row in board.get("summaries") or []]
+    lines = [line for line in lines if line]
+    if lines:
+        parts.append("Chat summary:\n" + "\n\n".join(lines))
+    return "\n\n".join(parts)
+
+
+def prompt_turns(retrieved: list[dict], working: list[dict], budget: int = 1000) -> list[dict]:
+    """Historical span first, then the raw working log. Retrieved text is capped."""
+    kept: list[dict] = []
+    used = 0
+    for turn in reversed(retrieved):
+        cost = turn_tokens(str(turn.get("prompt") or ""), str(turn.get("response") or ""))
+        if kept and used + cost > budget:
+            break
+        kept.append(turn)
+        used += cost
+    kept.reverse()
+    seen = {int(turn.get("id") or 0) for turn in kept if turn.get("id")}
+    for row in working:
+        mid = int(row.get("id") or 0)
+        if mid and mid in seen:
+            continue
+        kept.append(row)
+    return kept
 
 
 def _read_text_file(path: Path) -> str:
