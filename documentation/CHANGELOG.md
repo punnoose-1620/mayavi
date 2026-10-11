@@ -2,6 +2,22 @@
 
 Newest first. Hand-written. Update when a set of files is copied onto the USB, not on every save.
 
+## 1.2.22 — 2026-10-12
+
+Routine summaries no longer replace the previous paragraph. The new working log is summarized on its own. When the previous row is routine and the raw token span is still under that summarizer’s ceiling, Qwen2.5 7B scores the old summary against the new one. Qwen2.5 3B does that job when the 7B does not fit. Continuity at or below 0.3 and independence at or above 0.7 saves the new text as its own topic row. Otherwise the new paragraph is appended and the end id, turn count, and token count move forward. If neither judge fits, the paragraph is still appended. Past the ceiling, a new routine row starts and the judge is not called.
+
+The topic check before a reply uses those same two scores on the working prompts. A change folds the working log into a new topic row. The new message stays out of that fold. A reply with missing or unlabeled scores stays on the same topic.
+
+## 1.2.21 — 2026-10-10
+
+`models.json` on the stick supplies a tag list for each GGUF. The closed picker shows the model name and size. Tags appear only while the list is open. **Retain Selected Model** sits beside Web Search and starts off. While it is off, Send picks a tagged model for the message, selects that model, and answers with it. While it is on, the model already selected answers. Coding forces the coding tag. Web Search prefers the search tag, then search-sift. Job application and Update profile skip that router. They use the smallest model that still fits, preferring about 3B–7B.
+
+**Job application** treats the message as the job description and writes an English resume and cover letter from `profile.json` only, then a short match summary. **Update profile** reads an attached resume. Saving writes `profile.json` after you confirm. `profile.md` may still sit on the stick; the job path reads the JSON.
+
+Each session log has a memory board beside it (`logs\<session>.board.json`). Raw turns stay in the log. Later turns, including after a model switch, see the summaries plus the current working log. A topic change folds the working log before the reply. A routine fold runs after the reply is ready and before it is shown, once the working log would pass 90% of the summarizer’s slice. The status line says Summarizing chat history. The summarizer is a summary-tagged model that fits after the answering model is unloaded.
+
+Quality, multi-phase, and memory-board notes live in `documentation\`.
+
 ## 1.2.20 — 2026-10-06
 
 Stick layout. Home holds `chat.bat`, `setup.bat`, `chat.sh`, `setup.sh`, `README.pdf`, `CHANGELOG.pdf`, `REQUIREMENTS.pdf`, `TestResults.pdf`, `notes.md`, and the GGUFs. No Markdown at the stick root: systems that open the stick often have no Markdown viewer, so only those PDFs are exposed there. `scripts\` holds the Python (and `seeds\`, `frozen\`, optional `bin\`). `documentation\` holds the Markdown. `LICENSE`, `.git`, and `.gitignore` stay at the repository root and are not copied to the stick. `logs\`, `coding-logs\`, and `outputs\` stay at the root. Run products go in `outputs\` only. Copies onto the USB must use this tree. There is no `chat\` folder. The git repo keeps `README.md` at the repository root for GitHub and the other notes in `documentation\`. Setup writes the guide PDFs at the root from that Markdown.

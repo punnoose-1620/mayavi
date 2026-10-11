@@ -6,6 +6,8 @@ This file stays at the **repository root** so GitHub can show it. The other proj
 - [Requirements](documentation/REQUIREMENTS.md)
 - [Bench results](documentation/TestResults.md)
 - [Quality test results](documentation/Quality Test Results.md)
+- [Multi-phase results](documentation/Multi-Phase%20Testing%20(Results).md)
+- [Memory board results](documentation/Memory%20Board%20Continuity%20(Results).md)
 
 The license is [`LICENSE`](LICENSE) in this folder, next to `.git` and `.gitignore`. Those stay at the repository root. They are not copied to the USB.
 
@@ -13,11 +15,13 @@ The folder layout below is for the **USB**, not a second copy of this repository
 
 It is **not** the id10t factory (no mail, no Serp/Scraper keys, no second GGUF). Coding uses the model you picked, one at a time.
 
-Features below are what **1.2.20** can do.
+Features below are what **1.2.22** can do.
 
 ## Features
 
-- One GGUF at a time. The picker lists only files that fit **free RAM ≥ file size × 1.2 + 2 GB**, largest first, labeled like `Qwen2.5 Coder 14B (8.4 GB)`. If the file’s chat template rejects a system role, that text is folded into the first user message.
+- One GGUF at a time. The picker lists only files that fit **free RAM ≥ file size × 1.2 + 2 GB**, largest first, labeled like `Qwen2.5 Coder 14B (8.4 GB)`. Tags come from `models.json` on the stick. The closed row is the name and size. Tags show only while the list is open. If the file’s chat template rejects a system role, that text is folded into the first user message.
+- **Retain Selected Model** sits beside Web Search and starts off. Off: Send picks a tagged model for this message, selects it, and answers with it. On: the model already selected answers. Coding forces the coding tag. Web Search prefers search, then search-sift. Job application and Update profile skip this router.
+- **Job application** uses the message as the job description. It writes an English resume and cover letter from `profile.json` only, then a short match summary. **Update profile** reads an attached resume and writes `profile.json` after you confirm. Those two jobs use the smallest model that still fits, preferring about 3B–7B.
 - Chat window: labeled History (empty-state hint) and Message (placeholder + Send on the right). While the model is working (including a long Web Search), the box is locked and Send becomes a spinner; Stop stays on.
 - Quote a turn with the ↩ control on each **You** / **Model** line (hover: *Reply to this message*). **Clear quote** and **Replying to:** appear only while a quote is pending.
 - Read-only attach of one file, or **Attach folder…** for a folder of `pdf`, `docx`, `xlsx`, `txt`, `md`, and `csv`. Other files in that folder are skipped. The folder is read before the model loads, and a long folder is walked in parts so it fits the context window. History shows a document icon and the full path (older logs: icon and the stored name).
@@ -60,6 +64,14 @@ Needs `requests` and `beautifulsoup4` in the host venv (setup installs them). Go
 
 GPU offload is off unless you set `USB_CHAT_N_GPU_LAYERS` (or a numeric `N_GPU_LAYERS`) on the host.
 
+## Memory board
+
+Each session log has a board beside it: `logs\<session>.board.json`. Raw turns stay in the `.log`. The board keeps chat summaries and the current working log. Board metadata is withheld from the answering model. Switching models keeps the same board.
+
+Before the reply, the loaded model scores the new message against the working prompts. A topic change is continuity at or below **0.3** and independence at or above **0.7**. That folds the working log into a new topic summary. The new message starts the next working log. A reply with missing or unlabeled scores stays on the same topic.
+
+After the reply is ready, and before it is shown, a routine fold runs when the working log would pass **90%** of the summarizer’s slice. The status line says Summarizing chat history. The summarizer is a summary-tagged model that fits once the answering model is unloaded. It sees only the new stretch. When the previous row is routine and the raw span is still under that model’s ceiling, Qwen2.5 7B compares the two summaries (Qwen2.5 3B if the 7B does not fit). A distinct pair is saved as its own topic row. Otherwise the new paragraph is appended and the end id moves forward. If neither judge fits, the paragraph is still appended. Past the ceiling, a new routine row starts and the judge is not called.
+
 ## Layout on the USB
 
 Copies onto the USB must follow this tree. The stick root is home. There is no `chat\` folder. Markdown is not part of that home directory; only the PDFs are.
@@ -76,6 +88,9 @@ Copies onto the USB must follow this tree. The stick root is home. There is no `
   TestResults.pdf
   notes.md             (created on the stick; do not put in git)
   *.gguf
+  models.json          (tags for the picker and the router)
+  profile.json         (created on the stick; job applications read this)
+  profile.md           (optional notes; the job path reads the JSON)
   scripts\
     chat.py
     usbchat.py
@@ -95,8 +110,12 @@ Copies onto the USB must follow this tree. The stick root is home. There is no `
     REQUIREMENTS.md
     TestResults.md
     Quality Test Results.md
+    Multi-Phase Testing (Testing Plan).md
+    Multi-Phase Testing (Results).md
+    Memory Board Continuity (Results).md
   logs\
     YYYY-MM-DD_HHMMSS.log
+    YYYY-MM-DD_HHMMSS.board.json  (summaries and the working log)
     web_YYYY-MM-DD_HHMMSS.jsonl   (Web Search side log; not History)
   coding-logs\         (committee traces; not History; delete by hand)
     YYYY-MM-DD_HHMMSS_<slug>\
@@ -107,7 +126,7 @@ Copies onto the USB must follow this tree. The stick root is home. There is no `
   outputs\             (coding/review work folders and bench run folders; not git)
 ```
 
-`models.json` on the stick is unused by this chat. `logs\`, `coding-logs\`, `outputs\`, and `notes.md` stay on the USB only. Run products go in `outputs\` only. On the stick, project Markdown stays in `documentation\` and the four PDFs stay at the root.
+`models.json` on the stick supplies the tags. `logs\`, `coding-logs\`, `outputs\`, `notes.md`, `profile.md`, and `profile.json` stay on the USB only. Run products go in `outputs\` only. On the stick, project Markdown stays in `documentation\` and the four PDFs stay at the root.
 
 This repository is not that tree. `README.md`, `LICENSE`, `.git`, and `.gitignore` stay at this repo root. `documentation\` holds the other Markdown. `scripts\` holds the Python that gets copied into `scripts\` on the stick. Do not copy `LICENSE`, `.git`, or `.gitignore` onto the stick.
 

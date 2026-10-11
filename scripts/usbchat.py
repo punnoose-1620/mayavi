@@ -1747,53 +1747,57 @@ def audit_board(board: dict, session: Path) -> int:
     return 0
 
 
+TOPIC_CONTINUITY_MAX = 0.3
+TOPIC_INDEPENDENCE_MIN = 0.7
+
+
 def topic_messages(board: dict, user_text: str) -> list[dict[str, str]]:
-    recent = [str(row.get("prompt") or "") for row in (board.get("working") or [])[-5:]]
-    recent_block = "\n".join(f"- {line}" for line in recent if line.strip()) or "(none)"
-    topic = str(board.get("topic") or "").strip() or "(none)"
+    prompts = [str(row.get("prompt") or "").strip() for row in (board.get("working") or [])]
+    earlier = "\n".join(f"- {line}" for line in prompts if line) or "(none)"
     return [
         {
             "role": "system",
-            "content": "You decide if a new message stays on the same topic. Reply with exactly two lines.",
+            "content": "You score how a new message relates to earlier user prompts. Reply with exactly two lines.",
         },
         {
             "role": "user",
             "content": (
-                f"Stored topic: {topic}\n\nRecent prompts:\n{recent_block}\n\n"
+                f"Earlier prompts:\n{earlier}\n\n"
                 f"New message:\n{user_text}\n\n"
-                "INTENT: a short phrase for the new message\n"
-                "DIFFERENT: YES or NO"
+                "CONTINUITY: a number from 0 to 1. 1 means the new message continues those prompts, including a correction or a follow-up. 0 means it leaves that sequence.\n"
+                "INDEPENDENCE: a number from 0 to 1. 1 means the new message can be carried out correctly with none of those prompts. 0 means those prompts are required to carry it out."
             ),
         },
     ]
 
 
-def topic_decision(board: dict, user_text: str, model_text: str) -> tuple[bool, str]:
-    """True only when the model says YES and the user's words are far from the stored topic."""
+def _labeled_score(text: str, label: str) -> float | None:
+    prefix = label + ":"
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.upper().startswith(prefix):
+            continue
+        raw = stripped.split(":", 1)[1].strip().replace(",", ".")
+        match = re.search(r"\d+(?:\.\d+)?", raw)
+        if not match:
+            return None
+        value = float(match.group(0))
+        if value > 1:
+            return None
+        return value
+    return None
+
+
+def topic_decision(board: dict, user_text: str, model_text: str) -> bool:
+    """True when continuity is low and the new message can stand alone."""
     visible = visible_reply(model_text)
     if not visible or not board.get("working"):
-        return False, ""
-    intent = ""
-    different = False
-    for line in visible.splitlines():
-        upper = line.upper()
-        if upper.startswith("INTENT:"):
-            intent = line.split(":", 1)[1].strip()
-        if "DIFFERENT" in upper:
-            different = bool(re.search(r"\bYES\b", upper))
-    if not different:
-        return False, intent
-    new_words = _content_words(user_text)
-    if len(new_words) < 2:
-        return False, intent
-    basis = _content_words(str(board.get("topic") or ""))
-    for row in (board.get("working") or [])[-5:]:
-        basis |= _content_words(str(row.get("prompt") or ""))
-    if not basis:
-        return False, intent
-    if len(new_words & basis) / len(new_words) >= 0.34:
-        return False, intent
-    return True, intent
+        return False
+    continuity = _labeled_score(visible, "CONTINUITY")
+    independence = _labeled_score(visible, "INDEPENDENCE")
+    if continuity is None or independence is None:
+        return False
+    return continuity <= TOPIC_CONTINUITY_MAX and independence >= TOPIC_INDEPENDENCE_MIN
 
 
 def summary_request(previous: str, turns: list[dict]) -> list[dict[str, str]]:
@@ -1819,6 +1823,30 @@ def summary_request(previous: str, turns: list[dict]) -> list[dict[str, str]]:
     ]
 
 
+_TOPIC_JUDGE_KEYS = ("Qwen2.5-7B", "Qwen2.5-3B")
+
+
+def topic_judge_model(choices: list[ModelChoice]) -> ModelChoice | None:
+    """7B judges summary pairs. The 3B is the backup when the 7B does not fit."""
+    for key in _TOPIC_JUDGE_KEYS:
+        low = key.casefold()
+        for item in choices:
+            name = item.path.name.casefold()
+            if low in name and "14b" not in name:
+                return item
+    return None
+
+
+def summary_compare_messages(old_summary: str, new_summary: str) -> list[dict[str, str]]:
+    board = {"working": [{"prompt": old_summary}], "topic": ""}
+    return topic_messages(board, new_summary)
+
+
+def summaries_distinct(old_summary: str, new_summary: str, model_text: str) -> bool:
+    board = {"working": [{"prompt": old_summary}], "topic": ""}
+    return topic_decision(board, new_summary, model_text)
+
+
 def routine_can_extend(board: dict, added_tokens: int, filename: str) -> bool:
     if str(board.get("last_flag") or "") != "routine" or not board.get("summaries"):
         return False
@@ -1841,8 +1869,9 @@ def fold_working(board: dict, summary: str, flag: str, *, continue_row: bool) ->
     tokens = sum(turn_tokens(str(row.get("prompt") or ""), str(row.get("response") or "")) for row in working)
     if continue_row and board["summaries"] and str(board["summaries"][-1].get("flag") or "") == "routine" and flag == "routine":
         row = board["summaries"][-1]
+        prior = str(row.get("summary") or "").rstrip()
         row["end_id"] = end_id
-        row["summary"] = visible
+        row["summary"] = f"{prior}\n\n{visible}".strip() if prior else visible
         row["turns"] = int(row.get("turns") or 0) + count
         row["tokens"] = int(row.get("tokens") or 0) + tokens
         row["flag"] = "routine"

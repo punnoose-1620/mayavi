@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import math
 import sys
 import threading
@@ -1551,11 +1552,24 @@ class UsbChatApp:
     def _coding_complete(self, messages: list[dict[str, str]]) -> str:
         return self._complete(messages, max_tokens=usbchat.CODING_MAX_TOKENS)
 
+    def _release_engine(self) -> None:
+        old = self.engine
+        self.engine = None
+        self.loaded_path = None
+        if old is None:
+            return
+        close = getattr(getattr(old, "llm", None), "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
+        gc.collect()
+
     def _ensure_engine(self, choice) -> None:
         if self.engine is not None and self.loaded_path == choice.path:
             return
-        self.engine = None
-        self.loaded_path = None
+        self._release_engine()
         self.engine = usbchat.make_engine(choice.path, n_ctx=self.n_ctx, here=HERE)
         self.loaded_path = choice.path
 
@@ -1812,6 +1826,21 @@ class UsbChatApp:
         slice_tokens, _ceiling = usbchat.summary_limits(summarizer.path.name)
         return slice_tokens
 
+    def _summaries_distinct(self, old_summary: str, new_summary: str) -> bool:
+        loaded = self.loaded_path.stat().st_size if self.loaded_path and self.loaded_path.is_file() else 0
+        judge = usbchat.topic_judge_model(usbchat.models_after_unload(self.models_root, loaded))
+        if judge is None or self.stop_event.is_set():
+            return False
+        self._ui_status("Checking the topic")
+        self._ensure_engine(judge)
+        cap = 1024 if "qwen3" in judge.path.name.casefold() else 256
+        verdict = self._complete(
+            usbchat.summary_compare_messages(old_summary, new_summary),
+            max_tokens=cap,
+            count=False,
+        )
+        return usbchat.summaries_distinct(old_summary, new_summary, verdict)
+
     def _summarize_working(self, flag: str) -> bool:
         if not self.memory.get("working") or self.stop_event.is_set():
             return False
@@ -1823,15 +1852,22 @@ class UsbChatApp:
             usbchat.turn_tokens(str(row.get("prompt") or ""), str(row.get("response") or ""))
             for row in self.memory["working"]
         )
-        continue_row = flag == "routine" and usbchat.routine_can_extend(self.memory, added, summarizer.path.name)
-        previous = ""
-        if continue_row:
-            previous = str(self.memory["summaries"][-1].get("summary") or "")
+        first_prompt = str(self.memory["working"][0].get("prompt") or "").strip()[:120]
         answer = self.loaded_path
         self._ensure_engine(summarizer)
         cap = 2048 if "qwen3" in summarizer.path.name.casefold() else 1024
-        raw = self._complete(usbchat.summary_request(previous, self.memory["working"]), max_tokens=cap, count=False)
-        if not usbchat.fold_working(self.memory, raw, flag, continue_row=continue_row):
+        raw = self._complete(usbchat.summary_request("", self.memory["working"]), max_tokens=cap, count=False)
+        extend = flag == "routine" and usbchat.routine_can_extend(self.memory, added, summarizer.path.name)
+        save_flag = flag
+        continue_row = False
+        if extend and usbchat.visible_reply(raw) and not self.stop_event.is_set():
+            old_summary = str(self.memory["summaries"][-1].get("summary") or "")
+            if self._summaries_distinct(old_summary, usbchat.visible_reply(raw)):
+                save_flag = "model-generated"
+                self.memory["topic"] = first_prompt
+            else:
+                continue_row = True
+        if not usbchat.fold_working(self.memory, raw, save_flag, continue_row=continue_row):
             if answer is not None:
                 match = next((item for item in self.choices if item.path == answer), None)
                 if match is not None:
@@ -1847,10 +1883,10 @@ class UsbChatApp:
             self._ensure_engine(choice)
             cap = 1024 if "qwen3" in choice.path.name.casefold() else 256
             verdict = self._complete(usbchat.topic_messages(self.memory, user_text), max_tokens=cap, count=False)
-            changed, intent = usbchat.topic_decision(self.memory, user_text, verdict)
+            changed = usbchat.topic_decision(self.memory, user_text, verdict)
             if changed and not self.stop_event.is_set():
                 if self._summarize_working("model-generated"):
-                    self.memory["topic"] = (intent or user_text).strip()[:120]
+                    self.memory["topic"] = user_text.strip()[:120]
                     usbchat.save_board(self.session_path, self.memory)
                 self._ensure_engine(choice)
         elif not str(self.memory.get("topic") or "").strip() and user_text.strip():
