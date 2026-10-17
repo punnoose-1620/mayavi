@@ -1,5 +1,7 @@
 # Mayavi - USB chat
 
+![Display Image](./assets/displayImage.png)
+
 This file stays at the **repository root** so GitHub can show it. The other project notes live in [`documentation/`](documentation/):
 
 - [Changelog](documentation/CHANGELOG.md)
