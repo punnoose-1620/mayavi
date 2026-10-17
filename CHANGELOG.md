@@ -105,7 +105,7 @@ First working version: a local multi-agent runtime that routes one prompt into a
 
 - `models.json` pins role → repo/file/revision, all Q4_K_M GGUF.
 - One model resident at a time via mmap, with a RAM check of file size × 1.2 plus a 2GB reserve before loading.
-- Resolve order is USB (`MODELS_DIR`) when the file is present and RAM allows, then the backup directory, then an optional Hugging Face download gated behind `ID10T_HF_DOWNLOAD=1`.
+- Resolve order is USB (`MODELS_DIR`) when the file is present and RAM allows, then the backup directory, then an optional Hugging Face download gated behind `MAYAVI_HF_DOWNLOAD=1`.
 - Two download sets: a ~7GB backup laptop set and a ~26GB USB set, fetched by scripts under `downloader-scripts/` that the runtime never imports.
 - `checkAndUpdateModels` can refresh pins after a large teardown only, and is skipped unless downloads are enabled.
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ID10T</title>
+  <title>Mayavi</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <style>
     :root {
@@ -479,7 +479,7 @@
 </head>
 <body>
   <header id="top">
-    <h1>ID10T - Your personal AI Assistant</h1>
+    <h1>Mayavi - Your personal AI Assistant</h1>
     <a id="profile-btn" href="/profile" aria-label="View Profile">
       <i class="fa-solid fa-user" aria-hidden="true"></i>
       <span class="tip">View Profile</span>
@@ -588,7 +588,7 @@
     syncModes();
 
     function rememberUpdate() {
-      try { localStorage.setItem("id10t-draft-update", updateEl.checked ? "1" : "0"); } catch (e) {}
+      try { localStorage.setItem("mayavi-draft-update", updateEl.checked ? "1" : "0"); } catch (e) {}
     }
 
     function fileIcon(name) {
@@ -728,7 +728,7 @@
       });
     }
 
-    const DRAFT_KEY = "id10t-draft-prompt";
+    const DRAFT_KEY = "mayavi-draft-prompt";
     const DOC_EXT = new Set(["pdf", "docx", "xlsx", "txt", "md", "csv", "html", "py"]);
 
     function readableFileName(name) {
@@ -752,7 +752,7 @@
 
     function draftDb() {
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open("id10t-draft", 1);
+        const req = indexedDB.open("mayavi-draft", 1);
         req.onupgradeneeded = () => {
           if (!req.result.objectStoreNames.contains("handles")) req.result.createObjectStore("handles");
         };
@@ -994,7 +994,7 @@
       try {
         const text = localStorage.getItem(DRAFT_KEY);
         if (text) promptEl.value = text;
-        if (localStorage.getItem("id10t-draft-update") === "1") updateEl.checked = true;
+        if (localStorage.getItem("mayavi-draft-update") === "1") updateEl.checked = true;
       } catch (e) {}
       syncModes();
       rememberUpdate();
@@ -1025,7 +1025,7 @@
     let progressOrigin = 0;
     let profileApplied = new Set();
 
-    const DEVICE_KEY = "id10t-device-id";
+    const DEVICE_KEY = "mayavi-device-id";
     const DEVICE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
     function fallbackUUID() {
@@ -1175,7 +1175,7 @@
       } else {
         clearDraftPrompt();
       }
-      try { localStorage.removeItem("id10t-draft-update"); } catch (e) {}
+      try { localStorage.removeItem("mayavi-draft-update"); } catch (e) {}
       fileUpload = null;
       folderUpload = null;
       seedUpload = null;

@@ -21,22 +21,22 @@ def _env_path(name: str, default: Path | None = None) -> Path | None:
     return path.resolve()
 
 
-DATA_DIR = _env_path("ID10T_DATA_DIR", REPO_ROOT / "state")
+DATA_DIR = _env_path("MAYAVI_DATA_DIR", REPO_ROOT / "state")
 LOG_DIR = DATA_DIR / "logs"
 SESSION_DIR = DATA_DIR / "sessions"
 TOKEN_DIR = DATA_DIR / "tokens"
 THREADS_DIR = DATA_DIR / "threads"
 UI_SESSION_DIR = DATA_DIR / "ui-session"
 CREATED_INDEX = DATA_DIR / "createdIndex.json"
-SANDBOX_ROOT = _env_path("ID10T_SANDBOX_ROOT", REPO_ROOT / "sandboxes")
-WORKSPACE = _env_path("ID10T_WORKSPACE", REPO_ROOT / "input")
-OUTPUTS = _env_path("ID10T_OUTPUTS", REPO_ROOT / "outputs")
+SANDBOX_ROOT = _env_path("MAYAVI_SANDBOX_ROOT", REPO_ROOT / "sandboxes")
+WORKSPACE = _env_path("MAYAVI_WORKSPACE", REPO_ROOT / "input")
+OUTPUTS = _env_path("MAYAVI_OUTPUTS", REPO_ROOT / "outputs")
 MODELS_DIR = _env_path("MODELS_DIR")
 BACKUP_MODELS_DIR = _env_path("BACKUP_MODELS_DIR")
 HF_TOKEN = os.environ.get("HF_TOKEN")
-ALLOW_HF_DOWNLOAD = os.environ.get("ID10T_HF_DOWNLOAD", "").strip() in {"1", "true", "yes"}
+ALLOW_HF_DOWNLOAD = os.environ.get("MAYAVI_HF_DOWNLOAD", "").strip() in {"1", "true", "yes"}
 # Downloads are always hashed. Re-hashing multi-GB weights on every load is opt-in.
-VERIFY_MODEL_HASH = os.environ.get("ID10T_VERIFY_MODEL_HASH", "").strip() in {"1", "true", "yes"}
+VERIFY_MODEL_HASH = os.environ.get("MAYAVI_VERIFY_MODEL_HASH", "").strip() in {"1", "true", "yes"}
 CODING_RULES_PATH = REPO_ROOT / "coding-rules.md"
 MODELS_JSON = REPO_ROOT / "models.json"
 
@@ -55,7 +55,7 @@ COMMITTEE_YES_FOR_COMMIT = 4
 COMMITTEE_VIEW_CHARS = 2500
 COMMITTEE_CHUNK_CHARS = 1800
 GH_TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-GIT_REMOTE = (os.environ.get("ID10T_GIT_REMOTE") or "").strip() or None
+GIT_REMOTE = (os.environ.get("MAYAVI_GIT_REMOTE") or "").strip() or None
 FETCH_TIMEOUT = 10
 GENERATE_MAX_TOKENS = 512
 N_GPU_LAYERS = (os.environ.get("N_GPU_LAYERS") or "auto").strip()

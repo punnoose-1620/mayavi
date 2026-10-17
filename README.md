@@ -1,4 +1,4 @@
-# Project ID-10-T
+# Project Mayavi
 
 ![Display Image](assets/displayImage.jpg)
 
@@ -83,7 +83,7 @@ Accept gated licenses in the browser (see [Gated models](#gated-models-hugging-f
 
 ```powershell
 $env:HF_TOKEN = (Get-Content .env | Where-Object { $_ -like "HF_TOKEN=*" }).Split("=",2)[1]
-python downloader-scripts/download_models_local.py --path "d:\Documents\Github Repositories\id10t\models"
+python downloader-scripts/download_models_local.py --path "d:\Documents\Github Repositories\mayavi\models"
 ```
 
 Smoke-test the factory without loading weights:
@@ -111,12 +111,12 @@ python main.py --thread thr_abc123def4 "tweak the third bullet"
 python app.py
 ```
 
-`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `GET /profile`, `GET /html`, `GET /web-status`, `POST /profile`, `POST /turns`). Double-click `run-id10t.bat` to start it on port **9001** and open the browser. The dropdown lists durable notebooks (`thr_…`) from medium and large runs. A **Web** checkbox sits left of **Coding**. Web is disabled when `GET /web-status` reports no network or no search keys (the JSON never includes keys). When **Coding** is on, a GitHub URL field appears (`https://github.com/owner/repo` only). Empty or invalid URLs hide git tools. Bot replies render as Markdown (raw HTML in the text is escaped). Fenced `html` blocks and full HTML documents get a **View HTML page** button on that reply (new tab, CSP, no scripts). PDFs the run wrote appear under that reply (icon, filename, **Save to PDF**). If the worker emitted a structured `profile_update`, that reply gets **Save to board**. Each browser stores a UUID in `localStorage` and hydrates from `state/ui-session/<uuid>/session.jsonl`. Starting the server does not wipe those tapes. Peer IP, User-Agent, and language are appended to `meta.jsonl` in that folder for later analytics; they are not used to look up a session. `python app.py --no-model` uses the same stubs as the CLI.
+`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `GET /profile`, `GET /html`, `GET /web-status`, `POST /profile`, `POST /turns`). Double-click `run-mayavi.bat` to start it on port **9001** and open the browser. The dropdown lists durable notebooks (`thr_…`) from medium and large runs. A **Web** checkbox sits left of **Coding**. Web is disabled when `GET /web-status` reports no network or no search keys (the JSON never includes keys). When **Coding** is on, a GitHub URL field appears (`https://github.com/owner/repo` only). Empty or invalid URLs hide git tools. Bot replies render as Markdown (raw HTML in the text is escaped). Fenced `html` blocks and full HTML documents get a **View HTML page** button on that reply (new tab, CSP, no scripts). PDFs the run wrote appear under that reply (icon, filename, **Save to PDF**). If the worker emitted a structured `profile_update`, that reply gets **Save to board**. Each browser stores a UUID in `localStorage` and hydrates from `state/ui-session/<uuid>/session.jsonl`. Starting the server does not wipe those tapes. Peer IP, User-Agent, and language are appended to `meta.jsonl` in that folder for later analytics; they are not used to look up a session. `python app.py --no-model` uses the same stubs as the CLI.
 
 Double-clickable live checks (open a cmd window, show Prompt / Response / Meta, pause):
 
 - `tests\run_hi.bat`
-- `tests\run_resume.bat` — expects resumes under `input/` (or `inputs/` if you pointed `ID10T_WORKSPACE` there)
+- `tests\run_resume.bat` — expects resumes under `input/` (or `inputs/` if you pointed `MAYAVI_WORKSPACE` there)
 - `tests\run_scooter.bat`
 
 The CLI does **not** stream tokens. After the run finishes you get:
@@ -141,17 +141,17 @@ Copy `.env.example` to `.env`. **Never put secrets in `.env.example`.** `.env` i
 | `HF_TOKEN` | Hugging Face **Read** token. Required for gated Llama/Gemma downloads. Never logged. |
 | `MODELS_DIR` | Primary/USB GGUF library (14B coder + planners). Optional until the USB set exists. If that folder has `models.json`, the factory uses it. |
 | `BACKUP_MODELS_DIR` | Small SSD copies (3B set). Point this at `models` for the local backup download. |
-| `ID10T_WORKSPACE` | **Input** root agents may **read** (`input/` by default). |
-| `ID10T_OUTPUTS` | **Output** root for **writes** (`outputs/` by default). |
-| `ID10T_HF_DOWNLOAD` | `1` to allow resolve/update to download from Hugging Face into `BACKUP_MODELS_DIR`. Default `0`. |
-| `ID10T_VERIFY_MODEL_HASH` | `1` to sha256 every GGUF on load and pin the digest in `models.json`. Default `0`, because re-hashing multi-GB weights on every load is slow; downloads are hashed either way, and loads always check the recorded file size. |
+| `MAYAVI_WORKSPACE` | **Input** root agents may **read** (`input/` by default). |
+| `MAYAVI_OUTPUTS` | **Output** root for **writes** (`outputs/` by default). |
+| `MAYAVI_HF_DOWNLOAD` | `1` to allow resolve/update to download from Hugging Face into `BACKUP_MODELS_DIR`. Default `0`. |
+| `MAYAVI_VERIFY_MODEL_HASH` | `1` to sha256 every GGUF on load and pin the digest in `models.json`. Default `0`, because re-hashing multi-GB weights on every load is slow; downloads are hashed either way, and loads always check the recorded file size. |
 | `N_GPU_LAYERS` | llama.cpp GPU offload. `auto` (default) uses GPU only if driver, device, GPU wheel, and dedicated VRAM beat this GGUF, and only for the working agents — the router always stays on CPU. `0` = CPU everywhere. A positive integer forces that many layers for every role, router included. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_LOGIN_HINT` | Gmail + Calendar OAuth (browser Allow). |
 | `SERPAPI_API_KEY` / `SCRAPERAPI_API_KEY` | Web search backends. Keys never logged. |
 | `GOOGLE_CLOUD_API_KEY` / `GOOGLE_CSE_ID` | Google Custom Search JSON. Used first when both are set; then SerpAPI; then ScraperAPI. Keys never logged. |
 | `MS_CLIENT_ID` / `MS_TENANT` / `MS_LOGIN_HINT` | Microsoft Graph mail + calendar OAuth. |
-| `ID10T_DATA_DIR` | Private state (logs, tokens, createdIndex). Default `state/`. |
-| `ID10T_SANDBOX_ROOT` | Coding-run jails. Default `sandboxes/`. |
+| `MAYAVI_DATA_DIR` | Private state (logs, tokens, createdIndex). Default `state/`. |
+| `MAYAVI_SANDBOX_ROOT` | Coding-run jails. Default `sandboxes/`. |
 | `GH_TOKEN` | Optional GitHub token for coding-committee `git_push` when a valid GitHub URL was given. Stays in-process; never logged or returned to an agent. |
 
 Relative paths in `.env` are resolved from the **repo root**, not the current working directory.
@@ -199,7 +199,7 @@ The download scripts **do not** load `.env`. Export `HF_TOKEN` in the shell, or 
 
 ## Models
 
-All planned weights are **Q4_K_M GGUF**. Manifest: `models.json`. Only **one** model is loaded at a time (mmap). Resolve order: USB (`MODELS_DIR`) if the primary file is present and RAM is enough → backup dir → optional HF download into backup (only if `ID10T_HF_DOWNLOAD=1`).
+All planned weights are **Q4_K_M GGUF**. Manifest: `models.json`. Only **one** model is loaded at a time (mmap). Resolve order: USB (`MODELS_DIR`) if the primary file is present and RAM is enough → backup dir → optional HF download into backup (only if `MAYAVI_HF_DOWNLOAD=1`).
 
 ### Backup / laptop set (~7GB)
 
@@ -232,7 +232,7 @@ Gated for this set: **Llama 3.2 3B** only. Qwen files are public.
 
 Gated for this set: **Llama 3.2 3B**, **Llama 3.1 8B**, and **Gemma 2 9B**.
 
-After a **large** teardown only, `checkAndUpdateModels` can refresh pins from Hugging Face. It is skipped unless `ID10T_HF_DOWNLOAD=1`.
+After a **large** teardown only, `checkAndUpdateModels` can refresh pins from Hugging Face. It is skipped unless `MAYAVI_HF_DOWNLOAD=1`.
 
 ## Gated models (Hugging Face)
 
@@ -314,7 +314,7 @@ The factory makes `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of every la
 
 ## Logging
 
-`logger.py` writes one binary file per local calendar day under `state/logs/` (`YYYY-MM-DD.id10t.log`).
+`logger.py` writes one binary file per local calendar day under `state/logs/` (`YYYY-MM-DD.mayavi.log`).
 The chat UI keeps a separate prompt/answer tape per browser UUID in `state/ui-session/<uuid>/` (not the audit log). `meta.jsonl` in that folder is an analytics sidecar (time, UUID, socket IP, User-Agent, language, path).
 
 Every exported function logs once on return (`ok` or `fail`): factory, tools, and the route mapping step. Spawn records bind `agent_name` → GGUF filename. Summaries are short; bodies and tokens are never stored.

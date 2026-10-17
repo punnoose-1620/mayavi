@@ -57,8 +57,8 @@ Edit .env before the first real run:
   HF_TOKEN            Hugging Face *Read* token (needed for gated Llama/Gemma)
   BACKUP_MODELS_DIR   where the small GGUF set lives, e.g. models
   MODELS_DIR          the USB library, if you have one
-  ID10T_WORKSPACE     read root for source documents (default input)
-  ID10T_OUTPUTS       write root for results (default outputs)
+  MAYAVI_WORKSPACE     read root for source documents (default input)
+  MAYAVI_OUTPUTS       write root for results (default outputs)
   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / MS_CLIENT_ID   only for mail and calendar
 
 Models are not downloaded by this script. Accept the gated licenses on Hugging Face first

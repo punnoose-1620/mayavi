@@ -185,7 +185,7 @@ def text_from_folder(folder: str) -> tuple[str, str]:
 
 
 def pdf_bytes(title: str, body: str) -> bytes:
-    dest_dir = Path(tempfile.mkdtemp(prefix="id10t-pdf-"))
+    dest_dir = Path(tempfile.mkdtemp(prefix="mayavi-pdf-"))
     dest = dest_dir / "doc.pdf"
     file_tools._write_pdf_bytes(dest, body, {"title": title})
     return dest.read_bytes()

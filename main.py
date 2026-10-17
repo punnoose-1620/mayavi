@@ -13,7 +13,7 @@ import router
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="id10t local committee runtime")
+    parser = argparse.ArgumentParser(description="Mayavi local committee runtime")
     parser.add_argument("prompt", nargs="*", help="User request")
     parser.add_argument("--no-model", action="store_true", help="Heuristic route + stub reply (no GGUF load)")
     parser.add_argument("--provider", choices=["google", "microsoft"], default=None)

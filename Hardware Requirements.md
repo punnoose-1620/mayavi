@@ -79,7 +79,7 @@ AMD discrete cards (**Radeon RX 6600** 8 GB, **RX 7600** 8 GB, **RX 6800** 16 GB
 | --- | --- | --- |
 | Install | `./install.sh` | `.\install.ps1` |
 | Python | `python3.11` + `python3.11-venv` | Python 3.11+ from python.org (not the Store stub if you can avoid it) |
-| Start UI | `./.venv/bin/python app.py --port 9001` | `run-id10t.bat` or `.venv\Scripts\python.exe app.py --port 9001` |
+| Start UI | `./.venv/bin/python app.py --port 9001` | `run-mayavi.bat` or `.venv\Scripts\python.exe app.py --port 9001` |
 | GPU | NVIDIA driver + `nvidia-smi` + CUDA wheel | Same; GeForce Game Ready or Studio driver |
 | Headless | First-class: no display needed | Possible (RDP/SSH) but the desktop session still costs RAM |
 
@@ -99,7 +99,7 @@ Mail/calendar OAuth opens a **local browser** on the machine that runs connect. 
 
 - Lowest RAM tax. Best chance for an **8 GB** laptop on the **backup** set.
 - Start `app.py` under systemd or a `tmux`/`screen` session. Access via SSH tunnel from your daily laptop.
-- No `run-id10t.bat`. Do not expect a local browser.
+- No `run-mayavi.bat`. Do not expect a local browser.
 - Large coding runs are sequential and can take a long time on 4–6 cores. That is the intended shape (overnight), not a defect.
 - Close other services. Swap will keep the process alive but tokens/s fall off a cliff.
 

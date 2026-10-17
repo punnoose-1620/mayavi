@@ -248,7 +248,7 @@ def _session() -> requests.Session:
 
 def _new_session() -> requests.Session:
     session = requests.Session()
-    session.headers["User-Agent"] = "id10t/1.0"
+    session.headers["User-Agent"] = "mayavi/1.0"
     return session
 
 

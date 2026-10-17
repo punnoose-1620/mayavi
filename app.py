@@ -448,7 +448,7 @@ def run_turn(
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "id10t-ui"
+    server_version = "mayavi-ui"
 
     def log_message(self, fmt: str, *args: Any) -> None:
         return
@@ -1046,14 +1046,14 @@ def serve(host: str = HOST, port: int = PORT, *, no_model: bool = False) -> None
     NO_MODEL = no_model
     rotate_ui_session()
     httpd = ThreadingHTTPServer((host, port), Handler)
-    print(f"id10t ui  http://{host}:{port}/", flush=True)
+    print(f"Mayavi ui  http://{host}:{port}/", flush=True)
     if no_model:
         print("stub replies (--no-model); weights are not loaded", flush=True)
     httpd.serve_forever()
 
 
 def main_cli(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="id10t local chat UI (loopback only)")
+    parser = argparse.ArgumentParser(description="Mayavi local chat UI (loopback only)")
     parser.add_argument("--no-model", action="store_true", help="Heuristic route + stub reply (no GGUF load)")
     parser.add_argument("--port", type=int, default=PORT)
     args = parser.parse_args(argv)

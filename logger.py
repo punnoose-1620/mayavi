@@ -172,7 +172,7 @@ def _notify(record: dict[str, Any]) -> None:
 
 def _path_for(day: datetime | None = None) -> Path:
     when = day or datetime.now().astimezone()
-    return config.LOG_DIR / f"{when.date().isoformat()}.id10t.log"
+    return config.LOG_DIR / f"{when.date().isoformat()}.mayavi.log"
 
 
 def _now() -> str:
