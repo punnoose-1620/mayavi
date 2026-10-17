@@ -101,7 +101,7 @@ Files (exactly these names):
 Files:
 PROMPT.md
 
-Seeded D:\Documents\Github Repositories\id10t\seeds\snake-dqn (1 files)
+Seeded D:\Documents\Github Repositories\mayavi\seeds\snake-dqn (1 files)
 round 1 no vote (fruit_mean: need 5 fruit_points values, got 0; fruit_min: need 5 fruit_points values, got 0)
 
 Coding session: E:\coding-logs\2026-10-06_122024_snake-dqn
@@ -186,7 +186,7 @@ Tester (test_maze.py):
 Files:
 PROMPT.md
 
-Seeded D:\Documents\Github Repositories\id10t\seeds\maze-path (1 files)
+Seeded D:\Documents\Github Repositories\mayavi\seeds\maze-path (1 files)
 round 1 no vote (maze_mean: need 8 maze_ok values, got 0)
 
 Coding session: E:\coding-logs\2026-10-06_135025_maze-path
@@ -289,7 +289,7 @@ data/ties.csv
 data/wide.csv
 PROMPT.md
 
-Seeded D:\Documents\Github Repositories\id10t\seeds\csv-sql (7 files)
+Seeded D:\Documents\Github Repositories\mayavi\seeds\csv-sql (7 files)
 round 1 no vote (csv_mean: need 6 query_ok values, got 0)
 round 2 no vote (csv_mean: need 6 query_ok values, got 0)
 
@@ -377,7 +377,7 @@ Tester (test_expr.py):
 Files:
 PROMPT.md
 
-Seeded D:\Documents\Github Repositories\id10t\seeds\expr-lang (1 files)
+Seeded D:\Documents\Github Repositories\mayavi\seeds\expr-lang (1 files)
 round 1 no vote (expr_mean: need 8 expr_ok values, got 0)
 
 Coding session: E:\coding-logs\2026-10-06_165027_expr-lang

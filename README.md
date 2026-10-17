@@ -1,4 +1,4 @@
-# USB chat
+# Mayavi - USB chat
 
 This file stays at the **repository root** so GitHub can show it. The other project notes live in [`documentation/`](documentation/):
 
@@ -13,7 +13,7 @@ The license is [`LICENSE`](LICENSE) in this folder, next to `.git` and `.gitigno
 
 The folder layout below is for the **USB**, not a second copy of this repository. On the stick, do not leave Markdown at the root. Systems that open the stick often have no Markdown viewer, so the root exposes the PDFs only (`README.pdf`, `CHANGELOG.pdf`, `REQUIREMENTS.pdf`, `TestResults.pdf`). The Markdown, including a copy of this file, goes in `documentation\`. Setup rebuilds the guide PDFs from that Markdown. Setup and chat do not open the PDFs.
 
-It is **not** the id10t factory (no mail, no Serp/Scraper keys, no second GGUF). Coding uses the model you picked, one at a time.
+It is **not** the Mayavi factory (no mail, no Serp/Scraper keys, no second GGUF). Coding uses the model you picked, one at a time.
 
 Features below are what **1.2.22** can do.
 

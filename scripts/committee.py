@@ -3278,6 +3278,16 @@ def _system(ctx: _Ctx, role: str, stage: str) -> str:
     if ctx.web_digest.strip():
         extra = "\nWeb notes:\n" + _clip(ctx.web_digest, 800)
     job = _job(role, stage)
+    conduct = ""
+    if role == "coder":
+        conduct = (
+            "Do not add a feature, refactor, or cleanup that was not asked. "
+            "Delete unused code instead of leaving a compatibility shim. "
+            "Validate only at the boundary the user named. Skip handlers for cases that cannot happen. "
+            "Do not introduce an injection bug or a hardcoded secret while fixing an error. "
+            "A comment states a non-obvious reason. Do not narrate the task. "
+            "Report the tool result the host returned. Do not claim a run that did not happen.\n"
+        )
     vote = ""
     if stage == "vote":
         vote = 'Ballot is OPEN because host qualify passed. Reply {"vote":"yes"} or {"vote":"no"}.\n'
