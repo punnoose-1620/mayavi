@@ -331,7 +331,7 @@ class UsbChatApp:
         usbchat.purge_old_logs(self.log_root)
         self._build()
         if self.board_name:
-            self.root.title(f"USB chat — {self.board_name}")
+            self.root.title(f"Mayavi — {self.board_name}")
             self._load_named_history()
         self.refresh_models()
         if self.board_name:
@@ -342,8 +342,9 @@ class UsbChatApp:
             )
 
     def _build(self) -> None:
-        self.root.title("USB chat")
+        self.root.title("Mayavi")
         self.root.geometry("920x700")
+        self.root.iconphoto(True, tk.PhotoImage(file="../assets/mayavi_icon.png"))
         self.root.minsize(420, 360)
         self._page_bg = CHAT_PAGE
         self._bubble_bg = CHAT_BUBBLE
