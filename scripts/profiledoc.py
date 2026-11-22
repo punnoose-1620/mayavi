@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 
-import doccompat as usbchat
+import usbchat
 
 _WORD = re.compile(r"[^a-z0-9]+")
 
@@ -182,15 +182,6 @@ def normalize_profile(data: dict | None) -> dict:
     return base
 
 
-def is_follow_up(data: dict | None) -> bool:
-    """A saved name plus contact details means the next resume run updates that profile."""
-    profile = normalize_profile(data)
-    contact = profile["contact"]
-    if not contact["name"]:
-        return False
-    return bool(contact["email"] or contact["phone"] or contact["location"] or contact["links"])
-
-
 def profile_is_empty(data: dict | None) -> bool:
     profile = normalize_profile(data)
     contact = profile["contact"]
@@ -299,114 +290,6 @@ def _keep(value: str, source: str, dropped: list[str]) -> str:
     return ""
 
 
-_STOP_WORDS = frozenset(
-    """
-    a an the and or but if then than so such of to for in on with using via from by as at
-    into over under that this these those is are was were be been being it its their his her
-    them they we our you your not no nor
-    """.split()
-)
-
-
-def _content_words(text: str) -> set[str]:
-    words = set()
-    for token in re.findall(r"[A-Za-z0-9]+", text or ""):
-        word = token.lower()
-        if len(word) < 2 or word in _STOP_WORDS:
-            continue
-        words.add(word)
-    return words
-
-
-def _collapsed(text: str) -> tuple[str, list[int]]:
-    chars: list[str] = []
-    origins: list[int] = []
-    pending_space = False
-    for index, char in enumerate(text or ""):
-        if char.isspace():
-            pending_space = bool(chars)
-            continue
-        if pending_space:
-            chars.append(" ")
-            origins.append(index)
-            pending_space = False
-        chars.append(char)
-        origins.append(index)
-    return "".join(chars), origins
-
-
-def title_span(source: str, title: str) -> tuple[int, int] | None:
-    """Where the title appears as its own phrase. Whitespace may differ; characters may not."""
-    phrase = re.sub(r"\s+", " ", (title or "").strip())
-    if len(phrase) < 2:
-        return None
-    collapsed, origins = _collapsed(source)
-    start_at = 0
-    while start_at <= len(collapsed):
-        found = collapsed.find(phrase, start_at)
-        if found < 0:
-            return None
-        before = collapsed[found - 1] if found else ""
-        after_at = found + len(phrase)
-        after = collapsed[after_at] if after_at < len(collapsed) else ""
-        if (not before or not before.isalnum()) and (not after or not after.isalnum()):
-            return origins[found], origins[after_at - 1] + 1
-        start_at = found + 1
-    return None
-
-
-def _starts_new_block(line: str) -> bool:
-    stripped = line.strip()
-    if not stripped:
-        return True
-    if len(stripped) > 12 and stripped.isupper():
-        return True
-    return bool(re.match(r"^[-*?\u2022]\s+\S", stripped))
-
-
-def project_passage(source: str, span: tuple[int, int]) -> str:
-    """The resume text that belongs to a title: its line and the lines under it."""
-    line_start = (source or "").rfind("\n", 0, span[0]) + 1
-    kept: list[str] = []
-    for index, line in enumerate(source[line_start:].splitlines()):
-        if index and _starts_new_block(line):
-            break
-        kept.append(line)
-        if sum(len(item) for item in kept) > 700:
-            break
-    return "\n".join(kept).strip()
-
-
-def project_mismatches(project: dict, source: str) -> list[str]:
-    """Title must match the resume exactly. Remaining description words must appear under that title."""
-    title = _text(project.get("title") if isinstance(project, dict) else "")
-    description = _description(project.get("description") if isinstance(project, dict) else "")
-    reasons: list[str] = []
-    span = title_span(source, title)
-    if span is None:
-        reasons.append(
-            "title failed because it is not an exact match in the resume. "
-            "Copy the project title exactly as it is written."
-        )
-        return reasons
-    if not description:
-        reasons.append(
-            "description failed because it is empty. "
-            "Use the resume text that belongs to this title."
-        )
-        return reasons
-    wanted = _content_words(description)
-    have = _content_words(project_passage(source, span))
-    missing = sorted(wanted - have)
-    if not wanted or missing:
-        shown = ", ".join(missing[:8]) if missing else "none"
-        reasons.append(
-            "description failed because these words are not in the resume text under that title: "
-            f"{shown}. Use the words that belong to this project."
-        )
-    return reasons
-
-
 def filter_profile(data: dict, source: str) -> tuple[dict, list[str]]:
     """Drop any value that is not verbally present in the source text."""
     profile = normalize_profile(data)
@@ -441,9 +324,11 @@ def filter_profile(data: dict, source: str) -> tuple[dict, list[str]]:
     profile["experience"] = roles
     projects = []
     for project in profile["projects"]:
-        reasons = project_mismatches(project, source)
-        dropped.extend(reasons)
-        if not reasons:
+        project["title"] = _keep(project["title"], source, dropped)
+        project["description"] = "\n".join(
+            line for line in _description_lines(project["description"]) if _keep(line, source, dropped)
+        )
+        if project["title"] or project["description"]:
             projects.append(project)
     profile["projects"] = projects
     profile["skills"] = [skill for skill in profile["skills"] if _keep(skill, source, dropped)]
@@ -715,8 +600,21 @@ def audit_profile(raw: dict, source: str, failures: list[str]) -> dict:
         _check_entry(failures, f"experience[{index}]", role, ("position", "company", "start", "end"), source)
         _check_order(failures, f"experience[{index}]", role, source)
     for index, project in enumerate(profile["projects"]):
-        for reason in project_mismatches(project, source):
-            failures.append(f"projects[{index}]: {reason}")
+        _check_value(
+            failures,
+            f"projects[{index}].title",
+            project["title"],
+            source,
+            "Copy the title as it appears in the resume, or use an empty string.",
+        )
+        for line in _description_lines(project["description"]):
+            _check_value(
+                failures,
+                f"projects[{index}].description",
+                line,
+                source,
+                "Copy that line as it appears in the resume, or remove it.",
+            )
     for index, skill in enumerate(profile["skills"]):
         _check_value(
             failures,
@@ -807,14 +705,11 @@ def _json_max_tokens(messages: list[dict], n_ctx: int) -> int:
     return max(128, min(1024, room))
 
 
-def _constructor_call(complete, source: str, task: str, shape: str, feedback: str, n_ctx: int, stop_event, preamble: str = ""):
+def _constructor_call(complete, source: str, task: str, shape: str, feedback: str, n_ctx: int, stop_event):
     if usbchat._stopped(stop_event):
         return None, "", True
-    prompt = f"{task}\n\n"
-    if preamble.strip():
-        prompt += preamble.strip() + "\n\n"
-    prompt += (
-        f"Resume text:\n{source}\n\n"
+    prompt = (
+        f"{task}\n\nResume text:\n{source}\n\n"
         f"Return one JSON object in this shape and nothing else:\n{shape}"
     )
     if feedback.strip():
@@ -939,7 +834,7 @@ def _job_label(role: dict) -> str:
     )
 
 
-def _description_lines_from_model(complete, source, role: dict, feedback, n_ctx, stop_event, preamble: str = ""):
+def _description_lines_from_model(complete, source, role: dict, feedback, n_ctx, stop_event):
     lines: list[str] = []
     task = _job_label(role) + " Copy the next bullet line under this job and no other job."
     for _ in range(10):
@@ -952,7 +847,6 @@ def _description_lines_from_model(complete, source, role: dict, feedback, n_ctx,
             feedback if not lines else "",
             n_ctx,
             stop_event,
-            preamble,
         )
         if stopped:
             return None, raw, True
@@ -966,7 +860,7 @@ def _description_lines_from_model(complete, source, role: dict, feedback, n_ctx,
     return "\n".join(lines), "", False
 
 
-def _load_description(complete, source, role: dict, feedback, n_ctx, stop_event, preamble: str = ""):
+def _load_description(complete, source, role: dict, feedback, n_ctx, stop_event):
     data, raw, stopped = _constructor_call(
         complete,
         source,
@@ -975,239 +869,12 @@ def _load_description(complete, source, role: dict, feedback, n_ctx, stop_event,
         feedback,
         n_ctx,
         stop_event,
-        preamble,
     )
     if stopped:
         return None, raw, True
     if isinstance(data, dict) and isinstance(data.get("description"), str):
         return data["description"].strip(), raw, False
-    return _description_lines_from_model(complete, source, role, feedback, n_ctx, stop_event, preamble)
-
-
-def _changed(new: str, old: str) -> bool:
-    return bool(_text(new)) and not _same(new, old)
-
-
-def _link_key(link: dict) -> str:
-    return _norm(_bare_url(link.get("url") or "") or link.get("url") or "")
-
-
-def overlay_profile(existing: dict, generated: dict) -> dict:
-    """Write the agent's entries into a copy of the saved profile. Leave every other entry."""
-    base = normalize_profile(existing)
-    incoming = normalize_profile(generated)
-    for key in ("name", "email", "phone", "location"):
-        if incoming["contact"][key]:
-            base["contact"][key] = incoming["contact"][key]
-    have_links = {_link_key(item): item for item in base["contact"]["links"] if _link_key(item)}
-    for link in incoming["contact"]["links"]:
-        key = _link_key(link)
-        if not key:
-            continue
-        match = have_links.get(key)
-        if match is None:
-            base["contact"]["links"].append(link)
-            have_links[key] = link
-            continue
-        if link.get("title"):
-            match["title"] = link["title"]
-        if link.get("url"):
-            match["url"] = link["url"]
-    if incoming["summary"]:
-        base["summary"] = incoming["summary"]
-    have_skills = {_norm(item) for item in base["skills"]}
-    for skill in incoming["skills"]:
-        if _norm(skill) not in have_skills:
-            base["skills"].append(skill)
-            have_skills.add(_norm(skill))
-    for role in incoming["experience"]:
-        match = next(
-            (
-                old
-                for old in base["experience"]
-                if _same(old["company"], role["company"]) and _same(old["position"], role["position"])
-            ),
-            None,
-        )
-        if match is None:
-            if any(role[key] for key in ("position", "company", "description")):
-                base["experience"].append(role)
-            continue
-        for key in ("location", "start", "end", "description"):
-            if role[key]:
-                match[key] = role[key]
-    for project in incoming["projects"]:
-        if not project["title"] and not project["description"]:
-            continue
-        match = next((old for old in base["projects"] if _same(old["title"], project["title"])), None)
-        if match is None:
-            base["projects"].append(project)
-            continue
-        if project["title"]:
-            match["title"] = project["title"]
-        if project["description"]:
-            match["description"] = project["description"]
-    for school in incoming["education"]:
-        match = next(
-            (
-                old
-                for old in base["education"]
-                if _same(old["degree"], school["degree"]) and _same(old["school"], school["school"])
-            ),
-            None,
-        )
-        if match is None:
-            if any(school[key] for key in ("school", "degree", "description")):
-                base["education"].append(school)
-            continue
-        for key in ("location", "start", "end", "specialization", "description"):
-            if school[key]:
-                match[key] = school[key]
-    return base
-
-
-def audit_updates(existing: dict, generated: dict, source: str, failures: list[str]) -> None:
-    """Check values the agent added or changed. Leave saved values that this reply did not touch."""
-    current = normalize_profile(existing)
-    incoming = normalize_profile(generated)
-    contact = incoming["contact"]
-    saved_contact = current["contact"]
-    for key in ("name", "email", "phone", "location"):
-        if _changed(contact[key], saved_contact[key]):
-            _check_value(
-                failures,
-                f"contact.{key}",
-                contact[key],
-                source,
-                "Copy that value as it appears in the resume, or leave the saved value.",
-            )
-    saved_links = {_link_key(item) for item in saved_contact["links"]}
-    for index, link in enumerate(contact["links"]):
-        url = _bare_url(link.get("url") or "") or link.get("url") or ""
-        if _link_key(link) in saved_links:
-            continue
-        _check_value(
-            failures,
-            f"contact.links[{index}]",
-            url,
-            source,
-            "Copy the link address as it appears in the resume, or leave the saved links.",
-        )
-    if _changed(incoming["summary"], current["summary"]):
-        for index, sentence in enumerate(re.split(r"(?<=[.!?])\s+", incoming["summary"])):
-            _check_value(
-                failures,
-                f"summary[{index}]",
-                sentence.strip(),
-                source,
-                "Copy the sentence as it appears in the resume, or leave the saved summary.",
-            )
-    saved_skills = {_norm(item) for item in current["skills"]}
-    for index, skill in enumerate(incoming["skills"]):
-        if _norm(skill) in saved_skills:
-            continue
-        _check_value(
-            failures,
-            f"skills[{index}]",
-            skill,
-            source,
-            "Copy the skill as it appears in the resume, or leave the saved skills.",
-        )
-    for index, role in enumerate(incoming["experience"]):
-        match = next(
-            (
-                old
-                for old in current["experience"]
-                if _same(old["company"], role["company"]) and _same(old["position"], role["position"])
-            ),
-            None,
-        )
-        field = f"experience[{index}]"
-        if match is None:
-            _check_entry(failures, field, role, ("position", "company", "start", "end"), source)
-            _check_order(failures, field, role, source)
-            continue
-        for key in ("position", "company", "start", "end"):
-            if _changed(role[key], match.get(key) or ""):
-                _check_value(
-                    failures,
-                    f"{field}.{key}",
-                    role[key],
-                    source,
-                    "Copy that value as it appears in the resume, or leave the saved value.",
-                )
-        if _changed(role["location"], match.get("location") or ""):
-            for part in _location_parts(role["location"]):
-                _check_value(
-                    failures,
-                    f"{field}.location",
-                    part,
-                    source,
-                    "Copy that place as it appears in the resume, or leave the saved value.",
-                )
-        if _changed(role["description"], match.get("description") or ""):
-            for line in _description_lines(role["description"]):
-                _check_value(
-                    failures,
-                    f"{field}.description",
-                    line,
-                    source,
-                    "Copy a bullet from the resume. Do not mention the position, company, location, or dates.",
-                )
-        if _changed(role["start"], match.get("start") or "") or _changed(role["end"], match.get("end") or ""):
-            _check_order(failures, field, role, source)
-    for index, project in enumerate(incoming["projects"]):
-        if not project["title"] and not project["description"]:
-            continue
-        match = next((old for old in current["projects"] if _same(old["title"], project["title"])), None)
-        if match is not None and not _changed(project["description"], match.get("description") or ""):
-            if not _changed(project["title"], match.get("title") or ""):
-                continue
-        for reason in project_mismatches(project, source):
-            failures.append(f"projects[{index}]: {reason}")
-    for index, school in enumerate(incoming["education"]):
-        match = next(
-            (
-                old
-                for old in current["education"]
-                if _same(old["degree"], school["degree"]) and _same(old["school"], school["school"])
-            ),
-            None,
-        )
-        field = f"education[{index}]"
-        if match is None:
-            _check_entry(failures, field, school, ("school", "start", "end", "degree", "specialization"), source)
-            _check_order(failures, field, school, source)
-            continue
-        for key in ("school", "start", "end", "degree", "specialization"):
-            if _changed(school[key], match.get(key) or ""):
-                _check_value(
-                    failures,
-                    f"{field}.{key}",
-                    school[key],
-                    source,
-                    "Copy that value as it appears in the resume, or leave the saved value.",
-                )
-        if _changed(school["location"], match.get("location") or ""):
-            for part in _location_parts(school["location"]):
-                _check_value(
-                    failures,
-                    f"{field}.location",
-                    part,
-                    source,
-                    "Copy that place as it appears in the resume, or leave the saved value.",
-                )
-        if _changed(school["description"], match.get("description") or ""):
-            for line in _description_lines(school["description"]):
-                _check_value(
-                    failures,
-                    f"{field}.description",
-                    line,
-                    source,
-                    "Copy a bullet from the resume, or leave the saved description.",
-                )
-        if _changed(school["start"], match.get("start") or "") or _changed(school["end"], match.get("end") or ""):
-            _check_order(failures, field, school, source)
+    return _description_lines_from_model(complete, source, role, feedback, n_ctx, stop_event)
 
 
 def build_update(
@@ -1218,26 +885,12 @@ def build_update(
     status=None,
     stop_event=None,
     n_ctx: int | None = None,
-    existing: dict | None = None,
 ) -> dict:
     """Build the profile as JSON objects, then retry only the sections that fail."""
     ctx = int(n_ctx or usbchat.N_CTX_DEFAULT)
-    stored = normalize_profile(existing)
-    follow_up = is_follow_up(stored)
     source = model_text.strip()
     if instruction.strip():
         source = instruction.strip() + "\n\n" + source
-    preamble = ""
-    if follow_up:
-        preamble = (
-            "Current profile:\n"
-            + render_profile(stored).strip()
-            + "\n\nThis is a follow-up update. Return the entries for this section after the update. "
-            "Keep an entry the resume does not change. Take a new or corrected value from the resume.\n"
-        )
-        source = source_text.strip()
-        if instruction.strip():
-            source = instruction.strip() + "\n\n" + source
     pieces = {
         "contact": None,
         "summary": None,
@@ -1299,7 +952,6 @@ def build_update(
                     feedback,
                     ctx,
                     stop_event,
-                    preamble,
                 )
                 if stopped:
                     return stopped_result()
@@ -1312,7 +964,7 @@ def build_update(
             elif key == "summary":
                 _report(status, "summary", round_no)
                 data, raw, stopped = _constructor_call(
-                    complete, source, "Copy the professional summary.", _SHAPES["summary"], feedback, ctx, stop_event, preamble
+                    complete, source, "Copy the professional summary.", _SHAPES["summary"], feedback, ctx, stop_event
                 )
                 if stopped:
                     return stopped_result()
@@ -1324,7 +976,7 @@ def build_update(
             elif key == "skills":
                 _report(status, "skills", round_no)
                 data, raw, stopped = _constructor_call(
-                    complete, source, "Copy the skills.", _SHAPES["skills"], feedback, ctx, stop_event, preamble
+                    complete, source, "Copy the skills.", _SHAPES["skills"], feedback, ctx, stop_event
                 )
                 if stopped:
                     return stopped_result()
@@ -1336,7 +988,7 @@ def build_update(
             elif key == "education":
                 _report(status, "education", round_no)
                 data, raw, stopped = _constructor_call(
-                    complete, source, "Copy the education.", _SHAPES["education"], feedback, ctx, stop_event, preamble
+                    complete, source, "Copy the education.", _SHAPES["education"], feedback, ctx, stop_event
                 )
                 if stopped:
                     return stopped_result()
@@ -1355,16 +1007,7 @@ def build_update(
             elif key == "projects":
                 _report(status, "projects", round_no)
                 data, raw, stopped = _constructor_call(
-                    complete,
-                    source,
-                    "Copy the projects. Each item has a title string and a description string. "
-                    "Copy each title exactly as it is written. "
-                    "The description is the resume text that belongs to that title.",
-                    _SHAPES["projects"],
-                    feedback,
-                    ctx,
-                    stop_event,
-                    preamble,
+                    complete, source, "Copy the projects.", _SHAPES["projects"], feedback, ctx, stop_event
                 )
                 if stopped:
                     return stopped_result()
@@ -1391,7 +1034,6 @@ def build_update(
                     feedback,
                     ctx,
                     stop_event,
-                    preamble,
                 )
                 if stopped:
                     return stopped_result()
@@ -1405,7 +1047,6 @@ def build_update(
                         feedback,
                         ctx,
                         stop_event,
-                        preamble,
                     )
                     if stopped:
                         return stopped_result()
@@ -1432,7 +1073,7 @@ def build_update(
                     continue
                 _report(status, f"description {index + 1} of {len(roles)}", round_no)
                 text, raw, stopped = _load_description(
-                    complete, source, roles[index], feedback, ctx, stop_event, preamble
+                    complete, source, roles[index], feedback, ctx, stop_event
                 )
                 if stopped:
                     return stopped_result()
@@ -1456,7 +1097,6 @@ def build_update(
                     feedback,
                     ctx,
                     stop_event,
-                    preamble,
                 )
                 if stopped:
                     return stopped_result()
@@ -1477,19 +1117,8 @@ def build_update(
         complete_parts = all(loaded.values()) and (
             not loaded["experience"] or description_ok >= set(range(len(pieces["experience"] or [])))
         )
-        generated = assemble()
-        if follow_up:
-            audit_updates(stored, generated, source_text, failures)
-            if complete_parts and not failures:
-                profile = overlay_profile(stored, generated)
-                return {
-                    "reply": render_profile(profile),
-                    "profile_record": profile,
-                    "dropped": [],
-                    "stopped": False,
-                }
-        elif complete_parts:
-            profile = audit_profile(generated, source_text, failures)
+        if complete_parts:
+            profile = audit_profile(assemble(), source_text, failures)
             if not failures:
                 return {
                     "reply": render_profile(profile),
@@ -1498,7 +1127,7 @@ def build_update(
                     "stopped": False,
                 }
         elif any(loaded.values()):
-            audit_profile(generated, source_text, failures)
+            audit_profile(assemble(), source_text, failures)
             failures = [item for item in failures if not item.startswith("profile:")]
         previous = list(failures)
         queue = _queue_from(failures)

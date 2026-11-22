@@ -1,11 +1,10 @@
-"""Job application committee. Resume and cover letter can run together."""
+"""Job application committee. One local model, English resume and cover letter."""
 
 from __future__ import annotations
 
-import threading
 from pathlib import Path
 
-import doccompat as usbchat
+import usbchat
 
 MAX_PASSES = 3
 HALLUCINATION_LIMIT = 0.05
@@ -19,12 +18,17 @@ _HONEST = (
     "Do not add an employer, title, date, skill, metric, or degree that is not there. "
     "You may rephrase a true fact. If a job requirement is missing from the profile, leave it out."
 )
+_FACTS = (
+    "The profile board is the only source of facts. "
+    "A job-board requirement says what to emphasize. "
+    "It is not permission to add a skill, employer, date, or number the profile does not list."
+)
 
 
 def claim_ratio(text: str) -> tuple[float, list[str]]:
     """Share of quoted claims the evaluator marked unsupported. Empty output fails closed."""
     unsupported: list[str] = []
-    supported = 0
+    reviewed = 0
     for line in (text or "").splitlines():
         raw = line.strip().lstrip("-*").strip()
         lower = raw.lower()
@@ -32,13 +36,13 @@ def claim_ratio(text: str) -> tuple[float, list[str]]:
             quote = raw.split(":", 1)[1].strip()
             if quote:
                 unsupported.append(quote)
-        elif lower.startswith("supported:"):
+                reviewed += 1
+        elif lower.startswith("supported:") or lower.startswith("plausible:"):
             if raw.split(":", 1)[1].strip():
-                supported += 1
-    total = supported + len(unsupported)
-    if total == 0:
+                reviewed += 1
+    if reviewed == 0:
         return 1.0, []
-    return len(unsupported) / total, unsupported
+    return len(unsupported) / reviewed, unsupported
 
 
 def _stopped(stop_event) -> bool:
@@ -71,49 +75,6 @@ def _write_pdf(build_pdf, folder: Path, stem: str, title: str, body: str) -> Pat
     return path
 
 
-def _ask_both(
-    resume_complete,
-    letter_complete,
-    status,
-    stop_event,
-    resume_label: str,
-    resume_system: str,
-    resume_blob: str,
-    letter_label: str,
-    letter_system: str,
-    letter_blob: str,
-    n_ctx: int,
-) -> tuple[str, str, bool]:
-    """Run the resume writer and the cover-letter writer at the same time."""
-    gate = threading.Lock()
-    out: dict[str, tuple[str, bool]] = {}
-    errors: dict[str, BaseException] = {}
-
-    def report(text: str) -> None:
-        with gate:
-            status(text)
-
-    def run(key: str, complete, label: str, system: str, blob: str) -> None:
-        try:
-            out[key] = _ask(complete, report, stop_event, label, system, blob, n_ctx)
-        except BaseException as exc:
-            errors[key] = exc
-
-    workers = (
-        threading.Thread(target=run, args=("resume", resume_complete, resume_label, resume_system, resume_blob)),
-        threading.Thread(target=run, args=("letter", letter_complete, letter_label, letter_system, letter_blob)),
-    )
-    for worker in workers:
-        worker.start()
-    for worker in workers:
-        worker.join()
-    if errors:
-        raise errors.get("resume") or errors["letter"]
-    resume, resume_stopped = out["resume"]
-    letter, letter_stopped = out["letter"]
-    return resume, letter, resume_stopped or letter_stopped
-
-
 def run_job_application(
     *,
     complete,
@@ -124,7 +85,6 @@ def run_job_application(
     status,
     build_pdf,
     out_dir: Path,
-    letter_complete=None,
 ) -> dict:
     """Distill, write, check claims, then summarize. Returns reply text and PDF paths."""
     result: dict = {
@@ -189,65 +149,53 @@ def run_job_application(
         resume_system = (
             "Write a one-page resume in English. ATS friendly: plain headings, one column, no tables, no icons. "
             + _HONEST
+            + " "
+            + _FACTS
             + " Headings: Contact, Summary, Skills, Experience, Education."
         )
         if fix:
             resume_system += " Remove or rewrite only these unsupported sentences:\n" + fix
+        resume, stopped = _ask(
+            complete,
+            status,
+            stop_event,
+            resume_label,
+            resume_system,
+            "Profile board:\n" + profile_board + "\n\nJob board:\n" + jd_board,
+            n_ctx,
+        )
+        if stopped:
+            result["stopped"] = True
+            return result
         letter_system = (
             "Write a one-page cover letter in English for this role. "
             + _HONEST
-            + " Write it from the profile board and the job board. No letterhead art."
+            + " "
+            + _FACTS
+            + " Do not repeat the whole resume. No letterhead art."
         )
         if fix:
             letter_system += " Remove or rewrite only these unsupported sentences:\n" + fix
-        resume_blob = "Profile board:\n" + profile_board + "\n\nJob board:\n" + jd_board
-        letter_blob = resume_blob
-        letter_label = f"Job application: writing the cover letter (pass {pass_no})"
-        if letter_complete is not None:
-            resume, letter, stopped = _ask_both(
-                complete,
-                letter_complete,
-                status,
-                stop_event,
-                resume_label,
-                resume_system,
-                resume_blob,
-                letter_label,
-                letter_system,
-                letter_blob,
-                n_ctx,
-            )
-        else:
-            resume, stopped = _ask(
-                complete,
-                status,
-                stop_event,
-                resume_label,
-                resume_system,
-                resume_blob,
-                n_ctx,
-            )
-            if stopped:
-                result["stopped"] = True
-                return result
-            letter, stopped = _ask(
-                complete,
-                status,
-                stop_event,
-                letter_label,
-                letter_system,
-                letter_blob,
-                n_ctx,
-            )
+        letter, stopped = _ask(
+            complete,
+            status,
+            stop_event,
+            f"Job application: writing the cover letter (pass {pass_no})",
+            letter_system,
+            "Profile board:\n" + profile_board + "\n\nJob board:\n" + jd_board + "\n\nResume:\n" + resume,
+            n_ctx,
+        )
         if stopped:
             result["stopped"] = True
             return result
         eval_system = (
             "Check the resume and cover letter against the profile board. "
             "A claim is unsupported when an employer, title, date, skill, metric, or degree is not on the profile. "
-            "Rephrasing a true fact is supported. "
-            "Reply with one line per claim: 'supported: <sentence>' or 'unsupported: <sentence>'. "
-            "Every unsupported line must quote the sentence. Skip a line you cannot quote."
+            "A sentence that only rephrases a profile fact is plausible, not unsupported. "
+            "Each claim is one line: 'supported: <sentence>', 'plausible: <sentence>', or 'unsupported: <sentence>'. "
+            "An unsupported line quotes the sentence and is a rewrite request. "
+            "A plausible line quotes the sentence and is not a rewrite request. "
+            "Skip a line you cannot quote."
         )
         verdict, stopped = _ask(
             complete,
@@ -263,7 +211,11 @@ def run_job_application(
             return result
         ratio, unsupported = claim_ratio(verdict)
         result["unsupported"] = unsupported
-        parsed = "supported:" in verdict.lower() or bool(unsupported)
+        parsed = (
+            "supported:" in verdict.lower()
+            or "plausible:" in verdict.lower()
+            or bool(unsupported)
+        )
         if parsed and ratio <= HALLUCINATION_LIMIT:
             passed = True
             break
@@ -291,6 +243,8 @@ def run_job_application(
         "Judge from the profile and the job board, not from invented resume lines. "
         "Use these headings and a short justification under each: "
         "Skill match, Merits match, Resume match, Overall match. "
+        "Skill match and merits match are read from the profile and the job board. "
+        "Do not cite a resume sentence marked unsupported. "
         "Skill match: required skills on the job board that appear in the profile. "
         "Merits match: preferred items that appear in the profile. "
         "Resume match: how much of the job the resume covers without leaving the profile. "
@@ -327,6 +281,4 @@ def run_job_application(
         )
     status("Job application: ready")
     result["reply"] = summary.strip()
-    result["resume"] = resume.strip()
-    result["letter"] = letter.strip()
     return result
