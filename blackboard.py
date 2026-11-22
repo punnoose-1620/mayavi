@@ -9,6 +9,7 @@ medium; a large run may seed from and distill back to the same card.
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,11 +18,14 @@ from typing import Any
 import config
 import logger
 import store
+import tenant
 from store import Blackboard, Run
 
 ALLOWED_KINDS = {"draft", "critique", "debug", "vote", "rules", "memory"}
 FACTORY_ONLY_KINDS = {"rules", "memory"}
 CARD_DIGEST = 800
+_AGENT_SLUG = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
+_AGENT_THREAD = re.compile(r"^agent_[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
 
 
 def create_board(run_id: str) -> dict[str, Any]:
@@ -120,35 +124,41 @@ def pin_context_card(run: Run) -> dict[str, Any] | None:
     return send_message(card[: config.BLACKBOARD_MAX_LEN], "memory", agent_id=run.router_agent or "script", factory=True)
 
 
-def bind_thread(run: Run, thread_id: str | None) -> None:
+def bind_thread(run: Run, thread_id: str | None, *, lift_small: bool = True) -> None:
     """Apply the CLI thread id after mapRoute. Small never creates a thread on its own."""
     wanted = (thread_id or "").strip() or None
     if wanted:
-        loaded = load_thread(wanted)
+        loaded = load_thread(wanted, device_id=run.device_id)
         if loaded is None:
             run.notices.append(f"thread_not_found:{wanted}")
         else:
             run.thread_id = loaded["id"]
             run.thread = loaded
-            if run.level == "small":
+            if lift_small and run.level == "small":
                 run.level = "medium"
     if run.level in {"medium", "large"} and not run.thread_id:
-        created = create_thread(title=_title(run.intent or run.user_prompt), goal=run.intent, prompt=run.user_prompt)
+        created = create_thread(
+            title=_title(run.intent or run.user_prompt),
+            goal=run.intent,
+            prompt=run.user_prompt,
+            device_id=run.device_id,
+        )
         run.thread_id = created["id"]
         run.thread = created
     if run.thread_id and run.thread is None:
-        run.thread = load_thread(run.thread_id)
+        run.thread = load_thread(run.thread_id, device_id=run.device_id)
 
 
 def distill(run: Run, answer: str | None) -> None:
     """Write a context card back to the selected thread. Never copies votes or debug."""
-    if not run.thread_id or run.level == "small":
+    if not run.thread_id:
         return
-    thread = run.thread or load_thread(run.thread_id) or create_thread(
+    thread = run.thread or load_thread(run.thread_id, device_id=run.device_id) or create_thread(
         title=_title(run.intent or run.user_prompt),
         goal=run.intent,
         prompt=run.user_prompt,
         thread_id=run.thread_id,
+        device_id=run.device_id,
     )
     thread["goal"] = (run.intent or thread.get("goal") or "")[:200]
     thread["title"] = thread.get("title") or _title(run.intent or run.user_prompt)
@@ -237,6 +247,7 @@ def create_thread(
     goal: str = "",
     prompt: str = "",
     thread_id: str | None = None,
+    device_id: str | None = None,
 ) -> dict[str, Any]:
     tid = thread_id or f"thr_{uuid.uuid4().hex[:12]}"
     now = _now()
@@ -252,6 +263,8 @@ def create_thread(
         "artifacts": [],
         "decisions": [],
         "open": [],
+        "device": tenant.parse_device_id(device_id) or "",
+        "agent": agent_slug(tid) if is_agent_thread(tid) else "",
         "created": now,
         "updated": now,
     }
@@ -259,15 +272,16 @@ def create_thread(
     return thread
 
 
-def list_threads() -> list[dict[str, Any]]:
+def list_threads(device_id: str | None = None) -> list[dict[str, Any]]:
     """Durable notebooks (medium and large). Live committee boards are not listed."""
-    if not config.THREADS_DIR.is_dir():
+    folder = _thread_dir(device_id)
+    if folder is None or not folder.is_dir():
         return []
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
-    paths = sorted(config.THREADS_DIR.glob("thr_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    paths = sorted(folder.glob("thr_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     for path in paths:
-        blob = load_thread(path.stem)
+        blob = load_thread(path.stem, device_id=device_id)
         if blob is None or blob["id"] in seen:
             continue
         seen.add(blob["id"])
@@ -282,8 +296,8 @@ def list_threads() -> list[dict[str, Any]]:
     return rows
 
 
-def load_thread(thread_id: str) -> dict[str, Any] | None:
-    path = _thread_path(thread_id)
+def load_thread(thread_id: str, device_id: str | None = None) -> dict[str, Any] | None:
+    path = _thread_path(thread_id, device_id=device_id)
     if path is None or not path.is_file():
         return None
     try:
@@ -292,12 +306,20 @@ def load_thread(thread_id: str) -> dict[str, Any] | None:
         return None
     if not isinstance(blob, dict) or blob.get("id") != thread_id:
         return None
+    owner = tenant.parse_device_id(blob.get("device"))
+    wanted = tenant.parse_device_id(device_id)
+    if wanted and owner and owner != wanted:
+        return None
     return blob
 
 
 def save_thread(thread: dict[str, Any]) -> Path:
-    config.THREADS_DIR.mkdir(parents=True, exist_ok=True)
-    path = _thread_path(str(thread["id"]))
+    device_id = tenant.parse_device_id(thread.get("device"))
+    folder = _thread_dir(device_id)
+    if folder is None:
+        raise ValueError("bad_thread_id")
+    folder.mkdir(parents=True, exist_ok=True)
+    path = _thread_path(str(thread["id"]), device_id=device_id)
     if path is None:
         raise ValueError("bad_thread_id")
     path.write_text(json.dumps(thread, indent=2), encoding="utf-8")
@@ -340,13 +362,62 @@ def protocol_bodies(run: Run, kind: str) -> list[str]:
     ]
 
 
-def _thread_path(thread_id: str) -> Path | None:
+def _thread_dir(device_id: str | None) -> Path | None:
+    did = tenant.parse_device_id(device_id)
+    if did:
+        root = tenant.device_dir(did)
+        if root is None:
+            return None
+        return root / "threads"
+    return config.THREADS_DIR
+
+
+def agent_slug(name: str) -> str | None:
+    """Stable id for an invoking agent. Empty or punctuation-only names are rejected."""
+    text = str(name or "").strip()
+    if text.startswith("agent_"):
+        text = text[6:]
+    slug = re.sub(r"[^a-z0-9]+", "-", text.casefold()).strip("-")[:40]
+    if not slug or not _AGENT_SLUG.fullmatch(slug):
+        return None
+    return slug
+
+
+def agent_thread_id(name: str) -> str | None:
+    slug = agent_slug(name)
+    return f"agent_{slug}" if slug else None
+
+
+def is_agent_thread(thread_id: str | None) -> bool:
+    return bool(_AGENT_THREAD.fullmatch(str(thread_id or "").strip()))
+
+
+def ensure_agent_thread(device_id: str, agent_name: str) -> dict[str, Any] | None:
+    """One durable workbook per device + agent name. Creates it on first call."""
+    did = tenant.parse_device_id(device_id)
+    tid = agent_thread_id(agent_name)
+    slug = agent_slug(agent_name)
+    if not did or not tid or not slug:
+        return None
+    loaded = load_thread(tid, device_id=did)
+    if loaded is not None:
+        return loaded
+    return create_thread(title=slug.replace("-", " "), thread_id=tid, device_id=did)
+
+
+def _thread_path(thread_id: str, device_id: str | None = None) -> Path | None:
     name = (thread_id or "").strip()
-    if not name.startswith("thr_") or "/" in name or "\\" in name or ".." in name:
+    if "/" in name or "\\" in name or ".." in name:
         return None
-    if not name[4:].replace("_", "").isalnum():
+    if name.startswith("thr_"):
+        if not name[4:].replace("_", "").isalnum():
+            return None
+    elif not _AGENT_THREAD.fullmatch(name):
         return None
-    return config.THREADS_DIR / f"{name}.json"
+    folder = _thread_dir(device_id)
+    if folder is None:
+        return None
+    return folder / f"{name}.json"
 
 
 def _title(text: str) -> str:

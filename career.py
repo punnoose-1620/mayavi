@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import secrets
 import tempfile
 import threading
@@ -14,6 +13,7 @@ import file_tools
 import jobapp
 import models
 import profiledoc
+import tenant
 
 N_CTX = 4096
 _DOC_EXT = {".pdf", ".docx", ".xlsx", ".txt", ".md", ".csv", ".html", ".py"}
@@ -24,19 +24,10 @@ _UPLOADS: dict[str, dict[str, str]] = {}
 _UPLOAD_LOCK = threading.Lock()
 
 
-_DEVICE_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-    re.I,
-)
-
-
 def resume_root(device_id: str) -> Path:
-    did = str(device_id or "").strip().lower()
-    if not _DEVICE_RE.fullmatch(did):
+    target = tenant.device_dir(device_id)
+    if target is None:
         raise ValueError("missing_device")
-    root = config.UI_SESSION_DIR.resolve()
-    target = (root / did).resolve()
-    target.relative_to(root)
     target.mkdir(parents=True, exist_ok=True)
     return target
 
@@ -223,12 +214,17 @@ def _complete(role: str):
     return complete
 
 
-def _doc_dir() -> tuple[Path, str]:
+def _doc_dir(device_id: str = "") -> tuple[Path, str]:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     name = f"profile-{stamp}"
-    folder = config.OUTPUTS / name
+    if device_id:
+        folder = config.OUTPUTS / device_id / name
+        rel = f"{device_id}/{name}"
+    else:
+        folder = config.OUTPUTS / name
+        rel = name
     folder.mkdir(parents=True, exist_ok=True)
-    return folder, name
+    return folder, rel
 
 
 def documents_for(dir_name: str) -> list[dict[str, str]]:
@@ -282,7 +278,7 @@ def _letter_complete(role: str):
 
 
 def _run_job(complete, job_text: str, status, device_id: str, letter_complete=None) -> dict:
-    folder, dir_name = _doc_dir()
+    folder, dir_name = _doc_dir(device_id)
     result = jobapp.run_job_application(
         complete=complete,
         job_text=job_text,

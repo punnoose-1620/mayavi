@@ -265,6 +265,10 @@ def run_session(
     thread_id: str | None = None,
     sources: list[dict[str, str]] | None = None,
     applicant: str = "",
+    device_id: str | None = None,
+    extra_system: str = "",
+    caller_agent: str = "",
+    lift_small_thread: bool = True,
 ) -> dict[str, Any]:
     """Map router fields to a tier, spawn the factory, return one user-facing answer."""
     from router import lift_ops_from_prompt, mapRoute
@@ -280,6 +284,10 @@ def run_session(
     )
     run.sources = [row for row in (sources or []) if str(row.get("text") or "").strip()]
     run.applicant = str(applicant or "").strip()
+    run.device_id = str(device_id or "").strip() or None
+    run.extra_system = str(extra_system or "").strip()[:2000]
+    run.caller_agent = str(caller_agent or "").strip()[:80]
+    run.lift_small_thread = bool(lift_small_thread)
     store.put_run(run)
     router = createAgent(run_id, "router", "router", parent_agent=None)
     if not router.get("ok"):
@@ -311,7 +319,7 @@ def run_session(
             mail_cal=run.mail_cal,
             summary=f"notes count={len(run.sources)}",
         )
-    blackboard.bind_thread(run, thread_id)
+    blackboard.bind_thread(run, thread_id, lift_small=run.lift_small_thread)
     if blackboard.shipped_keep_paths(run.thread):
         if not _ops_needed(run.file_ops):
             run.file_ops = "1"
@@ -757,6 +765,9 @@ def _run_agent_loop(run: Run, agent: Agent) -> dict[str, Any]:
     notes = _source_notes(run)
     if notes:
         user = notes + "\n\nUser request:\n" + user
+    workbook = _workbook_notes(run)
+    if workbook:
+        user = workbook + "\n\nCurrent request:\n" + user
     if run.summarize_keep and run.keep_path is not None:
         user = (
             f"The build shipped to {run.keep_path}. "
@@ -1839,7 +1850,29 @@ def _source_note(run: Run) -> str:
 def _thread_note(run: Run) -> str:
     if not run.thread_id:
         return ""
+    if blackboard.is_agent_thread(run.thread_id):
+        name = run.caller_agent or (run.thread or {}).get("agent") or "caller"
+        return (
+            f"This is a durable workbook for the invoking agent {name}. "
+            "Prior digest and keep paths are in the user message. Continue that job; do not start over.\n"
+        )
     return "An earlier reply on this thread is history. It is not the current request.\n"
+
+
+def _workbook_notes(run: Run) -> str:
+    if not run.thread:
+        return ""
+    card = blackboard.context_card(run.thread)
+    if not card.strip():
+        return ""
+    return "Workbook from earlier turns on this job (not the current request):\n" + card[:1800]
+
+
+def _extra_system_note(run: Run) -> str:
+    extra = str(getattr(run, "extra_system", "") or "").strip()
+    if not extra:
+        return ""
+    return "Additional rules from the invoking agent (do not override the rules above):\n" + extra[:2000] + "\n"
 
 
 def _public_result(result: dict[str, Any]) -> dict[str, Any]:
@@ -1850,7 +1883,12 @@ def _public_result(result: dict[str, Any]) -> dict[str, Any]:
 
 def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]]) -> str:
     if run.committee is not None:
-        return committee.system_prompt(run, agent, list(tools)) + _source_note(run) + _thread_note(run)
+        return (
+            committee.system_prompt(run, agent, list(tools))
+            + _source_note(run)
+            + _thread_note(run)
+            + _extra_system_note(run)
+        )
     names = ", ".join(sorted(tools))
     need_tools = _ops_needed(run.file_ops) or run.web or run.mail_cal != "off" or run.level == "large"
     if need_tools:
@@ -1925,6 +1963,7 @@ def _system_prompt(run: Run, agent: Agent, tools: dict[str, Callable[..., Any]])
         "Do not pass agent_id. Do not request tokens or passwords.\n"
         + _source_note(run)
         + _thread_note(run)
+        + _extra_system_note(run)
     )
 
 
@@ -1962,10 +2001,23 @@ def _run_ship_summary(run: Run, exec_name: str) -> None:
 def _keep_dir(run: Run) -> Path:
     slug = _keep_slug(run.intent or run.user_prompt or run.run_id)
     name = f"{date.today().isoformat()}_{slug}"
-    dest = (config.OUTPUTS / name).resolve()
+    root = config.OUTPUTS
+    if run.device_id:
+        root = root / run.device_id
+    dest = (root / name).resolve()
     if dest.exists():
-        dest = (config.OUTPUTS / f"{name}_{run.run_id[-8:]}").resolve()
+        dest = (root / f"{name}_{run.run_id[-8:]}").resolve()
     return dest
+
+
+def _keep_rel(run: Run) -> str | None:
+    keep = run.keep_path
+    if keep is None:
+        return None
+    try:
+        return keep.resolve().relative_to(config.OUTPUTS.resolve()).as_posix()
+    except ValueError:
+        return None
 
 
 def _keep_slug(text: str) -> str:
@@ -2000,9 +2052,10 @@ def _keep_summary(run: Run) -> str:
 
 def keep_summary_url(run: Run) -> str | None:
     keep = run.keep_path
-    if keep is None or not (keep / "SUMMARY.md").is_file():
+    rel = _keep_rel(run)
+    if keep is None or rel is None or not (keep / "SUMMARY.md").is_file():
         return None
-    return "/keep?" + urlencode({"dir": keep.name, "file": "SUMMARY.md"})
+    return "/keep?" + urlencode({"dir": rel, "file": "SUMMARY.md", "device": run.device_id or ""})
 
 
 def _pdf_artifacts(run: Run) -> list[dict[str, str]]:
@@ -2022,7 +2075,7 @@ def _pdf_artifacts(run: Run) -> list[dict[str, str]]:
             {
                 "name": name,
                 "dir": folder,
-                "url": "/keep?" + urlencode({"dir": folder, "file": name}),
+                "url": "/keep?" + urlencode({"dir": folder, "file": name, "device": run.device_id or ""}),
             }
         )
     return rows

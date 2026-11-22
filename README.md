@@ -111,7 +111,7 @@ python main.py --thread thr_abc123def4 "tweak the third bullet"
 python app.py
 ```
 
-`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /threads`, `GET /history`, `GET /profile`, `GET /html`, `GET /web-status`, `POST /profile`, `POST /turns`). Double-click `run-mayavi.bat` to start it on port **9001** and open the browser. The dropdown lists durable notebooks (`thr_…`) from medium and large runs. A **Web** checkbox sits left of **Coding**. Web is disabled when `GET /web-status` reports no network or no search keys (the JSON never includes keys). When **Coding** is on, a GitHub URL field appears (`https://github.com/owner/repo` only). Empty or invalid URLs hide git tools. Bot replies render as Markdown (raw HTML in the text is escaped). Fenced `html` blocks and full HTML documents get a **View HTML page** button on that reply (new tab, CSP, no scripts). PDFs the run wrote appear under that reply (icon, filename, **Save to PDF**). If the worker emitted a structured `profile_update`, that reply gets **Save to board**. Each browser stores a UUID in `localStorage` and hydrates from `state/ui-session/<uuid>/session.jsonl`. Starting the server does not wipe those tapes. Peer IP, User-Agent, and language are appended to `meta.jsonl` in that folder for later analytics; they are not used to look up a session. `python app.py --no-model` uses the same stubs as the CLI.
+`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /whoami`, `GET /threads`, `GET /history`, `GET /profile`, `GET /html`, `GET /web-status`, `POST /profile`, `POST /turns`, `POST /agent-turns`). Use `--host 0.0.0.0` so other devices on this Wi-Fi can open it. Double-click `run-mayavi.bat` to start it on port **9001** and open the browser. The dropdown lists that device's durable notebooks (`thr_…`) from medium and large runs. A **Web** checkbox sits left of **Coding**. Web is disabled when `GET /web-status` reports no network or no search keys (the JSON never includes keys). When **Coding** is on, a GitHub URL field appears (`https://github.com/owner/repo` only). Empty or invalid URLs hide git tools. Bot replies render as Markdown (raw HTML in the text is escaped). Fenced `html` blocks and full HTML documents get a **View HTML page** button on that reply (new tab, CSP, no scripts). PDFs the run wrote appear under that reply (icon, filename, **Save to PDF**). If the worker emitted a structured `profile_update`, that reply gets **Save to board**. Each client is keyed by a hashed LAN MAC when the server can see it (stable across Wi-Fi reconnects on this SSID), otherwise by an HttpOnly cookie / UUID. History hydrates from `state/ui-session/<device>/session.jsonl`. Notebooks sit in `threads/` under that folder. Other programs call `POST /agent-turns` with `device`, `agent`, and `user` (optional `system`, `web`, `coding`) to continue a named workbook (`agent_<slug>.json`) instead of a new chat. Starting the server does not wipe those tapes. Peer IP, User-Agent, and language are appended to `meta.jsonl` in that folder for later analytics; they are not used to look up a session. `python app.py --no-model` uses the same stubs as the CLI.
 
 Double-clickable live checks (open a cmd window, show Prompt / Response / Meta, pause):
 
@@ -315,7 +315,7 @@ The factory makes `outputs/<YYYY-MM-DD>_<intent-slug>/` at the start of every la
 ## Logging
 
 `logger.py` writes one binary file per local calendar day under `state/logs/` (`YYYY-MM-DD.mayavi.log`).
-The chat UI keeps a separate prompt/answer tape per browser UUID in `state/ui-session/<uuid>/` (not the audit log). `meta.jsonl` in that folder is an analytics sidecar (time, UUID, socket IP, User-Agent, language, path).
+The chat UI keeps a separate prompt/answer tape per device in `state/ui-session/<device>/` (not the audit log). `meta.jsonl` in that folder is an analytics sidecar (time, device id, socket IP, User-Agent, language, path).
 
 Every exported function logs once on return (`ok` or `fail`): factory, tools, and the route mapping step. Spawn records bind `agent_name` → GGUF filename. Summaries are short; bodies and tokens are never stored.
 
@@ -326,13 +326,14 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | File | Role |
 | --- | --- |
 | `main.py` | CLI |
-| `app.py` | Loopback chat UI (`127.0.0.1:8765`) |
+| `app.py` | Chat UI (`127.0.0.1:8765`, `--host 0.0.0.0` for LAN) |
+| `tenant.py` | LAN MAC / cookie device key |
 | `ui/index.html` | Chat page served by `app.py` |
 | `router.py` | Router prompt, parse, `mapRoute`, heuristic fallback |
 | `executor.py` | Factory: agents, worker threads, sandbox, session, OAuth connect, run lifecycle |
 | `committee.py` | Sequential coding board, views, votes (agents never import this) |
 | `git_tools.py` | Keep-folder git login/commit/push; `GH_TOKEN` stays in-process |
-| `blackboard.py` | Live committee board + durable `state/threads/` notes |
+| `blackboard.py` | Live committee board + durable notebooks (`state/ui-session/<device>/threads/` in the UI; `state/threads/` on the CLI) |
 | `runtime.py` | Agent committee + sandbox tools (blackboard send/view are wrappers)
 | `file_tools.py` | Public file API |
 | `web_scrape.py` | HTTP GET/POST + `search_web` |

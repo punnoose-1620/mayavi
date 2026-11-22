@@ -113,6 +113,7 @@ class Run:
     secondary_provider: str | None = None
     thread_id: str | None = None
     thread: dict[str, Any] | None = None
+    device_id: str | None = None
     committee: CommitteeBoard | None = None
     committee_stage: str = ""
     git_remote: str | None = None
@@ -127,6 +128,9 @@ class Run:
     profile_updates: list[dict[str, Any]] = field(default_factory=list)
     sources: list[dict[str, str]] = field(default_factory=list)
     applicant: str = ""
+    extra_system: str = ""
+    caller_agent: str = ""
+    lift_small_thread: bool = True
 
 
 _RUNS: dict[str, Run] = {}

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import config
+import tenant
 
 KEYS = ("name", "role", "skills", "education", "links")
 LIST_KEYS = frozenset({"skills", "education", "links"})
@@ -20,7 +21,13 @@ _MAX_LIST = 12
 _LOCK = threading.Lock()
 
 
-def profile_path() -> Path:
+def profile_path(device_id: str | None = None) -> Path:
+    did = tenant.parse_device_id(device_id)
+    if did:
+        folder = tenant.device_dir(did)
+        if folder is not None:
+            folder.mkdir(parents=True, exist_ok=True)
+            return folder / "operator-board.json"
     return config.DATA_DIR / "profile.json"
 
 
@@ -36,8 +43,8 @@ def empty_board() -> dict[str, Any]:
     }
 
 
-def load() -> dict[str, Any]:
-    path = profile_path()
+def load(device_id: str | None = None) -> dict[str, Any]:
+    path = profile_path(device_id)
     if not path.is_file():
         return empty_board()
     try:
@@ -58,8 +65,8 @@ def load() -> dict[str, Any]:
     return board
 
 
-def save(board: dict[str, Any]) -> None:
-    path = profile_path()
+def save(board: dict[str, Any], device_id: str | None = None) -> None:
+    path = profile_path(device_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "name": str(board.get("name") or "")[: _MAX_STR["name"]],
@@ -126,15 +133,15 @@ def merge(updates: list[dict[str, Any]] | None) -> dict[str, Any] | None:
     return acc or None
 
 
-def apply_update(update: dict[str, Any] | None, run_id: str) -> dict[str, Any]:
+def apply_update(update: dict[str, Any] | None, run_id: str, device_id: str | None = None) -> dict[str, Any]:
     item = normalize(update)
     rid = str(run_id or "").strip()
     if not item or not rid:
         return {"ok": False, "error": "empty_update"}
     with _LOCK:
-        board = load()
+        board = load(device_id)
         if rid in board["applied_runs"]:
-            return {"ok": True, "already": True, "board": public_board(board)}
+            return {"ok": True, "already": True, "board": public_board(board, device_id=device_id)}
         if "name" in item:
             board["name"] = item["name"]
         if "role" in item:
@@ -144,12 +151,12 @@ def apply_update(update: dict[str, Any] | None, run_id: str) -> dict[str, Any]:
                 board[key] = _uniq(list(board.get(key) or []) + list(item[key]))
         board["applied_runs"] = _uniq(list(board["applied_runs"]) + [rid])
         board["updated"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-        save(board)
-        return {"ok": True, "already": False, "board": public_board(board)}
+        save(board, device_id)
+        return {"ok": True, "already": False, "board": public_board(board, device_id=device_id)}
 
 
-def public_board(board: dict[str, Any] | None = None) -> dict[str, Any]:
-    blob = board if board is not None else load()
+def public_board(board: dict[str, Any] | None = None, device_id: str | None = None) -> dict[str, Any]:
+    blob = board if board is not None else load(device_id)
     return {
         "name": blob.get("name") or "",
         "role": blob.get("role") or "",

@@ -534,18 +534,33 @@
     });
 
     const DEVICE_KEY = "mayavi-device-id";
-    const DEVICE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const DEVICE_RE = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|dev_[0-9a-f]{12})$/i;
     function deviceId() {
       let id = "";
       try { id = localStorage.getItem(DEVICE_KEY) || ""; } catch (e) {}
-      if (!DEVICE_RE.test(id)) {
-        id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "00000000-0000-4000-8000-000000000000";
-        try { localStorage.setItem(DEVICE_KEY, id); } catch (e) {}
-      }
-      return String(id || "").toLowerCase();
+      return DEVICE_RE.test(id) ? String(id).toLowerCase() : "";
+    }
+    function rememberDevice(id) {
+      const clean = String(id || "").toLowerCase();
+      if (!DEVICE_RE.test(clean)) return;
+      try { localStorage.setItem(DEVICE_KEY, clean); } catch (e) {}
+    }
+    async function syncDevice() {
+      const claimed = deviceId();
+      const u = new URL("/whoami", location.origin);
+      if (claimed) u.searchParams.set("device", claimed);
+      try {
+        const res = await fetch(u.pathname + u.search, { credentials: "same-origin" });
+        const data = await res.json();
+        if (data && data.device) rememberDevice(data.device);
+      } catch (e) {}
     }
 
-    fetch("/read-profile?device=" + encodeURIComponent(deviceId())).then((res) => res.json()).then((data) => {
+    syncDevice().then(() => {
+      const id = deviceId();
+      if (!id) return null;
+      return fetch("/read-profile?device=" + encodeURIComponent(id), { credentials: "same-origin" });
+    }).then((res) => (res ? res.json() : null)).then((data) => {
       if (data && data.profile) fill(data.profile);
     }).catch((err) => { statusEl.textContent = String(err); });
   </script>

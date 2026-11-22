@@ -25,6 +25,7 @@ import main
 import profile
 import router
 import search
+import tenant
 
 HOST = "127.0.0.1"
 PORT = 8765
@@ -41,10 +42,6 @@ _KEEP_PDF = re.compile(r"^[A-Za-z0-9._-]+\.pdf$", re.I)
 _BUSY = threading.Lock()
 _SESSION_LOCK = threading.Lock()
 _ACTIVE: dict[str, Any] | None = None
-_DEVICE_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-    re.I,
-)
 
 SKIP_TOOLS = {
     "sendMessageToBlackboard",
@@ -103,23 +100,11 @@ TOOL_PHRASES = {
 
 
 def parse_device_id(raw: Any) -> str | None:
-    text = str(raw or "").strip()
-    if not _DEVICE_RE.fullmatch(text):
-        return None
-    return text.lower()
+    return tenant.parse_device_id(raw)
 
 
 def device_dir(device_id: str) -> Path | None:
-    did = parse_device_id(device_id)
-    if not did:
-        return None
-    root = config.UI_SESSION_DIR.resolve()
-    target = (root / did).resolve()
-    try:
-        target.relative_to(root)
-    except ValueError:
-        return None
-    return target
+    return tenant.device_dir(device_id)
 
 
 def rotate_ui_session() -> None:
@@ -232,6 +217,18 @@ def append_turn(turn: dict[str, Any], device_id: str) -> None:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def _append_agent_log(device_id: str, slug: str, row: dict[str, Any]) -> None:
+    folder = device_dir(device_id)
+    name = blackboard.agent_slug(slug)
+    if folder is None or not name:
+        return
+    path = folder / "agents" / f"{name}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with _SESSION_LOCK:
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
 def log_device_meta(
     device_id: str,
     *,
@@ -258,16 +255,25 @@ def log_device_meta(
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def resolve_keep_summary(dir_name: str | None, file_name: str | None) -> Path | None:
+def resolve_keep_summary(dir_name: str | None, file_name: str | None, device_id: str | None = None) -> Path | None:
     """Map /keep query args to SUMMARY.md or a PDF under outputs/."""
-    return resolve_output_file(dir_name, file_name)
+    return resolve_output_file(dir_name, file_name, device_id=device_id)
 
 
-def resolve_output_file(dir_name: str | None, file_name: str | None) -> Path | None:
+def _owned_output(parts: list[str], device_id: str | None) -> bool:
+    did = parse_device_id(device_id)
+    if not did:
+        return True
+    return bool(parts) and parts[0].casefold() == did
+
+
+def resolve_output_file(dir_name: str | None, file_name: str | None, device_id: str | None = None) -> Path | None:
     folder = unquote(str(dir_name or "")).strip().replace("\\", "/")
     name = unquote(str(file_name or "")).strip()
     parts = [p for p in folder.split("/") if p]
     if not parts or any(p in {".", ".."} for p in parts) or not all(_KEEP_DIR_OK.fullmatch(p) for p in parts):
+        return None
+    if not _owned_output(parts, device_id):
         return None
     if name != KEEP_SUMMARY_FILE and not _KEEP_PDF.fullmatch(name):
         return None
@@ -282,11 +288,13 @@ def resolve_output_file(dir_name: str | None, file_name: str | None) -> Path | N
     return target
 
 
-def resolve_download(dir_name: str | None, file_name: str | None) -> Path | None:
+def resolve_download(dir_name: str | None, file_name: str | None, device_id: str | None = None) -> Path | None:
     folder = unquote(str(dir_name or "")).strip().replace("\\", "/")
     name = unquote(str(file_name or "")).strip()
     parts = [p for p in folder.split("/") if p]
     if not parts or any(p in {".", ".."} for p in parts) or not all(_KEEP_DIR_OK.fullmatch(p) for p in parts):
+        return None
+    if not _owned_output(parts, device_id):
         return None
     if not _DOWNLOAD_NAME.fullmatch(name):
         return None
@@ -426,6 +434,10 @@ def run_turn(
     calendar: Any = False,
     sources: list[dict[str, str]] | None = None,
     applicant: str = "",
+    device_id: str | None = None,
+    extra_system: str = "",
+    caller_agent: str = "",
+    lift_small_thread: bool = True,
 ) -> dict[str, Any]:
     fields = main._route_fields(prompt, NO_MODEL)
     fields = router.apply_user_controls(
@@ -444,6 +456,10 @@ def run_turn(
         thread_id=thread_id,
         sources=sources,
         applicant=applicant,
+        device_id=device_id,
+        extra_system=extra_system,
+        caller_agent=caller_agent,
+        lift_small_thread=lift_small_thread,
     )
 
 
@@ -461,13 +477,39 @@ class Handler(BaseHTTPRequestHandler):
     def _note_device(self, device_id: str, *, user_agent: str = "", language: str = "") -> None:
         ua = str(user_agent or "").strip() or (self.headers.get("User-Agent") or "")
         lang = str(language or "").strip() or (self.headers.get("Accept-Language") or "").split(",")[0]
+        peer = self._client_ip()
         log_device_meta(
             device_id,
-            ip=self._client_ip(),
+            ip=peer,
             user_agent=ua,
             language=lang,
             path=urlparse(self.path).path,
         )
+        tenant.record_ip(device_id, peer)
+
+    def _claimed_device(self, qs: dict[str, list[str]] | None = None, body: dict[str, Any] | None = None) -> str | None:
+        if body is not None:
+            return parse_device_id(body.get("device"))
+        if qs is not None:
+            return parse_device_id((qs.get("device") or [""])[0])
+        return None
+
+    def _resolve_tenant(
+        self,
+        qs: dict[str, list[str]] | None = None,
+        body: dict[str, Any] | None = None,
+        *,
+        mint: bool = False,
+    ) -> tenant.Tenant | None:
+        found = tenant.resolve(
+            ip=self._client_ip(),
+            cookie=tenant.parse_cookie(self.headers.get("Cookie")),
+            claimed=self._claimed_device(qs, body),
+            mint=mint,
+        )
+        if found is not None:
+            self._pending_cookie = tenant.cookie_header(found.id)
+        return found
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
@@ -475,18 +517,38 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             self._send_index()
             return
-        if path == "/threads":
-            self._send_json(200, {"ok": True, "threads": blackboard.list_threads()})
+        if path == "/whoami":
+            found = self._resolve_tenant(qs, mint=True)
+            if found is None:
+                self._send_json(400, {"ok": False, "error": "missing_device"})
+                return
+            folder = device_dir(found.id)
+            if folder is not None:
+                folder.mkdir(parents=True, exist_ok=True)
+            self._note_device(found.id, language=(qs.get("language") or [""])[0])
+            self._send_json(200, {"ok": True, "device": found.id, "source": found.source})
             return
-        if path == "/history":
-            device = parse_device_id((qs.get("device") or [""])[0])
-            if not device:
+        if path == "/threads":
+            found = self._resolve_tenant(qs)
+            if found is None:
                 self._send_json(400, {"ok": False, "error": "missing_device"})
                 return
             self._send_json(
                 200,
+                {"ok": True, "device": found.id, "threads": blackboard.list_threads(found.id)},
+            )
+            return
+        if path == "/history":
+            found = self._resolve_tenant(qs)
+            if found is None:
+                self._send_json(400, {"ok": False, "error": "missing_device"})
+                return
+            device = found.id
+            self._send_json(
+                200,
                 {
                     "ok": True,
+                    "device": device,
                     "turns": [decorate_turn(t, device) for t in read_history(device)],
                     "active": read_active(device),
                 },
@@ -502,20 +564,21 @@ class Handler(BaseHTTPRequestHandler):
             self._send_ui(PROFILE_FILE)
             return
         if path == "/read-profile":
-            device = parse_device_id((qs.get("device") or [""])[0])
-            if not device:
+            found = self._resolve_tenant(qs)
+            if found is None:
                 self._send_json(400, {"ok": False, "error": "missing_device"})
                 return
-            self._send_json(200, {"ok": True, "profile": career.read_resume(device)})
+            self._send_json(200, {"ok": True, "device": found.id, "profile": career.read_resume(found.id)})
             return
         if path == "/board":
-            device = parse_device_id((qs.get("device") or [""])[0])
-            if not device:
+            found = self._resolve_tenant(qs)
+            if found is None:
                 self._send_json(400, {"ok": False, "error": "missing_device"})
                 return
+            device = found.id
             self._note_device(device, language=(qs.get("language") or [""])[0])
-            board = profile.public_board()
-            self._send_json(200, {"ok": True, **board})
+            board = profile.public_board(device_id=device)
+            self._send_json(200, {"ok": True, "device": device, **board})
             return
         if path == "/download":
             self._send_download()
@@ -543,6 +606,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/upload-file":
             self._upload(kind="file")
             return
+        if path == "/agent-turns":
+            self._agent_turn()
+            return
         if path != "/turns":
             self._send_json(404, {"ok": False, "error": "not_found"})
             return
@@ -557,10 +623,11 @@ class Handler(BaseHTTPRequestHandler):
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._send_json(400, {"ok": False, "error": "bad_json"})
             return
-        device = parse_device_id((body or {}).get("device"))
-        if not device:
+        found = self._resolve_tenant(body=body)
+        if found is None:
             self._send_json(400, {"ok": False, "error": "missing_device"})
             return
+        device = found.id
         prompt = str((body or {}).get("prompt") or "").strip()
         wanted = str((body or {}).get("thread_id") or "").strip() or None
         coding = bool((body or {}).get("coding"))
@@ -651,6 +718,90 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             _BUSY.release()
 
+    def _agent_turn(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length") or "0")
+        except ValueError:
+            self._send_json(400, {"ok": False, "error": "bad_length"})
+            return
+        raw = self.rfile.read(max(length, 0)) if length else b"{}"
+        try:
+            body = json.loads(raw.decode("utf-8") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_json(400, {"ok": False, "error": "bad_json"})
+            return
+        if not parse_device_id((body or {}).get("device")):
+            self._send_json(400, {"ok": False, "error": "missing_device"})
+            return
+        found = self._resolve_tenant(body=body)
+        if found is None:
+            self._send_json(400, {"ok": False, "error": "missing_device"})
+            return
+        device = found.id
+        agent_name = str((body or {}).get("agent") or "").strip()
+        prompt = str((body or {}).get("user") or (body or {}).get("prompt") or "").strip()
+        extra = str((body or {}).get("system") or "").strip()
+        if not prompt:
+            self._send_json(400, {"ok": False, "error": "empty_prompt"})
+            return
+        workbook = blackboard.ensure_agent_thread(device, agent_name)
+        if workbook is None:
+            self._send_json(400, {"ok": False, "error": "bad_agent"})
+            return
+        slug = blackboard.agent_slug(agent_name) or ""
+        if not _BUSY.acquire(blocking=False):
+            self._send_json(409, {"ok": False, "error": "busy"})
+            return
+        started = datetime.now(timezone.utc)
+        try:
+            result = run_turn(
+                prompt,
+                workbook["id"],
+                coding=bool((body or {}).get("coding")),
+                web=(body or {}).get("web"),
+                device_id=device,
+                extra_system=extra,
+                caller_agent=slug,
+                lift_small_thread=False,
+            )
+        except Exception as exc:
+            self._send_json(500, {"ok": False, "error": main._failure_text(exc)})
+            return
+        finally:
+            _BUSY.release()
+        finished = datetime.now(timezone.utc)
+        row = {
+            "time": finished.isoformat(),
+            "started": started.isoformat(),
+            "elapsed_s": max(0, int((finished - started).total_seconds())),
+            "device": device,
+            "agent": slug,
+            "workbook": workbook["id"],
+            "prompt": prompt,
+            "answer": result.get("answer") or "",
+            "run_id": result.get("run_id"),
+            "thread_id": result.get("thread_id") or workbook["id"],
+            "level": result.get("level"),
+            "ok": bool(result.get("ok")),
+        }
+        _append_agent_log(device, slug, row)
+        self._note_device(device)
+        self._send_json(
+            200 if result.get("ok") else 500,
+            {
+                "ok": bool(result.get("ok")),
+                "device": device,
+                "agent": slug,
+                "workbook": workbook["id"],
+                "thread_id": result.get("thread_id") or workbook["id"],
+                "answer": result.get("answer") or "",
+                "run_id": result.get("run_id"),
+                "level": result.get("level"),
+                "notices": list(result.get("notices") or []),
+                "error": result.get("error"),
+            },
+        )
+
     def _stream_turn(
         self,
         prompt: str,
@@ -685,6 +836,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "close")
+        cookie = getattr(self, "_pending_cookie", None)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
         started = datetime.now(timezone.utc)
         set_active(
@@ -726,6 +880,7 @@ class Handler(BaseHTTPRequestHandler):
                         calendar=calendar,
                         sources=sources,
                         applicant=_applicant_line(device_id) if sources else "",
+                        device_id=device_id,
                     )
             except Exception as exc:
                 text = main._failure_text(exc)
@@ -811,10 +966,11 @@ class Handler(BaseHTTPRequestHandler):
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._send_json(400, {"ok": False, "error": "bad_json"})
             return
-        device = parse_device_id((body or {}).get("device"))
-        if not device:
+        found = self._resolve_tenant(body=body)
+        if found is None:
             self._send_json(400, {"ok": False, "error": "missing_device"})
             return
+        device = found.id
         run_id = str((body or {}).get("run_id") or "").strip()
         turn = find_turn(run_id, device)
         if turn is None:
@@ -826,7 +982,7 @@ class Handler(BaseHTTPRequestHandler):
             language=str((body or {}).get("language") or ""),
         )
         update = turn.get("profile_update")
-        result = profile.apply_update(update, run_id)
+        result = profile.apply_update(update, run_id, device_id=device)
         if not result.get("ok"):
             self._send_json(400, result)
             return
@@ -834,10 +990,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send_html(self) -> None:
         qs = parse_qs(urlparse(self.path).query)
-        device = parse_device_id((qs.get("device") or [""])[0])
-        if not device:
+        found = self._resolve_tenant(qs)
+        if found is None:
             self._send_json(400, {"ok": False, "error": "missing_device"})
             return
+        device = found.id
         target = formatter.resolve_page(
             (qs.get("run") or [""])[0],
             (qs.get("n") or [""])[0],
@@ -859,10 +1016,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send_keep(self) -> None:
         qs = parse_qs(urlparse(self.path).query)
+        found = self._resolve_tenant(qs)
+        if found is None:
+            self._send_json(400, {"ok": False, "error": "missing_device"})
+            return
         folder = (qs.get("dir") or [""])[0]
         name = (qs.get("file") or [""])[0]
         download = str((qs.get("download") or [""])[0]).strip() in {"1", "true", "yes"}
-        target = resolve_output_file(folder, name)
+        target = resolve_output_file(folder, name, device_id=found.id)
         if target is None:
             self._send_json(404, {"ok": False, "error": "not_found"})
             return
@@ -963,10 +1124,11 @@ class Handler(BaseHTTPRequestHandler):
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._send_json(400, {"ok": False, "error": "bad_json"})
             return
-        device = parse_device_id((body or {}).get("device"))
-        if not device:
+        found = self._resolve_tenant(body=body)
+        if found is None:
             self._send_json(400, {"ok": False, "error": "missing_device"})
             return
+        device = found.id
         data = (body or {}).get("profile")
         if not isinstance(data, dict):
             self._send_json(400, {"ok": False, "error": "bad_profile"})
@@ -976,7 +1138,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send_download(self) -> None:
         qs = parse_qs(urlparse(self.path).query)
-        target = resolve_download((qs.get("dir") or [""])[0], (qs.get("file") or [""])[0])
+        found = self._resolve_tenant(qs)
+        if found is None:
+            self._send_json(400, {"ok": False, "error": "missing_device"})
+            return
+        target = resolve_download((qs.get("dir") or [""])[0], (qs.get("file") or [""])[0], device_id=found.id)
         if target is None:
             self._send_json(404, {"ok": False, "error": "not_found"})
             return
@@ -1029,6 +1195,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(blob)))
+        cookie = getattr(self, "_pending_cookie", None)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
         self.wfile.write(blob)
 
@@ -1047,17 +1216,24 @@ def serve(host: str = HOST, port: int = PORT, *, no_model: bool = False) -> None
     rotate_ui_session()
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"Mayavi ui  http://{host}:{port}/", flush=True)
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        print("LAN bind: each browser is keyed by Wi-Fi MAC when ARP can see it; cookie/UUID otherwise.", flush=True)
     if no_model:
         print("stub replies (--no-model); weights are not loaded", flush=True)
     httpd.serve_forever()
 
 
 def main_cli(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Mayavi local chat UI (loopback only)")
+    parser = argparse.ArgumentParser(description="Mayavi local chat UI")
     parser.add_argument("--no-model", action="store_true", help="Heuristic route + stub reply (no GGUF load)")
     parser.add_argument("--port", type=int, default=PORT)
+    parser.add_argument(
+        "--host",
+        default=HOST,
+        help="Bind address (default 127.0.0.1). Use 0.0.0.0 so phones on this Wi-Fi can reach it.",
+    )
     args = parser.parse_args(argv)
-    serve(HOST, args.port, no_model=args.no_model)
+    serve(args.host, args.port, no_model=args.no_model)
     return 0
 
 

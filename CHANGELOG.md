@@ -6,6 +6,19 @@ Newest version first — the top entry is the current feature set, older release
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-11-23
+
+`POST /agent-turns` is for other programs on this box. Body is `device`, `agent`, `user`, optional `system`, `web`, and `coding`. Each device + agent name shares one durable workbook (`agent_<slug>.json`) that is updated after every turn, including small jobs. Caller `system` is appended under host rules. Same busy lock as the HTML chat. JSON in, JSON out.
+
+## [1.2.0] - 2026-11-22
+
+Chat UI tenancy is per device on the LAN, not per IP and not a shared notebook list.
+
+- `GET /whoami` sets an HttpOnly `mayavi_device` cookie. On the same Wi-Fi the server hashes the client's MAC (ARP/NDP) so reconnects and DHCP renewals keep the same slice. Loopback and guests fall back to the cookie or a claimed UUID.
+- History, job resume, operator board, notebooks, and keep folders live under that device id. `GET /threads` only lists that device's cards. Keep/download URLs must stay inside `outputs/<device>/…`.
+- `python app.py --host 0.0.0.0` binds the LAN so phones can reach it. Default remains `127.0.0.1`.
+- IP is still written to `meta.jsonl` and the tenant index `seen_ips` list. It is never used to look up a session.
+
 ## [1.1.0] - 2026-09-28
 
 Large runs split into two loops. **Coding** is an operator control (CLI `--code`, UI checkbox), not a router guess. High stakes without coding restores the builders + executor **review** committee. Coding plus high stakes stays sequential.
