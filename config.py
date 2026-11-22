@@ -146,6 +146,13 @@ def use_temp(root: Path, *, allow_hf: bool = False) -> None:
     MODELS_JSON = manifest
     _ensure_dirs()
     refresh_paths()
+    try:
+        import memory
+
+        memory.use_hash_embeddings()
+        memory.reset()
+    except Exception:
+        pass
 
 
 _ensure_dirs()

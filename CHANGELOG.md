@@ -6,6 +6,10 @@ Newest version first — the top entry is the current feature set, older release
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-11-23
+
+Host memory index. Chat logs and notebook JSON stay the source of truth. Chroma under `state/chroma/` is a per-device search index (`turn` / `card`). On each turn the host retrieves a short pack and pins it; the model does not query Chroma. `python mcp_server.py` exposes `list_notebooks`, `get_notebook`, `search_memory`, and `read_log_span` (device required). Job / coding / web MCP packs are not in this release.
+
 ## [1.2.1] - 2026-11-23
 
 `POST /agent-turns` is for other programs on this box. Body is `device`, `agent`, `user`, optional `system`, `web`, and `coding`. Each device + agent name shares one durable workbook (`agent_<slug>.json`) that is updated after every turn, including small jobs. Caller `system` is appended under host rules. Same busy lock as the HTML chat. JSON in, JSON out.

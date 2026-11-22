@@ -111,7 +111,7 @@ python main.py --thread thr_abc123def4 "tweak the third bullet"
 python app.py
 ```
 
-`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /whoami`, `GET /threads`, `GET /history`, `GET /profile`, `GET /html`, `GET /web-status`, `POST /profile`, `POST /turns`, `POST /agent-turns`). Use `--host 0.0.0.0` so other devices on this Wi-Fi can open it. Double-click `run-mayavi.bat` to start it on port **9001** and open the browser. The dropdown lists that device's durable notebooks (`thr_…`) from medium and large runs. A **Web** checkbox sits left of **Coding**. Web is disabled when `GET /web-status` reports no network or no search keys (the JSON never includes keys). When **Coding** is on, a GitHub URL field appears (`https://github.com/owner/repo` only). Empty or invalid URLs hide git tools. Bot replies render as Markdown (raw HTML in the text is escaped). Fenced `html` blocks and full HTML documents get a **View HTML page** button on that reply (new tab, CSP, no scripts). PDFs the run wrote appear under that reply (icon, filename, **Save to PDF**). If the worker emitted a structured `profile_update`, that reply gets **Save to board**. Each client is keyed by a hashed LAN MAC when the server can see it (stable across Wi-Fi reconnects on this SSID), otherwise by an HttpOnly cookie / UUID. History hydrates from `state/ui-session/<device>/session.jsonl`. Notebooks sit in `threads/` under that folder. Other programs call `POST /agent-turns` with `device`, `agent`, and `user` (optional `system`, `web`, `coding`) to continue a named workbook (`agent_<slug>.json`) instead of a new chat. Starting the server does not wipe those tapes. Peer IP, User-Agent, and language are appended to `meta.jsonl` in that folder for later analytics; they are not used to look up a session. `python app.py --no-model` uses the same stubs as the CLI.
+`python app.py` serves a loopback chat UI at `http://127.0.0.1:8765/` (`GET /`, `GET /whoami`, `GET /threads`, `GET /history`, `GET /profile`, `GET /html`, `GET /web-status`, `POST /profile`, `POST /turns`, `POST /agent-turns`). Use `--host 0.0.0.0` so other devices on this Wi-Fi can open it. Double-click `run-mayavi.bat` to start it on port **9001** and open the browser. The dropdown lists that device's durable notebooks (`thr_…`) from medium and large runs. A **Web** checkbox sits left of **Coding**. Web is disabled when `GET /web-status` reports no network or no search keys (the JSON never includes keys). When **Coding** is on, a GitHub URL field appears (`https://github.com/owner/repo` only). Empty or invalid URLs hide git tools. Bot replies render as Markdown (raw HTML in the text is escaped). Fenced `html` blocks and full HTML documents get a **View HTML page** button on that reply (new tab, CSP, no scripts). PDFs the run wrote appear under that reply (icon, filename, **Save to PDF**). If the worker emitted a structured `profile_update`, that reply gets **Save to board**. Each client is keyed by a hashed LAN MAC when the server can see it (stable across Wi-Fi reconnects on this SSID), otherwise by an HttpOnly cookie / UUID. History hydrates from `state/ui-session/<device>/session.jsonl`. Notebooks sit in `threads/` under that folder. Other programs call `POST /agent-turns` with `device`, `agent`, and `user` (optional `system`, `web`, `coding`) to continue a named workbook (`agent_<slug>.json`) instead of a new chat. Related earlier turns are retrieved by the host from a Chroma index (`state/chroma/`) and pinned as a short pack. Extra clients can call the same slice over MCP: `python mcp_server.py` (`list_notebooks`, `get_notebook`, `search_memory`, `read_log_span`; every tool needs `device`). Starting the server does not wipe those tapes. Peer IP, User-Agent, and language are appended to `meta.jsonl` in that folder for later analytics; they are not used to look up a session. `python app.py --no-model` uses the same stubs as the CLI.
 
 Double-clickable live checks (open a cmd window, show Prompt / Response / Meta, pause):
 
@@ -131,6 +131,12 @@ ok=True level=small stakes=low mail_cal=off run_id=run_...
 ```
 
 If the model produced no `final`/vote/draft, Response is `(empty — the model produced no user-facing answer)` even when the process exits 0.
+
+## Memory index
+
+Chat logs and notebook JSON stay the source of truth. `state/chroma/` is a search index keyed by device (and workbook when the turn has one). On `/turns` and `/agent-turns` the host retrieves a short pack and pins it in the user message; the model does not query Chroma. Tests and `--no-model` use a hash embedder so MiniLM is not downloaded.
+
+Extra clients can call the same slice over stdio MCP (`python mcp_server.py`): `list_notebooks`, `get_notebook`, `search_memory`, `read_log_span`. Every tool requires `device`. Job / coding / web skill packs are not in this release.
 
 ## Configuration
 
@@ -328,6 +334,8 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `main.py` | CLI |
 | `app.py` | Chat UI (`127.0.0.1:8765`, `--host 0.0.0.0` for LAN) |
 | `tenant.py` | LAN MAC / cookie device key |
+| `memory.py` | Chroma index + host retrieval pack |
+| `mcp_server.py` | Stdio MCP for notebooks / memory / logs |
 | `ui/index.html` | Chat page served by `app.py` |
 | `router.py` | Router prompt, parse, `mapRoute`, heuristic fallback |
 | `executor.py` | Factory: agents, worker threads, sandbox, session, OAuth connect, run lifecycle |

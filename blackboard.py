@@ -296,6 +296,46 @@ def list_threads(device_id: str | None = None) -> list[dict[str, Any]]:
     return rows
 
 
+def list_workbooks(device_id: str | None = None) -> list[dict[str, Any]]:
+    """Human notebooks plus durable agent workbooks for that device."""
+    rows = list_threads(device_id)
+    folder = _thread_dir(device_id)
+    if folder is None or not folder.is_dir():
+        return rows
+    seen = {row["id"] for row in rows}
+    paths = sorted(folder.glob("agent_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for path in paths:
+        blob = load_thread(path.stem, device_id=device_id)
+        if blob is None or blob["id"] in seen:
+            continue
+        seen.add(blob["id"])
+        rows.append(
+            {
+                "id": blob["id"],
+                "title": blob.get("title") or blob["id"],
+                "updated": blob.get("updated"),
+                "last_level": blob.get("last_level"),
+                "agent": blob.get("agent") or "",
+            }
+        )
+    return rows
+
+
+def resolve_workbook(device_id: str, workbook: str) -> dict[str, Any] | None:
+    """Load a thr_ or agent_ card. Agent names are accepted as well as ids."""
+    did = tenant.parse_device_id(device_id)
+    wanted = str(workbook or "").strip()
+    if not did or not wanted:
+        return None
+    loaded = load_thread(wanted, device_id=did)
+    if loaded is not None:
+        return loaded
+    tid = agent_thread_id(wanted)
+    if tid:
+        return load_thread(tid, device_id=did)
+    return None
+
+
 def load_thread(thread_id: str, device_id: str | None = None) -> dict[str, Any] | None:
     path = _thread_path(thread_id, device_id=device_id)
     if path is None or not path.is_file():

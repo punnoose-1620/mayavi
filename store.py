@@ -131,6 +131,7 @@ class Run:
     extra_system: str = ""
     caller_agent: str = ""
     lift_small_thread: bool = True
+    memory_pack: str = ""
 
 
 _RUNS: dict[str, Run] = {}

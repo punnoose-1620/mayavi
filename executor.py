@@ -320,6 +320,7 @@ def run_session(
             summary=f"notes count={len(run.sources)}",
         )
     blackboard.bind_thread(run, thread_id, lift_small=run.lift_small_thread)
+    run.memory_pack = _retrieve_memory(run)
     if blackboard.shipped_keep_paths(run.thread):
         if not _ops_needed(run.file_ops):
             run.file_ops = "1"
@@ -343,6 +344,12 @@ def run_session(
             answer = _run_large(run)
         answer = _user_answer(run, answer)
         blackboard.distill(run, answer)
+        try:
+            import memory
+
+            memory.index_run(run, answer)
+        except Exception:
+            pass
     finally:
         _teardown(run)
         if run.level == "large":
@@ -768,6 +775,9 @@ def _run_agent_loop(run: Run, agent: Agent) -> dict[str, Any]:
     workbook = _workbook_notes(run)
     if workbook:
         user = workbook + "\n\nCurrent request:\n" + user
+    pack = str(getattr(run, "memory_pack", "") or "").strip()
+    if pack:
+        user = pack + "\n\nCurrent request:\n" + user
     if run.summarize_keep and run.keep_path is not None:
         user = (
             f"The build shipped to {run.keep_path}. "
@@ -1857,6 +1867,21 @@ def _thread_note(run: Run) -> str:
             "Prior digest and keep paths are in the user message. Continue that job; do not start over.\n"
         )
     return "An earlier reply on this thread is history. It is not the current request.\n"
+
+
+def _retrieve_memory(run: Run) -> str:
+    try:
+        import memory
+    except Exception:
+        return ""
+    return memory.retrieve_pack(
+        run.device_id,
+        run.user_prompt,
+        workbook=str(run.thread_id or ""),
+        force=bool(run.thread_id),
+        coding=bool(run.coding),
+        web=bool(run.web),
+    )
 
 
 def _workbook_notes(run: Run) -> str:
