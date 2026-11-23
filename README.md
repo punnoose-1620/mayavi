@@ -7,7 +7,19 @@ Local multi-agent runtime that routes a user request into a **small**, **medium*
 
 It is designed to run on a single machine (overnight / sequential). It does **not** keep five models in RAM. Weights come from Hugging Face as GGUF files. Inference uses llama.cpp (`llama-cpp-python`).
 
-Release history lives in [`documentation/CHANGELOG.md`](documentation/CHANGELOG.md), newest version **first** (`1.1.0` above `1.0.0`, and so on), so the top entry is always the current feature set.
+Release history lives in [`documentation/CHANGELOG.md`](documentation/CHANGELOG.md), newest version **first**. The current feature set is **1.3.1**.
+
+## Documentation
+
+| Doc | What it is |
+| --- | --- |
+| [`documentation/CHANGELOG.md`](documentation/CHANGELOG.md) | Release history, newest first |
+| [`documentation/Hardware Requirements.md`](documentation/Hardware%20Requirements.md) | Ubuntu/Windows floors, RAM, GPU, disk |
+| [`documentation/Server Hardware.md`](documentation/Server%20Hardware.md) | Headless box cart (CPU, GPU, disks) |
+| [`documentation/Multi-Phase Testing (Testing Plan).md`](documentation/Multi-Phase%20Testing%20(Testing%20Plan).md) | Multi-phase eval plan |
+| [`documentation/Multi-Phase Testing (Results).md`](documentation/Multi-Phase%20Testing%20(Results).md) | Multi-phase eval results |
+| [`documentation/Memory Board Continuity (Results).md`](documentation/Memory%20Board%20Continuity%20(Results).md) | Memory-board continuity results |
+| [`documentation/Quality Test Results.md`](documentation/Quality%20Test%20Results.md) | Quality-test results |
 
 ## What it does
 
@@ -48,7 +60,7 @@ Without the operator **coding** flag, a snippet request still gets the code in t
 
 ## Requirements
 
-Machine-by-machine floors (Ubuntu vs Windows, headless vs desktop, named NVIDIA and Ryzen SKUs) are in [`documentation/Hardware Requirements.md`](documentation/Hardware%20Requirements.md).
+Machine-by-machine floors (Ubuntu vs Windows, headless vs desktop, named NVIDIA and Ryzen SKUs) are in [`documentation/Hardware Requirements.md`](documentation/Hardware%20Requirements.md). A sample headless cart is in [`documentation/Server Hardware.md`](documentation/Server%20Hardware.md).
 
 - Python 3.11+
 - Enough disk for GGUFs (~7GB backup set, or ~40GB full USB set on a 64GB stick)
@@ -168,7 +180,7 @@ Relative paths in `.env` are resolved from the **repo root**, not the current wo
 | --- | --- |
 | `src/` | Python runtime (`app.py` / `main.py` stay at the repo root). |
 | `scripts/` | `install.ps1` / `install.sh`. |
-| `documentation/` | Changelog, hardware notes, coding-rules pointer. |
+| `documentation/` | Changelog, hardware notes, server cart, eval plans and results. |
 | `runtime/input/` | Allowed **read** root. Put source documents here. |
 | `runtime/outputs/` | Allowed **write** root. `write_doc` / `write_pdf` / `write_json` / `append_file` / `mkdir` only write here. |
 | `runtime/outputs/<YYYY-MM-DD>_<intent>/` | Keep folder for one large run. After ship: sandbox files, `result.txt`, and factory `SUMMARY.md`. |
@@ -367,7 +379,12 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `src/formatter.py` | Chat-answer Markdown HTML + sandboxed HTML pages. Agents never import this. |
 | `src/coding/rules.md` | Injected on every coding committee run |
 | `documentation/Hardware Requirements.md` | Ubuntu/Windows, headless vs desktop, named NVIDIA and Ryzen SKUs |
-| `documentation/CHANGELOG.md` | Hand-written release history, newest first (never updated automatically) |
+| `documentation/Server Hardware.md` | Headless box cart (CPU, GPU, disks) |
+| `documentation/CHANGELOG.md` | Hand-written release history, newest first (never updated automatically). Current version **1.3.1**. |
+| `documentation/Multi-Phase Testing (Testing Plan).md` | Multi-phase eval plan |
+| `documentation/Multi-Phase Testing (Results).md` | Multi-phase eval results |
+| `documentation/Memory Board Continuity (Results).md` | Memory-board continuity results |
+| `documentation/Quality Test Results.md` | Quality-test results |
 | `scripts/install.ps1` / `scripts/install.sh` | Setup only: venv, both requirement files, `.env`. No models, no secrets |
 | `src/downloader-scripts/` | HF GGUF fetchers (not imported by the runtime) |
 | `usb-chat/` | Standalone USB GGUF chat (not the committee). Copy onto the stick; see [`usb-chat/README.md`](usb-chat/README.md) |
