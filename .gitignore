@@ -220,12 +220,12 @@ __marimo__/
 
 # id10t runtime
 *.gguf
-/state
-/sandboxes
-/outputs/*
-!/outputs/.gitkeep
-/input/*
-!/input/.gitkeep
+/runtime/state/
+/runtime/sandboxes/
+/runtime/outputs/*
+!/runtime/outputs/.gitkeep
+/runtime/input/*
+!/runtime/input/.gitkeep
 /models/*
 !/models/.gitkeep
 token_google_*.json
@@ -234,9 +234,11 @@ createdIndex.json
 /tests
 /inputs
 /input
+/state
+/sandboxes
+/outputs
 /docs
 /essential-auths
 /usb-chat
-/scripts/seeds/csv-sql/data
-/scripts
+/src/eval
 /_tmp_write_box

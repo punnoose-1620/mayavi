@@ -5,7 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Any
+
+_SRC = Path(__file__).resolve().parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
 import executor
 import models
@@ -22,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
         "--thread",
         default=None,
         metavar="thr_id",
-        help="Attach a durable thread (state/threads). Raises a mapped-small run to medium.",
+        help="Attach a durable thread (runtime/state/threads). Raises a mapped-small run to medium.",
     )
     parser.add_argument("--code", action="store_true", help="Run the sequential coding committee")
     parser.add_argument(
@@ -75,8 +80,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 FAILURE_TEXT = {
-    "sandbox_leak": "Could not delete this run's sandbox. Remove it under sandboxes/ before the next run.",
-    "log_write_failed": "The audit log could not be written, so this run was stopped. Check state/logs/.",
+    "sandbox_leak": "Could not delete this run's sandbox. Remove it under runtime/sandboxes/ before the next run.",
+    "log_write_failed": "The audit log could not be written, so this run was stopped. Check runtime/state/logs/.",
 }
 
 
@@ -123,7 +128,7 @@ def _print_run(prompt: str, result: dict[str, Any]) -> None:
 
 NOTICE_TEXT = {
     "mail_connect_failed": "Mail/calendar consent did not complete, so this run had no inbox access.",
-    "thread_not_found": "That thread id was not found under state/threads/, so this run did not attach a notebook.",
+    "thread_not_found": "That thread id was not found under runtime/state/threads/, so this run did not attach a notebook.",
     "model_unavailable": "The worker GGUF did not load; the answer names the reason.",
     "web_not_configured": "Web search is off because no CSE, SerpAPI, or ScraperAPI keys are set.",
     "web_offline": "Web search is off because this machine has no network.",

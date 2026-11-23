@@ -7,6 +7,7 @@ import email
 import html
 import json
 import re
+import sys
 import threading
 from email.policy import default as email_default
 from datetime import datetime, timezone
@@ -14,6 +15,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
+
+_SRC = Path(__file__).resolve().parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
 import blackboard
 import career
