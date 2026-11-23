@@ -27,6 +27,7 @@ import executor
 import formatter
 import logger
 import main
+import models
 import profile
 import router
 import search
@@ -428,6 +429,50 @@ def _applicant_line(device_id: str) -> str:
     return ", ".join(bit for bit in (name, location) if bit)
 
 
+def _is_loopback(ip: str) -> bool:
+    text = str(ip or "").strip().lower()
+    if text.startswith("::ffff:"):
+        text = text[7:]
+    return text in {"127.0.0.1", "::1", "localhost"} or text.startswith("127.")
+
+
+def _chat_content(raw: Any) -> str:
+    if raw is None:
+        return ""
+    if isinstance(raw, str):
+        return raw
+    if isinstance(raw, dict):
+        return str(raw.get("text") or raw.get("content") or "")
+    if isinstance(raw, list):
+        parts: list[str] = []
+        for item in raw:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                parts.append(str(item.get("text") or item.get("content") or ""))
+        return "".join(parts)
+    return str(raw)
+
+
+def _chat_messages(rows: Any) -> tuple[str, str] | None:
+    if not isinstance(rows, list) or not rows:
+        return None
+    system = ""
+    user = ""
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        role = str(row.get("role") or "").strip().lower()
+        text = _chat_content(row.get("content"))
+        if role == "system":
+            system = text
+        elif role == "user":
+            user = text
+    if not system.strip() or not user.strip():
+        return None
+    return system, user
+
+
 def run_turn(
     prompt: str,
     thread_id: str | None,
@@ -614,6 +659,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/agent-turns":
             self._agent_turn()
             return
+        if path == "/v1/chat/completions":
+            self._chat_completions()
+            return
         if path != "/turns":
             self._send_json(404, {"ok": False, "error": "not_found"})
             return
@@ -722,6 +770,118 @@ class Handler(BaseHTTPRequestHandler):
             )
         finally:
             _BUSY.release()
+
+    def _chat_completions(self) -> None:
+        """OpenAI-shaped door for career-ops. One generation, no workbook, no tools."""
+        if not _is_loopback(self._client_ip()):
+            self._send_plain(403, "loopback only")
+            return
+        try:
+            length = int(self.headers.get("Content-Length") or "0")
+        except ValueError:
+            self._send_plain(400, "bad_length")
+            return
+        raw = self.rfile.read(max(length, 0)) if length else b""
+        try:
+            body = json.loads(raw.decode("utf-8") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_plain(400, "bad_json")
+            return
+        if not isinstance(body, dict):
+            self._send_plain(400, "bad_body")
+            return
+        parsed = _chat_messages(body.get("messages"))
+        if parsed is None:
+            self._send_plain(400, "bad_body")
+            return
+        system, user = parsed
+        stream = bool(body.get("stream"))
+        try:
+            temperature = float(body["temperature"]) if "temperature" in body else 0.4
+        except (TypeError, ValueError):
+            self._send_plain(400, "bad_body")
+            return
+        try:
+            max_tokens = int(body["max_tokens"]) if "max_tokens" in body else 32768
+        except (TypeError, ValueError):
+            self._send_plain(400, "bad_body")
+            return
+        if NO_MODEL:
+            self._send_plain(503, "no local model")
+            return
+        if not _BUSY.acquire(blocking=False):
+            self._send_plain(409, "busy")
+            return
+        try:
+            out = models.generate_open(
+                [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                temperature=temperature,
+                max_tokens=max_tokens,
+                agent_name="career-ops",
+            )
+        except Exception as exc:
+            self._send_plain(500, type(exc).__name__)
+            return
+        finally:
+            _BUSY.release()
+        if not out.get("ok"):
+            err = str(out.get("error") or "generate_failed")
+            code = 404 if err == "unknown_model" else 500
+            self._send_plain(code, err)
+            return
+        text = str(out.get("text") or "")
+        if not text.strip():
+            self._send_plain(500, "empty_content")
+            return
+        if stream:
+            self._send_chat_stream(text)
+            return
+        self._send_json(
+            200,
+            {
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": text},
+                        "finish_reason": "stop",
+                    }
+                ]
+            },
+        )
+
+    def _send_chat_stream(self, text: str) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        step = 120
+        try:
+            for i in range(0, len(text), step):
+                chunk = text[i : i + step]
+                payload = json.dumps(
+                    {"choices": [{"index": 0, "delta": {"content": chunk}}]},
+                    ensure_ascii=False,
+                )
+                self.wfile.write(f"data: {payload}\n\n".encode("utf-8"))
+                self.wfile.flush()
+            done = json.dumps(
+                {"choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]},
+                ensure_ascii=False,
+            )
+            self.wfile.write(f"data: {done}\n\n".encode("utf-8"))
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+        except OSError:
+            return
+
+    def _send_plain(self, code: int, text: str) -> None:
+        blob = str(text or "").encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(blob)))
+        self.end_headers()
+        self.wfile.write(blob)
 
     def _agent_turn(self) -> None:
         try:

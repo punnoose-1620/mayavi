@@ -23,6 +23,10 @@ _LLM = None
 _LOADED_ROLE: str | None = None
 _LOADED_PATH: Path | None = None
 _LOADED_ROOT: str | None = None
+_LOADED_N_CTX: int | None = None
+DEFAULT_N_CTX = 4096
+OPEN_MAX_CTX = 32768
+_CTX_STEPS = (4096, 8192, 16384, 32768)
 _LETTER = None
 _LETTER_LOCK = threading.Lock()
 _LETTER_ROLE: str | None = None
@@ -201,10 +205,26 @@ def resolveModel(role: str) -> dict[str, Any]:
     )
 
 
-def loadModel(role: str) -> dict[str, Any]:
+def _estimate_tokens(text: str) -> int:
+    raw = text or ""
+    if not raw:
+        return 0
+    return max(1, len(raw) // 4)
+
+
+def _snap_ctx(needed: int) -> int:
+    need = max(DEFAULT_N_CTX, min(int(needed or DEFAULT_N_CTX), OPEN_MAX_CTX))
+    for size in _CTX_STEPS:
+        if need <= size:
+            return size
+    return OPEN_MAX_CTX
+
+
+def loadModel(role: str, n_ctx: int | None = None) -> dict[str, Any]:
     """Load one GGUF with mmap. Not exercised until weights exist on disk."""
-    global _LLM, _LOADED_ROLE, _LOADED_PATH, _LOADED_ROOT
+    global _LLM, _LOADED_ROLE, _LOADED_PATH, _LOADED_ROOT, _LOADED_N_CTX
     run_id, agent = _ctx()
+    want_ctx = max(512, min(int(n_ctx or DEFAULT_N_CTX), OPEN_MAX_CTX))
     resolved = resolveModel(role)
     if not resolved.get("ok"):
         return logger.finish(
@@ -215,14 +235,27 @@ def loadModel(role: str) -> dict[str, Any]:
             result={"ok": False, "error": resolved.get("error", "resolve_failed"), "role": role},
         )
     path = Path(resolved["path"])
-    if _LLM is not None and _LOADED_ROLE == role and _LOADED_PATH == path:
+    if (
+        _LLM is not None
+        and _LOADED_ROLE == role
+        and _LOADED_PATH == path
+        and _LOADED_N_CTX is not None
+        and _LOADED_N_CTX >= want_ctx
+    ):
         return logger.finish(
             event="factory",
             tool="loadModel",
             run_id=run_id,
             agent_name=agent,
-            result={"ok": True, "role": role, "root": _LOADED_ROOT, "path": str(path), "reused": True},
-            summary=f"role={role} reused",
+            result={
+                "ok": True,
+                "role": role,
+                "root": _LOADED_ROOT,
+                "path": str(path),
+                "n_ctx": _LOADED_N_CTX,
+                "reused": True,
+            },
+            summary=f"role={role} reused n_ctx={_LOADED_N_CTX}",
         )
     if _LLM is not None:
         unloadModel()
@@ -245,7 +278,7 @@ def loadModel(role: str) -> dict[str, Any]:
         _LLM = Llama(
             model_path=str(path),
             use_mmap=True,
-            n_ctx=4096,
+            n_ctx=want_ctx,
             n_gpu_layers=layers,
             embedding=True,
             verbose=False,
@@ -253,6 +286,7 @@ def loadModel(role: str) -> dict[str, Any]:
         _LOADED_ROLE = role
         _LOADED_PATH = path
         _LOADED_ROOT = resolved.get("root")
+        _LOADED_N_CTX = want_ctx
         return logger.finish(
             event="factory",
             tool="loadModel",
@@ -263,6 +297,7 @@ def loadModel(role: str) -> dict[str, Any]:
                 "role": role,
                 "root": _LOADED_ROOT,
                 "path": str(path),
+                "n_ctx": want_ctx,
                 "n_gpu_layers": layers,
                 "gpu": gpu.get("reason"),
             },
@@ -273,7 +308,7 @@ def loadModel(role: str) -> dict[str, Any]:
                 _LLM = Llama(
                     model_path=str(path),
                     use_mmap=True,
-                    n_ctx=4096,
+                    n_ctx=want_ctx,
                     n_gpu_layers=0,
                     embedding=True,
                     verbose=False,
@@ -281,6 +316,7 @@ def loadModel(role: str) -> dict[str, Any]:
                 _LOADED_ROLE = role
                 _LOADED_PATH = path
                 _LOADED_ROOT = resolved.get("root")
+                _LOADED_N_CTX = want_ctx
                 return logger.finish(
                     event="factory",
                     tool="loadModel",
@@ -291,6 +327,7 @@ def loadModel(role: str) -> dict[str, Any]:
                         "role": role,
                         "root": _LOADED_ROOT,
                         "path": str(path),
+                        "n_ctx": want_ctx,
                         "n_gpu_layers": 0,
                         "gpu": "fallback_cpu",
                     },
@@ -300,6 +337,9 @@ def loadModel(role: str) -> dict[str, Any]:
                 exc = retry_exc
         _LLM = None
         _LOADED_ROLE = None
+        _LOADED_PATH = None
+        _LOADED_ROOT = None
+        _LOADED_N_CTX = None
         return logger.finish(
             event="factory",
             tool="loadModel",
@@ -310,7 +350,7 @@ def loadModel(role: str) -> dict[str, Any]:
 
 
 def unloadModel() -> dict[str, Any]:
-    global _LLM, _LOADED_ROLE, _LOADED_PATH, _LOADED_ROOT
+    global _LLM, _LOADED_ROLE, _LOADED_PATH, _LOADED_ROOT, _LOADED_N_CTX
     run_id, agent = _ctx()
     role = _LOADED_ROLE
     llm = _LLM
@@ -318,6 +358,7 @@ def unloadModel() -> dict[str, Any]:
     _LOADED_ROLE = None
     _LOADED_PATH = None
     _LOADED_ROOT = None
+    _LOADED_N_CTX = None
     if llm is not None:
         close = getattr(llm, "close", None)
         if callable(close):
@@ -593,6 +634,46 @@ def generate(role: str, prompt: str | None = None, messages: list[dict[str, str]
         _INFER_LOCK.release()
 
 
+def generate_open(
+    messages: list[dict[str, str]],
+    *,
+    temperature: float = 0.4,
+    max_tokens: int = 16384,
+    agent_name: str = "career-ops",
+) -> dict[str, Any]:
+    """One-shot chat completion. Leaves the GGUF loaded. Does not truncate messages."""
+    role = pick_role("language", ("builder_llama", "builder_qwen", "executor", "router"))
+    try:
+        requested = int(max_tokens)
+    except (TypeError, ValueError):
+        requested = 16384
+    if requested < 1:
+        requested = 16384
+    prompt_tokens = sum(_estimate_tokens(str(item.get("content") or "")) for item in messages) + 32
+    n_ctx = _snap_ctx(prompt_tokens + requested + 64)
+    loaded = loadModel(role, n_ctx=n_ctx)
+    if not loaded.get("ok"):
+        err = str(loaded.get("error") or "unknown_model")
+        if err in {"not_found", "resolve_failed"}:
+            err = "unknown_model"
+        return {"ok": False, "error": err, "role": role}
+    ctx = int(loaded.get("n_ctx") or n_ctx)
+    room = max(1, ctx - prompt_tokens - 64)
+    limit = min(requested, room)
+    try:
+        temp = float(temperature)
+    except (TypeError, ValueError):
+        temp = 0.4
+    temp = max(0.0, min(temp, 2.0))
+    return generate(
+        role,
+        messages=messages,
+        agent_name=agent_name,
+        temperature=temp,
+        max_tokens=limit,
+    )
+
+
 def _fold_system_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
     systems: list[str] = []
     rest: list[dict[str, str]] = []
@@ -601,7 +682,7 @@ def _fold_system_messages(messages: list[dict[str, str]]) -> list[dict[str, str]
         content = str(msg.get("content") or "")
         if role == "system":
             if content.strip():
-                systems.append(content.strip())
+                systems.append(content)
             continue
         rest.append({"role": role if role in {"user", "assistant"} else "user", "content": content})
     if not systems:

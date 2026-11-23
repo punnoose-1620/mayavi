@@ -6,6 +6,14 @@ Newest version first — the top entry is the current feature set, older release
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-11-23
+
+Career-ops `max_tokens` is the generation cap, not a fixed 2048. The GGUF for that door loads a context window sized to prompt plus that cap (4k / 8k / 16k / 32k). Factory chat still uses 4096 context and 512 new tokens. Rolling history is unchanged and is not used on `/v1/chat/completions`.
+
+## [1.3.2] - 2026-11-23
+
+`POST /v1/chat/completions` for career-ops on the loopback UI server. One independent generation: full caller system prompt, no router, no tools, no workbook. Incoming `model` is ignored; Mayavi picks a ready GGUF. `stream: true` is SSE deltas then `stop` / `[DONE]`. `stream: false` is a single assistant JSON message. Failures are non-200 plain text. `POST /agent-turns` is unchanged.
+
 ## [1.3.1] - 2026-11-23
 
 Repo layout. Python lives in `src/` (`app.py` / `main.py` stay at the root and put `src/` on `sys.path`). Installers live in `scripts/`. Markdown other than `README.md` lives in `documentation/`. Live data (`input/`, `outputs/`, `state/`, `sandboxes/`) lives under `runtime/`. GGUFs stay in `models/`. Stdio MCP is `python src/mcp_server.py`.
