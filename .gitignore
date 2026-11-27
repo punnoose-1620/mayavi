@@ -242,3 +242,6 @@ createdIndex.json
 /usb-chat
 /src/eval
 /_tmp_write_box
+scripts/pull-laptop.bat
+scripts/pull-laptop.ps1
+scripts/remote-pull-restart.sh

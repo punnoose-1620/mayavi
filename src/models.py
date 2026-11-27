@@ -6,6 +6,7 @@ import gc
 import hashlib
 import importlib.util
 import json
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -113,6 +114,77 @@ def role_is_ready(role: str) -> bool:
         if role in _THIN_ROLES:
             return True
     return False
+
+
+def short_model_name(filename: str) -> str:
+    """Family + generation only: 'Qwen 2.5', 'Gemma 3'. Not size or quant."""
+    stem = Path(str(filename or "")).stem.replace("_", "-")
+    low = stem.casefold()
+    marks = (
+        (r"qwen[-.]?3", "Qwen 3"),
+        (r"qwen[-.]?2\.5", "Qwen 2.5"),
+        (r"qwen[-.]?2", "Qwen 2"),
+        (r"gemma[-.]?3", "Gemma 3"),
+        (r"gemma[-.]?2", "Gemma 2"),
+        (r"gemma", "Gemma"),
+        (r"llama[-.]?3\.3", "Llama 3.3"),
+        (r"llama[-.]?3\.2", "Llama 3.2"),
+        (r"llama[-.]?3\.1", "Llama 3.1"),
+        (r"llama[-.]?3", "Llama 3"),
+        (r"deepseek", "DeepSeek"),
+        (r"yi[-.]?coder", "Yi Coder"),
+        (r"phi[-.]?3", "Phi 3"),
+        (r"mistral", "Mistral"),
+    )
+    for pattern, name in marks:
+        if re.search(pattern, low):
+            return name
+    token = re.split(r"[-.]", stem)[0].strip()
+    return token[:24] if token else "the model"
+
+
+def loaded_short_name() -> str:
+    if _LOADED_PATH is None:
+        return ""
+    return short_model_name(Path(_LOADED_PATH).name)
+
+
+def loadable_models() -> list[dict[str, Any]]:
+    """Unique on-disk GGUFs that fit free RAM (file * 1.2 + 2 GB). Largest first."""
+    found: dict[str, dict[str, Any]] = {}
+    for role, spec in (load_manifest().get("roles") or {}).items():
+        for item in _candidates(role, spec):
+            path = item.get("path")
+            if not path:
+                continue
+            path = Path(path)
+            try:
+                if not path.is_file() or not _ram_ok(path):
+                    continue
+                key = str(path.resolve())
+                size = path.stat().st_size
+            except OSError:
+                continue
+            filename = str(item.get("filename") or path.name)
+            found[key] = {
+                "name": short_model_name(filename),
+                "bytes": size,
+                "filename": filename,
+            }
+    if _LOADED_PATH is not None:
+        try:
+            path = Path(_LOADED_PATH)
+            if path.is_file():
+                key = str(path.resolve())
+                if key not in found:
+                    found[key] = {
+                        "name": short_model_name(path.name),
+                        "bytes": path.stat().st_size,
+                        "filename": path.name,
+                    }
+        except OSError:
+            pass
+    return sorted(found.values(), key=lambda row: int(row.get("bytes") or 0), reverse=True)
 
 
 def checkRam(role: str, file_path: str | Path | None = None) -> dict[str, Any]:

@@ -185,10 +185,12 @@ def set_active(
     _write_active()
 
 
-def update_active_progress(text: str) -> None:
+def update_active_progress(text: str, model: str | None = None) -> None:
     if _ACTIVE is None:
         return
     _ACTIVE["progress"] = text
+    if model:
+        _ACTIVE["model"] = model
     _write_active()
 
 
@@ -657,6 +659,9 @@ class Handler(BaseHTTPRequestHandler):
             skills.load()
             self._send_json(200, {"ok": True, "skills": skills.listed()})
             return
+        if path == "/models":
+            self._send_json(200, {"ok": True, "models": models.loadable_models()})
+            return
         if path == "/web-status":
             self._send_json(200, search.status())
             return
@@ -1055,17 +1060,23 @@ class Handler(BaseHTTPRequestHandler):
             attachments=saved_attachments,
         )
         self._note_device(device_id, user_agent=user_agent, language=language)
-        self._sse("progress", {"text": "Working…"})
+        self._emit_progress("Working…", model="")
 
         def on_log(record: dict[str, Any]) -> None:
             line = progress_line(record)
+            model = models.loaded_short_name()
+            loaded = record.get("tool") == "loadModel" and record.get("status") == "ok" and bool(model)
             if line:
-                update_active_progress(line)
-                self._sse("progress", {"text": line})
+                self._emit_progress(line, model=model)
+                return
+            if loaded:
+                self._emit_progress(
+                    str((_ACTIVE or {}).get("progress") or "Working…"),
+                    model=model,
+                )
 
         def status(text: str) -> None:
-            update_active_progress(text)
-            self._sse("progress", {"text": text})
+            self._emit_progress(text)
 
         logger.add_listener(on_log)
         try:
@@ -1415,6 +1426,14 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush()
         except OSError:
             return
+
+    def _emit_progress(self, text: str, *, model: str | None = None) -> None:
+        name = model if model is not None else models.loaded_short_name()
+        update_active_progress(text, model=name)
+        payload: dict[str, Any] = {"text": text}
+        if name:
+            payload["model"] = name
+        self._sse("progress", payload)
 
 
 def _lan_ips() -> list[str]:

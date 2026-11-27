@@ -171,6 +171,18 @@
       padding: 0 4px;
     }
     .progress-time { font-style: normal; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .progress-model {
+      font-style: normal;
+      font-weight: 600;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .progress-model::after {
+      content: "·";
+      margin: 0 2px 0 6px;
+      color: var(--progress);
+      font-weight: 400;
+    }
     .spinner {
       width: 12px;
       height: 12px;
@@ -1174,13 +1186,31 @@
       if (progressTimer || !progressEl) return;
       const time = document.createElement("span");
       time.className = "progress-time";
-      const label = progressEl.querySelector(".progress-text");
-      progressEl.insertBefore(time, label);
+      const spin = progressEl.querySelector(".spinner");
+      if (spin) progressEl.insertBefore(time, spin.nextSibling);
+      else {
+        const label = progressEl.querySelector(".progress-text");
+        progressEl.insertBefore(time, label);
+      }
       const stamp = spec && spec.started ? Date.parse(spec.started) : NaN;
       const recovered = Boolean(spec && spec.recovered);
       progressOrigin = Number.isNaN(stamp) ? Date.now() : stamp - (recovered ? 3000 : 0);
       paintClock();
       progressTimer = setInterval(paintClock, 1000);
+    }
+
+    function showProgressModel(name) {
+      const labelName = String(name || "").trim();
+      if (!progressEl || !labelName) return;
+      let mark = progressEl.querySelector(".progress-model");
+      if (!mark) {
+        mark = document.createElement("span");
+        mark.className = "progress-model";
+        const time = progressEl.querySelector(".progress-time");
+        const label = progressEl.querySelector(".progress-text");
+        progressEl.insertBefore(mark, time ? time.nextSibling : label);
+      }
+      mark.textContent = labelName;
     }
 
     function setProgress(text, clock) {
@@ -1200,6 +1230,7 @@
       }
       const label = progressEl.querySelector(".progress-text");
       if (label) label.textContent = text;
+      if (clock && clock.model) showProgressModel(clock.model);
       if (clock) beginClock(clock);
       logEl.scrollTop = logEl.scrollHeight;
     }
@@ -1588,6 +1619,7 @@
           setProgress(data.active.progress || "Working…", {
             started: data.active.started,
             recovered: true,
+            model: data.active.model,
           });
           continue;
         }
@@ -1616,6 +1648,7 @@
         setProgress(data.active.progress || "Working…", {
           started: data.active.started,
           recovered: true,
+          model: data.active.model,
         });
         if (data.active.thread_id) await loadThreads(data.active.thread_id);
         watchActive(turns.length);
@@ -1783,7 +1816,7 @@
             if (!data) continue;
             let payload = {};
             try { payload = JSON.parse(data); } catch { payload = { text: data }; }
-            if (ev === "progress") setProgress(payload.text || "", {});
+            if (ev === "progress") setProgress(payload.text || "", { model: payload.model });
             else if (ev === "error") undo(payload.text || "Run stopped");
             else if (ev === "answer") {
               answered = true;
