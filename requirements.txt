@@ -13,5 +13,7 @@ python-dotenv>=1.0
 pytest>=8.0
 chromadb>=0.5
 mcp>=1.2
+# Coder and critique code map. The sibling graphify checkout must also be present.
+graphifyy>=0.9.121
 # Inference wheel (install.ps1 / install.sh also apply this file):
 # pip install -r requirements.txt -r requirements-inference.txt

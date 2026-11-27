@@ -46,6 +46,18 @@ def _ui_hint(tools: list[str], stage: str) -> str:
     )
 
 
+def _code_graph_hint(tools: list[str], stage: str) -> str:
+    if "code_graph" not in tools:
+        return ""
+    if stage == "vote":
+        return "Do not call code_graph during a vote.\n"
+    return (
+        "When you need a function, a caller, or a file that is already in the sandbox, call code_graph. "
+        '{"tool": "code_graph", "args": {"query": "who calls save_note"}}. '
+        "Skip it when the sandbox has no Python or JavaScript yet.\n"
+    )
+
+
 def role_job(role: str, stage: str) -> str:
     if role == "manager" and stage == "phase0":
         factors = "; ".join(PHASE0_FACTORS)
@@ -117,6 +129,7 @@ def system_prompt(run: Run, agent: Agent, tools: list[str]) -> str:
         + role_job(agent.role, stage)
         + vote_q
         + _ui_hint(tools, stage)
+        + _code_graph_hint(tools, stage)
         + 'Tool: {"tool": "NAME", "args": {...}}\n'
         'Board: {"board_update": {"section": "features", "content": "..."}}\n'
         'Manager may {"call_vote": true}. Documenter never votes.\n'

@@ -1173,6 +1173,7 @@ _TOOL_PARAMS = {
     "viewCommitteeBoard": {"chunk", "n"},
     "callVote": set(),
     "ui_guide": {"query", "mode", "domain"},
+    "code_graph": {"query"},
     "git_login": set(),
     "listMails": {"time_min", "max_n", "start", "end"},
     "searchMails": {"query", "time_min", "max_n", "start", "end"},
