@@ -6,9 +6,13 @@ import argparse
 import email
 import html
 import json
+import os
 import re
+import socket
+import subprocess
 import sys
 import threading
+import time
 from email.policy import default as email_default
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -34,8 +38,8 @@ import router
 import search
 import tenant
 
-HOST = "127.0.0.1"
-PORT = 8765
+HOST = "0.0.0.0"
+PORT = 9001
 UI_FILE = config.REPO_ROOT / "ui" / "index.html"
 PROFILE_FILE = config.REPO_ROOT / "ui" / "profile.html"
 _DOWNLOAD_NAME = re.compile(
@@ -48,6 +52,7 @@ _KEEP_DIR_OK = re.compile(r"^[A-Za-z0-9._-]+$")
 _KEEP_PDF = re.compile(r"^[A-Za-z0-9._-]+\.pdf$", re.I)
 _BUSY = threading.Lock()
 _SESSION_LOCK = threading.Lock()
+_RESTART = False
 _ACTIVE: dict[str, Any] | None = None
 
 SKIP_TOOLS = {
@@ -222,6 +227,20 @@ def append_turn(turn: dict[str, Any], device_id: str) -> None:
     with _SESSION_LOCK:
         with path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    try:
+        import memory
+
+        memory.index_turn(
+            device_id,
+            str(row.get("prompt") or ""),
+            str(row.get("answer") or ""),
+            run_id=str(row.get("run_id") or row.get("id") or ""),
+            workbook=str(row.get("thread_id") or ""),
+            ts=str(row.get("time") or ""),
+            skip_existing=True,
+        )
+    except Exception:
+        pass
 
 
 def _append_agent_log(device_id: str, slug: str, row: dict[str, Any]) -> None:
@@ -1398,17 +1417,117 @@ class Handler(BaseHTTPRequestHandler):
             return
 
 
+def _lan_ips() -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+
+    def add(ip: str) -> None:
+        text = str(ip or "").strip()
+        if not text or text in seen:
+            return
+        if text.startswith("127.") or text.startswith("169.254.") or text in {"0.0.0.0", "::1"}:
+            return
+        if ":" in text:
+            return
+        seen.add(text)
+        found.append(text)
+
+    try:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            probe.connect(("8.8.8.8", 80))
+            add(probe.getsockname()[0])
+        finally:
+            probe.close()
+    except OSError:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            add(info[4][0])
+    except OSError:
+        pass
+    try:
+        out = subprocess.check_output(["hostname", "-I"], text=True, timeout=2, stderr=subprocess.DEVNULL)
+        for bit in out.split():
+            add(bit)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        pass
+    return found
+
+
+def _print_listen_urls(host: str, port: int) -> None:
+    print(f"Mayavi ui  http://{host}:{port}/", flush=True)
+    print(f"This machine: http://127.0.0.1:{port}/", flush=True)
+    if host in {"127.0.0.1", "localhost", "::1"}:
+        return
+    others = _lan_ips()
+    if host not in {"0.0.0.0", "::", ""} and host not in others:
+        others = [host, *others]
+    if not others:
+        print("LAN: no address found; other devices cannot reach this bind yet.", flush=True)
+        return
+    print("Other devices on this network:", flush=True)
+    for ip in others:
+        print(f"  http://{ip}:{port}/", flush=True)
+
+
+def _git_head() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "-C", str(config.REPO_ROOT), "rev-parse", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=5,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return ""
+
+
+def _watch_git(httpd: ThreadingHTTPServer) -> None:
+    global _RESTART
+    start = _git_head()
+    if not start:
+        return
+    while True:
+        time.sleep(4)
+        now = _git_head()
+        if now and now != start:
+            print(f"git HEAD {start[:7]} -> {now[:7]}; restarting", flush=True)
+            _RESTART = True
+            httpd.shutdown()
+            return
+
+
+def _reexec() -> None:
+    argv = [sys.executable, "-u", *sys.argv]
+    os.execv(sys.executable, argv)
+
+
 def serve(host: str = HOST, port: int = PORT, *, no_model: bool = False) -> None:
     global NO_MODEL
     NO_MODEL = no_model
     rotate_ui_session()
+    try:
+        import memory
+
+        memory.start_local(hash_embeddings=no_model)
+    except Exception as exc:
+        print(f"memory index: {type(exc).__name__}", flush=True)
     httpd = ThreadingHTTPServer((host, port), Handler)
-    print(f"Mayavi ui  http://{host}:{port}/", flush=True)
+    _print_listen_urls(host, port)
     if host not in {"127.0.0.1", "localhost", "::1"}:
         print("LAN bind: each browser is keyed by Wi-Fi MAC when ARP can see it; cookie/UUID otherwise.", flush=True)
     if no_model:
         print("stub replies (--no-model); weights are not loaded", flush=True)
-    httpd.serve_forever()
+    threading.Thread(target=_watch_git, args=(httpd,), daemon=True, name="git-watch").start()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        return
+    finally:
+        httpd.server_close()
+    if _RESTART:
+        _reexec()
 
 
 def main_cli(argv: list[str] | None = None) -> int:
@@ -1418,7 +1537,7 @@ def main_cli(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--host",
         default=HOST,
-        help="Bind address (default 127.0.0.1). Use 0.0.0.0 so phones on this Wi-Fi can reach it.",
+        help="Bind address (default 0.0.0.0, all interfaces). Use 127.0.0.1 for loopback only.",
     )
     args = parser.parse_args(argv)
     serve(args.host, args.port, no_model=args.no_model)

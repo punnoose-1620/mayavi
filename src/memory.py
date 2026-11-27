@@ -95,10 +95,12 @@ def retrieve_pack(
     used = 0
     for hit in hits:
         kind = str(hit.get("kind") or "turn")
+        stamp = str(hit.get("ts") or "")[:19]
         text = " ".join(str(hit.get("text") or "").split())[:HIT_CAP]
         if not text:
             continue
-        line = f"- [{kind}] {text}"
+        tag = f"{kind} {stamp}".strip() if stamp else kind
+        line = f"- [{tag}] {text}"
         if used + len(line) + 1 > PACK_CAP:
             break
         lines.append(line)
@@ -116,15 +118,7 @@ def index_run(run: Any, answer: str | None) -> None:
     reply = str(answer or "").strip()
     workbook = str(getattr(run, "thread_id", "") or "").strip()
     run_id = str(getattr(run, "run_id", "") or "").strip() or _stamp()
-    blob = (prompt + "\n" + reply).strip()
-    if blob:
-        upsert(
-            _row_id(did, "turn", run_id),
-            blob[:2000],
-            device=did,
-            workbook=workbook,
-            kind="turn",
-        )
+    index_turn(did, prompt, reply, run_id=run_id, workbook=workbook)
     thread = getattr(run, "thread", None)
     if isinstance(thread, dict) and workbook:
         card = blackboard.context_card(thread)
@@ -138,21 +132,125 @@ def index_run(run: Any, answer: str | None) -> None:
             )
 
 
-def upsert(row_id: str, text: str, *, device: str, workbook: str, kind: str) -> None:
+def index_turn(
+    device_id: str | None,
+    prompt: str,
+    answer: str,
+    *,
+    run_id: str = "",
+    workbook: str = "",
+    ts: str = "",
+    skip_existing: bool = False,
+) -> None:
+    did = tenant.parse_device_id(device_id)
+    if not did:
+        return
+    blob = (str(prompt or "").strip() + "\n" + str(answer or "").strip()).strip()
+    if not blob:
+        return
+    key = str(run_id or "").strip()
+    if not key:
+        key = hashlib.sha256(f"{did}\n{ts}\n{prompt}".encode("utf-8")).hexdigest()[:16]
+    upsert(
+        _row_id(did, "turn", key),
+        blob[:2000],
+        device=did,
+        workbook=str(workbook or ""),
+        kind="turn",
+        ts=ts,
+        skip_existing=skip_existing,
+    )
+
+
+def upsert(
+    row_id: str,
+    text: str,
+    *,
+    device: str,
+    workbook: str,
+    kind: str,
+    ts: str = "",
+    skip_existing: bool = False,
+) -> None:
     col = _collection()
     if col is None:
         return
     body = str(text or "").strip()
     if not body:
         return
+    if skip_existing and _has_id(col, row_id):
+        return
     meta = {
         "device": device,
         "workbook": workbook or "none",
         "kind": kind if kind in {"turn", "card", "log"} else "turn",
-        "ts": _stamp(),
+        "ts": str(ts or "").strip() or _stamp(),
     }
     with _LOCK:
         col.upsert(ids=[row_id], documents=[body], metadatas=[meta])
+
+
+def reindex_ui_tapes() -> int:
+    """Load existing session.jsonl tapes into the local Chroma dir. Skips ids already stored."""
+    root = config.UI_SESSION_DIR
+    if not root.is_dir():
+        return 0
+    added = 0
+    for folder in sorted(root.iterdir()):
+        if not folder.is_dir():
+            continue
+        did = tenant.parse_device_id(folder.name)
+        if not did:
+            continue
+        path = folder / "session.jsonl"
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for raw in lines:
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                blob = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(blob, dict):
+                continue
+            run_id = str(blob.get("run_id") or blob.get("id") or "").strip()
+            index_turn(
+                did,
+                str(blob.get("prompt") or blob.get("user") or ""),
+                str(blob.get("answer") or blob.get("response") or ""),
+                run_id=run_id,
+                workbook=str(blob.get("thread_id") or blob.get("workbook") or ""),
+                ts=str(blob.get("time") or ""),
+                skip_existing=True,
+            )
+            added += 1
+    return added
+
+
+def start_local(*, hash_embeddings: bool = False) -> None:
+    """Open PersistentClient under runtime/state/chroma and reindex tapes in the background."""
+    if hash_embeddings:
+        use_hash_embeddings()
+
+    def boot() -> None:
+        col = _collection()
+        if col is None:
+            print("memory index: chromadb unavailable (pip install chromadb)", flush=True)
+            return
+        added = reindex_ui_tapes()
+        try:
+            total = int(col.count() or 0)
+        except Exception:
+            total = added
+        print(f"memory index: {config.DATA_DIR / 'chroma'}  rows={total}", flush=True)
+
+    threading.Thread(target=boot, daemon=True, name="chroma-boot").start()
 
 
 def search_memory(device_id: str, query: str, *, workbook: str = "", n: int = N_HITS) -> list[dict[str, Any]]:
@@ -310,6 +408,15 @@ def _hits(raw: dict[str, Any], device_id: str, workbook: str, n: int) -> list[di
     return rows
 
 
+def _has_id(col: Any, row_id: str) -> bool:
+    try:
+        with _LOCK:
+            got = col.get(ids=[row_id], include=[])
+        return bool(got and got.get("ids"))
+    except Exception:
+        return False
+
+
 def _collection() -> Any:
     global _CLIENT, _COL
     with _LOCK:
@@ -320,13 +427,18 @@ def _collection() -> Any:
         except ImportError:
             return None
         path = config.DATA_DIR / "chroma"
-        path.mkdir(parents=True, exist_ok=True)
-        ef = _embedding()
-        _CLIENT = chromadb.PersistentClient(path=str(path))
-        kwargs: dict[str, Any] = {"name": COLLECTION}
-        if ef is not None:
-            kwargs["embedding_function"] = ef
-        _COL = _CLIENT.get_or_create_collection(**kwargs)
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            ef = _embedding()
+            _CLIENT = chromadb.PersistentClient(path=str(path))
+            kwargs: dict[str, Any] = {"name": COLLECTION}
+            if ef is not None:
+                kwargs["embedding_function"] = ef
+            _COL = _CLIENT.get_or_create_collection(**kwargs)
+        except Exception:
+            _CLIENT = None
+            _COL = None
+            return None
         return _COL
 
 

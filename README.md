@@ -7,7 +7,7 @@ Local multi-agent runtime that routes a user request into a **small**, **medium*
 
 It is designed to run on a single machine (overnight / sequential). It does **not** keep five models in RAM. Weights come from Hugging Face as GGUF files. Inference uses llama.cpp (`llama-cpp-python`).
 
-Release history lives in [`documentation/CHANGELOG.md`](documentation/CHANGELOG.md), newest version **first**. The current feature set is **1.3.3**.
+Release history lives in [`documentation/CHANGELOG.md`](documentation/CHANGELOG.md), newest version **first**. The current feature set is **1.3.4**.
 
 ## Documentation
 
@@ -146,7 +146,7 @@ If the model produced no `final`/vote/draft, Response is `(empty — the model p
 
 ## Memory index
 
-Chat logs and notebook JSON stay the source of truth. `runtime/state/chroma/` is a search index keyed by device (and workbook when the turn has one). On `/turns` and `/agent-turns` the host retrieves a short pack and pins it in the user message; the model does not query Chroma. Tests and `--no-model` use a hash embedder so MiniLM is not downloaded.
+Chat logs and notebook JSON stay the source of truth. `runtime/state/chroma/` is a **local** PersistentClient (no Chroma Cloud). On UI start the host opens that dir, reindexes `session.jsonl` tapes, and indexes new chat/skill turns. On `/turns` and `/agent-turns` it retrieves a short pack (with timestamps) and pins it; the model does not query Chroma. `--no-model` uses a hash embedder so MiniLM is not downloaded.
 
 Extra clients can call the same slice over stdio MCP (`python src/mcp_server.py`, or `PYTHONPATH=src python -m mcp --packs web,profile`). Memory tools are always on (`list_notebooks`, `get_notebook`, `search_memory`, `read_log_span`). `--packs` may add `web`, `profile`, `files.read`, and `files.write`. Every tool requires `device`. Sandbox, board, mail, calendar, and git stay factory-only. Factory workers bind the same capability packs from `src/mcp/` in-process. They still emit `{"tool":…}`; they do not speak MCP. Coding committee roles and round order stay host-owned (`src/coding/`). Job and profile HTML selectors still walk `career.py` (prompts live in `static_prompts.py`).
 
@@ -388,7 +388,7 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `src/coding/rules.md` | Injected on every coding committee run |
 | `documentation/Hardware Requirements.md` | Ubuntu/Windows, headless vs desktop, named NVIDIA and Ryzen SKUs |
 | `documentation/Server Hardware.md` | Headless box cart (CPU, GPU, disks) |
-| `documentation/CHANGELOG.md` | Hand-written release history, newest first (never updated automatically). Current version **1.3.3**. |
+| `documentation/CHANGELOG.md` | Hand-written release history, newest first (never updated automatically). Current version **1.3.4**. |
 | `documentation/Multi-Phase Testing (Testing Plan).md` | Multi-phase eval plan |
 | `documentation/Multi-Phase Testing (Results).md` | Multi-phase eval results |
 | `documentation/Memory Board Continuity (Results).md` | Memory-board continuity results |

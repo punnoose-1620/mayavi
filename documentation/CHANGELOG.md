@@ -6,6 +6,10 @@ Newest version first — the top entry is the current feature set, older release
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.4] - 2026-11-27
+
+Local Chroma under `runtime/state/chroma/`. On UI start the host opens PersistentClient, reindexes `session.jsonl` tapes (skipping ids already stored), and indexes each new chat/skill turn. Retrieved notes include the turn timestamp. Chat jsonl stays the source of truth; there is no extra GGUF summary pass.
+
 ## [1.3.3] - 2026-11-23
 
 Career-ops `max_tokens` is the generation cap, not a fixed 2048. The GGUF for that door loads a context window sized to prompt plus that cap (4k / 8k / 16k / 32k). Factory chat still uses 4096 context and 512 new tokens. Rolling history is unchanged and is not used on `/v1/chat/completions`.
