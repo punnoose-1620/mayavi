@@ -32,6 +32,20 @@ EXECUTE_ROLE_HINT = (
 )
 
 
+def _ui_hint(tools: list[str], stage: str) -> str:
+    if "ui_guide" not in tools:
+        return ""
+    if stage == "vote":
+        return "Do not call ui_guide during a vote.\n"
+    return (
+        "When the surface is a page or interface, call ui_guide before you write or judge layout. "
+        'System: {"tool": "ui_guide", "args": {"query": "operations dashboard", "mode": "system"}}. '
+        'One concern: {"tool": "ui_guide", "args": {"query": "focus visible", "mode": "domain", "domain": "ux"}}. '
+        "Domains: ux, color, typography, style, landing, product, chart, icons, web. "
+        "Skip it for API-only work. Follow the guide's plain-CSS limit.\n"
+    )
+
+
 def role_job(role: str, stage: str) -> str:
     if role == "manager" and stage == "phase0":
         factors = "; ".join(PHASE0_FACTORS)
@@ -102,6 +116,7 @@ def system_prompt(run: Run, agent: Agent, tools: list[str]) -> str:
         "Reply with a single JSON object.\n"
         + role_job(agent.role, stage)
         + vote_q
+        + _ui_hint(tools, stage)
         + 'Tool: {"tool": "NAME", "args": {...}}\n'
         'Board: {"board_update": {"section": "features", "content": "..."}}\n'
         'Manager may {"call_vote": true}. Documenter never votes.\n'

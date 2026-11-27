@@ -24,6 +24,7 @@ PACKS = (
     "git",
     "board.live",
     "board.committee",
+    "ui",
 )
 
 # Stdio may mount these without a live factory run. Jail/board stay factory-only.
@@ -42,6 +43,7 @@ BINDERS: dict[str, str] = {
     "git": "mcp.git:bind",
     "board.live": "mcp.board:bind_live",
     "board.committee": "mcp.board:bind_committee",
+    "ui": "mcp.ui:bind",
 }
 
 
@@ -59,6 +61,11 @@ def run_packs(run: Run) -> set[str]:
         out.update({"sandbox.read", "sandbox.write", "sandbox.exec"})
     if run.committee is not None:
         out.add("board.committee")
+        if not run.summarize_keep:
+            from coding.ui_skill import find_root
+
+            if find_root() is not None:
+                out.add("ui")
     if run.git_remote:
         out.add("git")
     if run.gmail:

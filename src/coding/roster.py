@@ -20,12 +20,12 @@ ROLES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 
 # Packs each role may see, intersected with what the run actually mounted.
 ROLE_PACKS: dict[str, tuple[str, ...]] = {
-    "manager": ("board.live", "board.committee", "git", "web", "mail", "calendar"),
-    "coder": ("sandbox.read", "sandbox.write", "board.live", "board.committee"),
-    "tester": ("sandbox.read", "sandbox.exec", "board.live", "board.committee"),
-    "critique": ("sandbox.read", "board.live", "board.committee"),
-    "evaluator": ("board.live", "board.committee"),
-    "documenter": ("sandbox.read", "board.live", "board.committee"),
+    "manager": ("board.live", "board.committee", "ui", "git", "web", "mail", "calendar"),
+    "coder": ("sandbox.read", "sandbox.write", "board.live", "board.committee", "ui"),
+    "tester": ("sandbox.read", "sandbox.exec", "board.live", "board.committee", "ui"),
+    "critique": ("sandbox.read", "board.live", "board.committee", "ui"),
+    "evaluator": ("board.live", "board.committee", "ui"),
+    "documenter": ("sandbox.read", "board.live", "board.committee", "ui"),
 }
 
 
