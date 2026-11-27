@@ -289,7 +289,9 @@
       margin: 0;
       min-height: 32px;
     }
-    #coding-label, #web-label, #job-label, #update-label, #gmail-label, #calendar-label { cursor: pointer; white-space: nowrap; }
+    #coding-label, #web-label, #job-label, #update-label, #gmail-label, #calendar-label,
+    #skill-checks label { cursor: pointer; white-space: nowrap; }
+    #skill-checks { display: contents; }
     .field { display: none; }
     .field.open { display: flex; }
     .pick {
@@ -491,6 +493,7 @@
     <label id="coding-label" for="coding"><input type="checkbox" id="coding"> Coding</label>
     <label id="job-label" for="job" title="The message is the job description. Writes a resume, cover letter, and match summary from your profile."><input type="checkbox" id="job"> Job application</label>
     <label id="update-label" for="update" title="The attached resume is the source. The message is an optional instruction."><input type="checkbox" id="update"> Update profile</label>
+    <span id="skill-checks"></span>
     <div id="repo-wrap">
       <label for="repo">GitHub</label>
       <input id="repo" type="url" placeholder="https://github.com/owner/repo" autocomplete="off" spellcheck="false">
@@ -545,6 +548,8 @@
     const codingEl = document.getElementById("coding");
     const jobEl = document.getElementById("job");
     const updateEl = document.getElementById("update");
+    const skillChecks = document.getElementById("skill-checks");
+    let skillRows = [];
     const webEl = document.getElementById("web");
     const webLabel = document.getElementById("web-label");
     const gmailEl = document.getElementById("gmail");
@@ -560,32 +565,72 @@
     let fileUpload = null;
     let seedUpload = null;
 
-    function syncModes() {
-      if (jobEl.checked) {
+    function selectedSkill() {
+      const row = skillRows.find((item) => item.input.checked);
+      return row ? row.id : "";
+    }
+
+    function clearSkills(except) {
+      for (const row of skillRows) {
+        if (row.id !== except) row.input.checked = false;
+      }
+    }
+
+    function syncModes(prefer) {
+      if (prefer === "skill") {
+        jobEl.checked = false;
         codingEl.checked = false;
         updateEl.checked = false;
+      } else if (prefer === "job") {
+        clearSkills("");
+        codingEl.checked = false;
+        updateEl.checked = false;
+      } else if (prefer === "coding") {
+        jobEl.checked = false;
+        clearSkills("");
+      } else if (prefer === "update") {
+        jobEl.checked = false;
+        clearSkills("");
+        codingEl.checked = false;
+      }
+      const skillOn = Boolean(selectedSkill());
+      if (jobEl.checked || skillOn || updateEl.checked) {
         webEl.checked = false;
         gmailEl.checked = false;
         calendarEl.checked = false;
       }
-      if (updateEl.checked) {
-        webEl.checked = false;
-        gmailEl.checked = false;
-        calendarEl.checked = false;
-      }
-      if (codingEl.checked) jobEl.checked = false;
-      if (updateEl.checked) jobEl.checked = false;
       const coding = codingEl.checked;
       const job = jobEl.checked;
       const update = updateEl.checked;
       repoWrap.classList.toggle("open", coding);
       seedWrap.classList.toggle("open", coding);
-      attachWrap.classList.toggle("open", !job && !update);
-      fileWrap.classList.toggle("open", !job);
+      attachWrap.classList.toggle("open", !job && !update && !skillOn);
+      fileWrap.classList.toggle("open", !job && !skillOn);
     }
-    codingEl.addEventListener("change", () => { syncModes(); rememberUpdate(); });
-    jobEl.addEventListener("change", () => { syncModes(); rememberUpdate(); });
-    updateEl.addEventListener("change", () => { syncModes(); rememberUpdate(); });
+    codingEl.addEventListener("change", () => { syncModes(codingEl.checked ? "coding" : ""); rememberUpdate(); });
+    jobEl.addEventListener("change", () => { syncModes(jobEl.checked ? "job" : ""); rememberUpdate(); });
+    updateEl.addEventListener("change", () => { syncModes(updateEl.checked ? "update" : ""); rememberUpdate(); });
+
+    function mountSkills(list) {
+      skillChecks.innerHTML = "";
+      skillRows = [];
+      for (const skill of list || []) {
+        const label = document.createElement("label");
+        label.title = skill.title || "";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.id = "skill-" + skill.id;
+        label.appendChild(input);
+        label.appendChild(document.createTextNode(" " + (skill.label || skill.id)));
+        input.addEventListener("change", () => {
+          if (input.checked) clearSkills(skill.id);
+          syncModes(input.checked ? "skill" : "");
+          rememberUpdate();
+        });
+        skillChecks.appendChild(label);
+        skillRows.push({ id: skill.id, input });
+      }
+    }
     syncModes();
 
     function rememberUpdate() {
@@ -992,6 +1037,11 @@
     }
 
     async function restoreDraft() {
+      try {
+        const res = await fetch("/skills");
+        const data = await res.json();
+        mountSkills(data.skills || []);
+      } catch (e) {}
       try {
         const text = localStorage.getItem(DRAFT_KEY);
         if (text) promptEl.value = text;
@@ -1595,7 +1645,8 @@
     async function send() {
       const prompt = promptEl.value.trim();
       const updating = updateEl.checked;
-      if ((!prompt && !updating) || sendEl.disabled) return;
+      const skillId = selectedSkill();
+      if ((!prompt && !updating && !skillId) || sendEl.disabled) return;
       sendEl.disabled = true;
       clearError();
       let host = null;
@@ -1616,9 +1667,9 @@
         showError(text);
       };
       try {
-        if (held.file && !jobEl.checked) {
+        if (held.file && !jobEl.checked && !selectedSkill()) {
           fileUpload = await uploadPicked("/upload-file", [{ file: held.file, rel: held.file.name }], held.file.name);
-        } else if (fileHandle && !jobEl.checked) {
+        } else if (fileHandle && !jobEl.checked && !selectedSkill()) {
           try {
             fileUpload = await uploadHandle(fileHandle, "/upload-file");
           } catch (err) {
@@ -1629,10 +1680,10 @@
             return;
           }
         }
-        if (held.folder && !jobEl.checked && !updating) {
+        if (held.folder && !jobEl.checked && !updating && !selectedSkill()) {
           const label = (held.folder[0].rel || "").split(/[\\/]/)[0] || held.folder[0].file.name;
           folderUpload = await uploadPicked("/upload-folder", held.folder.slice(0, 40), label);
-        } else if (folderHandle && !jobEl.checked && !updating) {
+        } else if (folderHandle && !jobEl.checked && !updating && !selectedSkill()) {
           try {
             folderUpload = await uploadHandle(folderHandle, "/upload-folder");
           } catch (err) {
@@ -1662,8 +1713,8 @@
           return;
         }
         host = card("you");
-        if (fileUpload && !jobEl.checked) appendSelection(host, fileUpload);
-        if (folderUpload && !jobEl.checked && !updating) appendSelection(host, folderUpload);
+        if (fileUpload && !jobEl.checked && !selectedSkill()) appendSelection(host, fileUpload);
+        if (folderUpload && !jobEl.checked && !updating && !selectedSkill()) appendSelection(host, folderUpload);
         if (codingEl.checked && seedUpload) appendSelection(host, seedUpload);
         add("msg", prompt || (updating ? "Update profile" : ""), host);
         promptEl.value = "";
@@ -1676,14 +1727,15 @@
             thread_id: threadEl.value || null,
             coding: codingEl.checked,
             job: jobEl.checked,
+            skill: selectedSkill(),
             update_profile: updating,
-            web: webEl.checked && !webEl.disabled && !jobEl.checked && !updating,
-            gmail: gmailEl.checked && !gmailEl.disabled && !jobEl.checked && !updating,
-            calendar: calendarEl.checked && !calendarEl.disabled && !jobEl.checked && !updating,
+            web: webEl.checked && !webEl.disabled && !jobEl.checked && !updating && !selectedSkill(),
+            gmail: gmailEl.checked && !gmailEl.disabled && !jobEl.checked && !updating && !selectedSkill(),
+            calendar: calendarEl.checked && !calendarEl.disabled && !jobEl.checked && !updating && !selectedSkill(),
             git_remote: codingEl.checked ? (repoEl.value || "").trim() : "",
             seed_id: codingEl.checked && seedUpload ? seedUpload.id : "",
-            folder_id: folderUpload && !jobEl.checked && !updating ? folderUpload.id : "",
-            file_id: fileUpload && !jobEl.checked ? fileUpload.id : "",
+            folder_id: folderUpload && !jobEl.checked && !updating && !selectedSkill() ? folderUpload.id : "",
+            file_id: fileUpload && !jobEl.checked && !selectedSkill() ? fileUpload.id : "",
           })),
         });
         if (res.status === 409) {
@@ -1699,6 +1751,11 @@
             no_readable_files: "No pdf, docx, xlsx, txt, md, csv, or html files were in that selection.",
             job_and_coding: "Use Job application or Coding, not both.",
             job_and_update: "Use Job application or Update profile, not both.",
+            skill_and_coding: "Use one skill or Coding, not both.",
+            skill_and_job: "Use one skill or Job application, not both.",
+            skill_and_update: "Use one skill or Update profile, not both.",
+            many_skills: "Turn on one skill at a time.",
+            unknown_skill: "That skill is not installed.",
             git_and_folder: "Use a GitHub URL or a project folder, not both.",
             folder_not_found: "That folder was not found on this computer.",
             unsupported_file: "Use a pdf, docx, xlsx, txt, md, csv, or html file.",

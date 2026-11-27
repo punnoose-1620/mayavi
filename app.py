@@ -23,6 +23,7 @@ if str(_SRC) not in sys.path:
 import blackboard
 import career
 import config
+import skills
 import executor
 import formatter
 import logger
@@ -633,6 +634,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/download":
             self._send_download()
             return
+        if path == "/skills":
+            skills.load()
+            self._send_json(200, {"ok": True, "skills": skills.listed()})
+            return
         if path == "/web-status":
             self._send_json(200, search.status())
             return
@@ -685,9 +690,11 @@ class Handler(BaseHTTPRequestHandler):
         wanted = str((body or {}).get("thread_id") or "").strip() or None
         coding = bool((body or {}).get("coding"))
         job = bool((body or {}).get("job"))
+        skills.load()
+        skill_id, skill_error = skills.selected(body)
         update_profile = bool((body or {}).get("update_profile"))
         web = (body or {}).get("web")
-        account = google_account_ready() and not job and not update_profile
+        account = google_account_ready() and not job and not update_profile and not skill_id
         gmail = bool((body or {}).get("gmail")) and account
         calendar = bool((body or {}).get("calendar")) and account
         git_remote = str((body or {}).get("git_remote") or "").strip() or None
@@ -699,7 +706,10 @@ class Handler(BaseHTTPRequestHandler):
         if update_profile and not file_id:
             self._send_json(400, {"ok": False, "error": "resume_required"})
             return
-        if not prompt and not update_profile:
+        if skill_error:
+            self._send_json(400, {"ok": False, "error": skill_error})
+            return
+        if not prompt and not update_profile and not skill_id:
             self._send_json(400, {"ok": False, "error": "empty_prompt"})
             return
         if job and coding:
@@ -707,6 +717,15 @@ class Handler(BaseHTTPRequestHandler):
             return
         if job and update_profile:
             self._send_json(400, {"ok": False, "error": "job_and_update"})
+            return
+        if skill_id and coding:
+            self._send_json(400, {"ok": False, "error": "skill_and_coding"})
+            return
+        if skill_id and job:
+            self._send_json(400, {"ok": False, "error": "skill_and_job"})
+            return
+        if skill_id and update_profile:
+            self._send_json(400, {"ok": False, "error": "skill_and_update"})
             return
         if coding and git_remote and seed_id:
             self._send_json(400, {"ok": False, "error": "git_and_folder"})
@@ -717,12 +736,12 @@ class Handler(BaseHTTPRequestHandler):
         document_text = ""
         seed_listing = ""
         file_row = career.get_upload(file_id) if file_id else None
-        folder_row = career.get_upload(folder_id) if folder_id and not job and not update_profile else None
+        folder_row = career.get_upload(folder_id) if folder_id and not job and not update_profile and not skill_id else None
         seed_row = career.get_upload(seed_id) if seed_id and coding else None
         if file_id and file_row is None:
             self._send_json(400, {"ok": False, "error": "unknown_upload"})
             return
-        if folder_id and not job and not update_profile and folder_row is None:
+        if folder_id and not job and not update_profile and not skill_id and folder_row is None:
             self._send_json(400, {"ok": False, "error": "unknown_upload"})
             return
         if seed_id and coding and seed_row is None:
@@ -733,14 +752,14 @@ class Handler(BaseHTTPRequestHandler):
         if seed_row:
             seed_listing = seed_row["listing"]
         sources: list[dict[str, str]] = []
-        if file_row and not update_profile and not job:
+        if file_row and not update_profile and not job and not skill_id:
             sources.extend(source_documents(str(file_row.get("name") or "file"), "file", str(file_row.get("body") or "")))
         if folder_row:
             sources.extend(source_documents(str(folder_row.get("name") or "folder"), "folder", str(folder_row.get("body") or "")))
         if seed_row:
             sources.extend(source_documents(str(seed_row.get("name") or "project"), "project", str(seed_row.get("body") or "")))
         attachments: list[dict[str, Any]] = []
-        if file_row and not job:
+        if file_row and not job and not skill_id:
             attachments.append(file_row)
         if folder_row:
             attachments.append(folder_row)
@@ -755,13 +774,14 @@ class Handler(BaseHTTPRequestHandler):
                 wanted,
                 coding=coding,
                 git_remote=git_remote,
-                web=web and not job and not update_profile,
+                web=web and not job and not update_profile and not skill_id,
                 gmail=gmail,
                 calendar=calendar,
                 device_id=device,
                 user_agent=user_agent,
                 language=language,
                 job=job,
+                skill_id=skill_id,
                 update_profile=update_profile,
                 document_text=document_text,
                 seed_listing=seed_listing,
@@ -981,6 +1001,7 @@ class Handler(BaseHTTPRequestHandler):
         user_agent: str = "",
         language: str = "",
         job: bool = False,
+        skill_id: str = "",
         update_profile: bool = False,
         document_text: str = "",
         seed_listing: str = "",
@@ -1030,7 +1051,9 @@ class Handler(BaseHTTPRequestHandler):
         logger.add_listener(on_log)
         try:
             try:
-                if job:
+                if skill_id:
+                    result = skills.get(skill_id).run(prompt, status, device_id=device_id, no_model=NO_MODEL)
+                elif job:
                     result = career.run_job(prompt, status, device_id=device_id, no_model=NO_MODEL)
                 elif update_profile:
                     result = career.run_update(document_text, prompt, status, device_id=device_id, no_model=NO_MODEL)

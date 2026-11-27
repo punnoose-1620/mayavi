@@ -15,6 +15,7 @@ if str(_SRC) not in sys.path:
 import executor
 import models
 import router
+import skills
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,6 +31,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Attach a durable thread (runtime/state/threads). Raises a mapped-small run to medium.",
     )
     parser.add_argument("--code", action="store_true", help="Run the sequential coding committee")
+    parser.add_argument("--skill", default="", help="Run a registered local skill by id. Example: career-ops")
+    parser.add_argument(
+        "--career-ops",
+        action="store_true",
+        help="Same as --skill career-ops. The local model scores. Node scripts only look up postings.",
+    )
     parser.add_argument(
         "--web",
         action="store_true",
@@ -45,9 +52,40 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     prompt = " ".join(args.prompt).strip()
-    if not prompt:
+    skills.load()
+    skill_id = (args.skill or "").strip() or ("career-ops" if args.career_ops else "")
+    if not prompt and not skill_id:
         parser.print_help()
         return 2
+    if not prompt:
+        prompt = "menu"
+    if skill_id and args.code:
+        print("Use a skill or --code, not both.", file=sys.stderr, flush=True)
+        return 2
+    if skill_id and args.skill and args.career_ops and args.skill != "career-ops":
+        print("Use one skill at a time.", file=sys.stderr, flush=True)
+        return 2
+    if skill_id:
+        skill = skills.get(skill_id)
+        if skill is None:
+            print(f"Unknown skill: {skill_id}", file=sys.stderr, flush=True)
+            return 2
+        if not args.json:
+            print(f"working ({skill.id}) — local model only…", flush=True)
+        try:
+            result = skill.run(
+                prompt,
+                lambda text: print(text, file=sys.stderr, flush=True),
+                no_model=args.no_model,
+            )
+        except Exception as exc:
+            print(_failure_text(exc), file=sys.stderr, flush=True)
+            return 1
+        if args.json:
+            print(json.dumps(result, indent=2, default=str))
+        else:
+            _print_run(prompt, result)
+        return 0 if result.get("ok") else 1
     generate_fn = stub_generate if args.no_model else None
     fields = _route_fields(prompt, args.no_model)
     fields = router.apply_user_controls(
@@ -134,6 +172,11 @@ NOTICE_TEXT = {
     "web_offline": "Web search is off because this machine has no network.",
     "web_search_failed": "Live search did not return results, so the answer used what the model already knew.",
     "web_fetch_empty": "Search found pages, but none of them could be fetched.",
+    "claims_unverified": "Claims were not verified. Treat every number in the draft as unchecked.",
+    "career_ops_claims": "The cover letter's claims were not verified. Treat every number in it as unchecked.",
+    "career_ops_unscored": "The model did not return a score, so this reply is not a settled evaluation.",
+    "claim_check": "Some lines are not backed by the candidate file.",
+    "empty_profile": "Save your profile in Mayavi before scoring a job.",
 }
 
 GENERATE_TEXT = {
