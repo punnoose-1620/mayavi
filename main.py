@@ -38,6 +38,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Same as --skill career-ops. The local model scores. Node scripts only look up postings.",
     )
     parser.add_argument(
+        "--humanizer",
+        action="store_true",
+        help="Same as --skill humanizer. One local rewrite of formal text.",
+    )
+    parser.add_argument(
         "--web",
         action="store_true",
         help="Live web search (CSE, then SerpAPI, then ScraperAPI). Does not pick the coding committee.",
@@ -53,7 +58,18 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     prompt = " ".join(args.prompt).strip()
     skills.load()
-    skill_id = (args.skill or "").strip() or ("career-ops" if args.career_ops else "")
+    chosen: list[str] = []
+    explicit = (args.skill or "").strip()
+    if explicit:
+        chosen.append(explicit)
+    if args.career_ops and "career-ops" not in chosen:
+        chosen.append("career-ops")
+    if args.humanizer and "humanizer" not in chosen:
+        chosen.append("humanizer")
+    if len(chosen) > 1:
+        print("Use one skill at a time.", file=sys.stderr, flush=True)
+        return 2
+    skill_id = chosen[0] if chosen else ""
     if not prompt and not skill_id:
         parser.print_help()
         return 2
@@ -61,9 +77,6 @@ def main(argv: list[str] | None = None) -> int:
         prompt = "menu"
     if skill_id and args.code:
         print("Use a skill or --code, not both.", file=sys.stderr, flush=True)
-        return 2
-    if skill_id and args.skill and args.career_ops and args.skill != "career-ops":
-        print("Use one skill at a time.", file=sys.stderr, flush=True)
         return 2
     if skill_id:
         skill = skills.get(skill_id)
@@ -177,6 +190,8 @@ NOTICE_TEXT = {
     "career_ops_unscored": "The model did not return a score, so this reply is not a settled evaluation.",
     "claim_check": "Some lines are not backed by the candidate file.",
     "empty_profile": "Save your profile in Mayavi before scoring a job.",
+    "humanizer_reverted": "The rewrite dropped a fact or changed the length too far, so the original text was kept.",
+    "humanizer_too_long": "The text does not fit beside the rewrite rules in one pass, so it was kept as written.",
 }
 
 GENERATE_TEXT = {

@@ -60,5 +60,6 @@ def load() -> None:
     if _LOADED:
         return
     import skills.career_ops  # noqa: F401
+    import skills.humanizer  # noqa: F401
 
     _LOADED = True

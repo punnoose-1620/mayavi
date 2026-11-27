@@ -226,7 +226,13 @@ def _cover(complete, profile: str, job_text: str, status) -> tuple[str, list[str
     ).strip()
     if not letter:
         return "The local model returned an empty cover letter.", ["model_unavailable"]
-    return host.annotate_claims(complete, profile, letter, status, status_label="Career-ops: checking claims")
+    from skills import humanizer
+
+    letter, notices = humanizer.apply(complete, letter, status)
+    body, claim_notices = host.annotate_claims(
+        complete, profile, letter, status, status_label="Career-ops: checking claims"
+    )
+    return body, notices + claim_notices
 
 
 def run_turn(
