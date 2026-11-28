@@ -17,3 +17,5 @@ mcp>=1.2
 graphifyy>=0.9.121
 # Inference wheel (install.ps1 / install.sh also apply this file):
 # pip install -r requirements.txt -r requirements-inference.txt
+# Optional Chromium backup for HTML search (HTTP GET works without this):
+#   pip install playwright && playwright install chromium

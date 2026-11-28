@@ -6,6 +6,10 @@ Newest version first — the top entry is the current feature set, older release
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.6] - 2026-11-28
+
+Live search no longer needs API keys when the host has outbound internet. `search.webSearch` chains CSE, SerpAPI, ScraperAPI, then DuckDuckGo HTML (`html_search`: HTTP GET first, Playwright Chromium only if that page is empty or blocked). `/web-status` is `available` when `net_ok()` is true. Result fetches stay `get_url`. `google.com/search` is not a backend.
+
 ## [1.3.5] - 2026-11-28
 
 `POST /logs` for LAN debugging. Body is JSON: `type` (`audit` / `chat` / `process`), optional `from` / `to` / `limit` / `run_id` / `status` / `thread_id` / `grep` / `device`. Auth is `MAYAVI_DEBUG_TOKEN` in the body or `Authorization: Bearer`. Unset token returns 503; a bad token returns 401. `audit` reads daily `.mayavi.log` files in a 48-hour window. `chat` reads that device's `session.jsonl` (answers capped). `process` tails `runtime/state/ui.log` (`from` / `to` ignored). Agents cannot call this.

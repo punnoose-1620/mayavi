@@ -1873,9 +1873,9 @@
         webEl.checked = on ? webEl.checked : false;
         webLabel.classList.toggle("disabled", !on);
         if (!on) {
-          webLabel.title = data.reason === "offline"
-            ? "Web search is off — no network"
-            : "Web search is off — no search API keys";
+          webLabel.title = data.reason === "not_configured"
+            ? "Web search is off — no search API keys"
+            : "Web search is off — no network";
         } else {
           webLabel.title = "Live web search";
         }
@@ -1912,8 +1912,8 @@
 
     restoreDraft().catch(() => {});
     syncDevice().then(() => {
-      loadHistory().catch((err) => add("progress", String(err)));
-      loadThreads().catch((err) => add("progress", String(err)));
+    loadHistory().catch((err) => add("progress", String(err)));
+    loadThreads().catch((err) => add("progress", String(err)));
     }).catch((err) => add("progress", String(err)));
     loadWebStatus().catch(() => {});
     loadGoogleStatus().catch(() => {});

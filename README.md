@@ -7,7 +7,7 @@ Local multi-agent runtime that routes a user request into a **small**, **medium*
 
 It is designed to run on a single machine (overnight / sequential). It does **not** keep five models in RAM. Weights come from Hugging Face as GGUF files. Inference uses llama.cpp (`llama-cpp-python`).
 
-Release history lives in [`documentation/CHANGELOG.md`](documentation/CHANGELOG.md), newest version **first**. The current feature set is **1.3.4**.
+Release history lives in [`documentation/CHANGELOG.md`](documentation/CHANGELOG.md), newest version **first**. The current feature set is **1.3.6**.
 
 ## Documentation
 
@@ -41,7 +41,7 @@ The router never outputs `small` / `medium` / `large`. Mapping is:
 | else `file_ops` is `3+` | **medium** |
 | else | **small** |
 
-`mail_cal` does not pick the tier. Coding tasks force `mail_cal` to `off`. The router does not emit `needs_code_exec`; that flag is set from the operator coding control. The operator **web** checkbox / `--web` is the only way to run live search (CSE, then SerpAPI, then ScraperAPI). It does **not** jump a job to medium. `web_ops` from the router is forced to `0` unless that control is on.
+`mail_cal` does not pick the tier. Coding tasks force `mail_cal` to `off`. The router does not emit `needs_code_exec`; that flag is set from the operator coding control. The operator **web** checkbox / `--web` is the only way to run live search (CSE, then SerpAPI, then ScraperAPI, then DuckDuckGo HTML if the network is up). It does **not** jump a job to medium. `web_ops` from the router is forced to `0` unless that control is on.
 
 If the router is **unsure**, fields default **cheap**: `stakes=low`, `file_ops=0`, `web_ops=0` → **small** unless the operator marked coding. The factory then **clamps** `stakes=high` unless the prompt clearly matches legal/official/medical/financial (or similar). Greetings, chat, how-to, HTML pages, and summaries stay low even if the 1.5B router marked high. A write counts toward `file_ops` only if the user asked to create or save a file. Summarizing or reading code already under `outputs/` is a file read (`file_ops` at least 1), not a new sandbox build. Missing or garbage router JSON uses those same cheap defaults (it does **not** round up to large).
 
@@ -170,7 +170,7 @@ Copy `.env.example` to `.env`. **Never put secrets in `.env.example`.** `.env` i
 | `N_GPU_LAYERS` | llama.cpp GPU offload. `auto` (default) uses GPU only if driver, device, GPU wheel, and dedicated VRAM beat this GGUF, and only for the working agents — the router always stays on CPU. `0` = CPU everywhere. A positive integer forces that many layers for every role, router included. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_LOGIN_HINT` | Gmail + Calendar OAuth (browser Allow). |
 | `SERPAPI_API_KEY` / `SCRAPERAPI_API_KEY` | Web search backends. Keys never logged. |
-| `GOOGLE_CLOUD_API_KEY` / `GOOGLE_CSE_ID` | Google Custom Search JSON. Used first when both are set; then SerpAPI; then ScraperAPI. Keys never logged. |
+| `GOOGLE_CLOUD_API_KEY` / `GOOGLE_CSE_ID` | Google Custom Search JSON. Used first when both are set; then SerpAPI; then ScraperAPI; then DuckDuckGo HTML (no key). Keys never logged. |
 | `MS_CLIENT_ID` / `MS_TENANT` / `MS_LOGIN_HINT` | Microsoft Graph mail + calendar OAuth. |
 | `MAYAVI_DEBUG_TOKEN` | Shared secret for `POST /logs`. Required; an empty value keeps the door closed (503). Pass it as `token` in the JSON body or `Authorization: Bearer`. Never logged. |
 | `MAYAVI_DATA_DIR` | Private state (logs, tokens, createdIndex). Default `runtime/state/`. |
@@ -312,8 +312,8 @@ A model that still calls a hidden tool gets `unknown_tool` and can finish with `
 
 **Web** (`web_scrape.py`, backends in `search.py`, factory pipeline in `web_research.py`): `search_web`, `get_url`, `post_url`, `resetSession` only if the operator marked **Web** / `--web`. Medium and large jobs do not get scrape tools from a router `web_ops` count.
 
-- The factory asks the small router GGUF for a query, calls `search.webSearch` (CSE if `GOOGLE_CLOUD_API_KEY` + `GOOGLE_CSE_ID`, else SerpAPI, else ScraperAPI), picks up to three result URLs, and `get_url`s pages 1–2 of each. A larger worker then answers from that digest in chunks. Medium/review/coding runs pin the digest on the blackboard instead.
-- Agent `search_web` uses the same `search.webSearch` backends and returns `{title, url, snippet}` rows. Do not scrape `google.com/search`.
+- The factory asks the small router GGUF for a query, calls `search.webSearch` (CSE if `GOOGLE_CLOUD_API_KEY` + `GOOGLE_CSE_ID`, else SerpAPI, else ScraperAPI, else DuckDuckGo HTML), picks up to three result URLs, and `get_url`s pages 1–2 of each. A larger worker then answers from that digest in chunks. Medium/review/coding runs pin the digest on the blackboard instead.
+- Agent `search_web` uses the same `search.webSearch` backends and returns `{title, url, snippet}` rows. Do not scrape `google.com/search`. HTML search uses DuckDuckGo’s HTML page (HTTP GET, Chromium only if that page is empty or blocked). Optional Chromium: `pip install playwright` and `playwright install chromium`.
 - http/https only on fetches. Loopback, private, and link-local IPs are rejected (SSRF).
 - No captcha solving, no contacts, no places lookups. The public tool name stays `search_web`.
 
@@ -389,7 +389,7 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `src/coding/rules.md` | Injected on every coding committee run |
 | `documentation/Hardware Requirements.md` | Ubuntu/Windows, headless vs desktop, named NVIDIA and Ryzen SKUs |
 | `documentation/Server Hardware.md` | Headless box cart (CPU, GPU, disks) |
-| `documentation/CHANGELOG.md` | Hand-written release history, newest first (never updated automatically). Current version **1.3.4**. |
+| `documentation/CHANGELOG.md` | Hand-written release history, newest first (never updated automatically). Current version **1.3.6**. |
 | `documentation/Multi-Phase Testing (Testing Plan).md` | Multi-phase eval plan |
 | `documentation/Multi-Phase Testing (Results).md` | Multi-phase eval results |
 | `documentation/Memory Board Continuity (Results).md` | Memory-board continuity results |

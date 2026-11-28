@@ -727,7 +727,7 @@ def _tool_error_text(err: str) -> str:
     if err in {"http_401", "http_403", "forbidden", "accessNotConfigured", "ipRefererBlocked", "ipBlocked"}:
         return "Web search was denied. Check SERPAPI_API_KEY or SCRAPERAPI_API_KEY, then try again."
     if err == "not_configured":
-        return "Web search is not configured. Set SERPAPI_API_KEY or SCRAPERAPI_API_KEY."
+        return "Live search did not run. Check the network, or set CSE / SerpAPI / ScraperAPI keys."
     if err == "quota":
         return "Web search quota was exceeded. Try again later."
     if err == "empty_query":

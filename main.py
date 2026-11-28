@@ -181,7 +181,7 @@ NOTICE_TEXT = {
     "mail_connect_failed": "Mail/calendar consent did not complete, so this run had no inbox access.",
     "thread_not_found": "That thread id was not found under runtime/state/threads/, so this run did not attach a notebook.",
     "model_unavailable": "The worker GGUF did not load; the answer names the reason.",
-    "web_not_configured": "Web search is off because no CSE, SerpAPI, or ScraperAPI keys are set.",
+    "web_not_configured": "Web search is off because this machine has no network.",
     "web_offline": "Web search is off because this machine has no network.",
     "web_search_failed": "Live search did not return results, so the answer used what the model already knew.",
     "web_fetch_empty": "Search found pages, but none of them could be fetched.",
