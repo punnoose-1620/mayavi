@@ -6,7 +6,7 @@ import json
 import struct
 import threading
 import warnings
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -160,6 +160,44 @@ def read_records(path: Path | None = None) -> list[dict[str, Any]]:
                 break
             records.append(json.loads(payload.decode("utf-8")))
     return records
+
+
+def records_between(start: datetime, end: datetime) -> list[dict[str, Any]]:
+    """Audit records whose time is in [start, end], across daily files. Inspector only."""
+    first = start.astimezone() if start.tzinfo else start.replace(tzinfo=timezone.utc)
+    last = end.astimezone() if end.tzinfo else end.replace(tzinfo=timezone.utc)
+    if last < first:
+        first, last = last, first
+    found: list[dict[str, Any]] = []
+    day = first.date()
+    stop = last.date()
+    while day <= stop:
+        path = config.LOG_DIR / f"{day.isoformat()}.mayavi.log"
+        day = day + timedelta(days=1)
+        try:
+            rows = read_records(path)
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        for row in rows:
+            when = _record_time(row.get("time"))
+            if when is None:
+                continue
+            if first <= when <= last:
+                found.append(row)
+    return found
+
+
+def _record_time(raw: Any) -> datetime | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        when = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if when.tzinfo is None:
+        return when.replace(tzinfo=timezone.utc)
+    return when.astimezone()
 
 
 def _notify(record: dict[str, Any]) -> None:

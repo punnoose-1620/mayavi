@@ -61,6 +61,7 @@ GIT_REMOTE = (os.environ.get("MAYAVI_GIT_REMOTE") or "").strip() or None
 FETCH_TIMEOUT = 10
 GENERATE_MAX_TOKENS = 512
 N_GPU_LAYERS = (os.environ.get("N_GPU_LAYERS") or "auto").strip()
+DEBUG_TOKEN = (os.environ.get("MAYAVI_DEBUG_TOKEN") or "").strip()
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")

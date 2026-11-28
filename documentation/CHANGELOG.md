@@ -6,6 +6,10 @@ Newest version first — the top entry is the current feature set, older release
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.5] - 2026-11-28
+
+`POST /logs` for LAN debugging. Body is JSON: `type` (`audit` / `chat` / `process`), optional `from` / `to` / `limit` / `run_id` / `status` / `thread_id` / `grep` / `device`. Auth is `MAYAVI_DEBUG_TOKEN` in the body or `Authorization: Bearer`. Unset token returns 503; a bad token returns 401. `audit` reads daily `.mayavi.log` files in a 48-hour window. `chat` reads that device's `session.jsonl` (answers capped). `process` tails `runtime/state/ui.log` (`from` / `to` ignored). Agents cannot call this.
+
 ## [1.3.4] - 2026-11-27
 
 Local Chroma under `runtime/state/chroma/`. On UI start the host opens PersistentClient, reindexes `session.jsonl` tapes (skipping ids already stored), and indexes each new chat/skill turn. Retrieved notes include the turn timestamp. Chat jsonl stays the source of truth; there is no extra GGUF summary pass.

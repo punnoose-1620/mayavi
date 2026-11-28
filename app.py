@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import email
+import hmac
 import html
 import json
 import os
@@ -14,7 +15,7 @@ import sys
 import threading
 import time
 from email.policy import default as email_default
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -53,6 +54,12 @@ _KEEP_PDF = re.compile(r"^[A-Za-z0-9._-]+\.pdf$", re.I)
 _BUSY = threading.Lock()
 _SESSION_LOCK = threading.Lock()
 _RESTART = False
+LOG_TYPES = ("audit", "chat", "process")
+LOG_LIMIT_DEFAULT = 500
+LOG_LIMIT_MAX = 2000
+LOG_WINDOW_MAX = timedelta(hours=48)
+LOG_ANSWER_CAP = 4000
+PROCESS_LOG_BYTES = 8 * 1024 * 1024
 _ACTIVE: dict[str, Any] | None = None
 
 SKIP_TOOLS = {
@@ -154,6 +161,158 @@ def decorate_turn(turn: dict[str, Any], device_id: str | None = None) -> dict[st
     blob["answer_html"] = formatted["html"]
     blob["html_pages"] = formatter.save_pages(run_id, formatted["pages"], device_id=device_id)
     return blob
+
+
+def _parse_log_time(raw: Any) -> datetime | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        when = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if when.tzinfo is None:
+        return when.replace(tzinfo=timezone.utc)
+    return when.astimezone()
+
+
+def _debug_token_ok(body: dict[str, Any], header: str) -> bool:
+    expected = str(config.DEBUG_TOKEN or "")
+    if not expected:
+        return False
+    got = str(body.get("token") or "").strip()
+    auth = str(header or "").strip()
+    if not got and auth.lower().startswith("bearer "):
+        got = auth[7:].strip()
+    if not got:
+        return False
+    left = got.encode("utf-8")
+    right = expected.encode("utf-8")
+    if len(left) != len(right):
+        hmac.compare_digest(right, right)
+        return False
+    return hmac.compare_digest(left, right)
+
+
+def _log_limit(raw: Any) -> int:
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        n = LOG_LIMIT_DEFAULT
+    return max(1, min(n, LOG_LIMIT_MAX))
+
+
+def _log_window(body: dict[str, Any]) -> tuple[datetime, datetime] | str:
+    now = datetime.now(timezone.utc)
+    start = _parse_log_time(body.get("from")) or (now - timedelta(hours=24))
+    end = _parse_log_time(body.get("to")) or now
+    if end < start:
+        start, end = end, start
+    if end - start > LOG_WINDOW_MAX:
+        return "window_too_long"
+    return start, end
+
+
+def _log_matches(blob: str, grep: str) -> bool:
+    if not grep:
+        return True
+    return grep.casefold() in blob.casefold()
+
+
+def _audit_records(start: datetime, end: datetime, *, run_id: str, status: str, grep: str, limit: int) -> tuple[list[dict[str, Any]], bool]:
+    rows: list[dict[str, Any]] = []
+    truncated = False
+    for row in logger.records_between(start, end):
+        if run_id and str(row.get("run_id") or "") != run_id:
+            continue
+        if status and str(row.get("status") or "") != status:
+            continue
+        if not _log_matches(json.dumps(row, ensure_ascii=False), grep):
+            continue
+        rows.append(row)
+        if len(rows) >= limit:
+            truncated = True
+            break
+    return rows, truncated
+
+
+def _chat_log_row(turn: dict[str, Any]) -> dict[str, Any]:
+    answer = str(turn.get("answer") or "")
+    if len(answer) > LOG_ANSWER_CAP:
+        answer = answer[: LOG_ANSWER_CAP - 3] + "..."
+    return {
+        "id": turn.get("id") or turn.get("run_id"),
+        "time": turn.get("time"),
+        "started": turn.get("started"),
+        "elapsed_s": turn.get("elapsed_s"),
+        "prompt": turn.get("prompt") or "",
+        "answer": answer,
+        "thread_id": turn.get("thread_id"),
+        "run_id": turn.get("run_id"),
+        "level": turn.get("level"),
+        "shape": turn.get("shape"),
+        "coding": turn.get("coding"),
+        "notices": list(turn.get("notices") or []),
+    }
+
+
+def _chat_records(
+    device_id: str,
+    start: datetime,
+    end: datetime,
+    *,
+    run_id: str,
+    thread_id: str,
+    grep: str,
+    limit: int,
+) -> tuple[list[dict[str, Any]], bool]:
+    rows: list[dict[str, Any]] = []
+    truncated = False
+    for turn in read_history(device_id):
+        when = _parse_log_time(turn.get("time") or turn.get("started"))
+        if when is not None and (when < start or when > end):
+            continue
+        if run_id and str(turn.get("run_id") or turn.get("id") or "") != run_id:
+            continue
+        if thread_id and str(turn.get("thread_id") or "") != thread_id:
+            continue
+        row = _chat_log_row(turn)
+        if not _log_matches(json.dumps(row, ensure_ascii=False), grep):
+            continue
+        rows.append(row)
+        if len(rows) >= limit:
+            truncated = True
+            break
+    return rows, truncated
+
+
+def _process_records(*, grep: str, limit: int) -> tuple[list[dict[str, Any]], bool]:
+    path = config.DATA_DIR / "ui.log"
+    if not path.is_file():
+        return [], False
+    try:
+        size = path.stat().st_size
+        with path.open("rb") as fh:
+            if size > PROCESS_LOG_BYTES:
+                fh.seek(size - PROCESS_LOG_BYTES)
+                blob = fh.read()
+                skip = blob.find(b"\n")
+                if skip >= 0:
+                    blob = blob[skip + 1 :]
+            else:
+                blob = fh.read()
+    except OSError:
+        return [], False
+    lines = blob.decode("utf-8", "replace").splitlines()
+    picked: list[dict[str, Any]] = []
+    for text in lines:
+        if not _log_matches(text, grep):
+            continue
+        picked.append({"text": text})
+    truncated = len(picked) > limit
+    if truncated:
+        picked = picked[-limit:]
+    return picked, truncated
 
 
 def read_active(device_id: str | None = None) -> dict[str, Any] | None:
@@ -690,6 +849,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/v1/chat/completions":
             self._chat_completions()
+            return
+        if path == "/logs":
+            self._debug_logs()
             return
         if path != "/turns":
             self._send_json(404, {"ok": False, "error": "not_found"})
@@ -1404,6 +1566,72 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(payload)
+
+    def _debug_logs(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length") or "0")
+        except ValueError:
+            self._send_json(400, {"ok": False, "error": "bad_length"})
+            return
+        raw = self.rfile.read(max(length, 0)) if length else b"{}"
+        try:
+            body = json.loads(raw.decode("utf-8") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_json(400, {"ok": False, "error": "bad_json"})
+            return
+        if not isinstance(body, dict):
+            self._send_json(400, {"ok": False, "error": "bad_json"})
+            return
+        if not str(config.DEBUG_TOKEN or "").strip():
+            self._send_json(503, {"ok": False, "error": "not_configured"})
+            return
+        if not _debug_token_ok(body, self.headers.get("Authorization") or ""):
+            self._send_json(401, {"ok": False, "error": "unauthorized"})
+            return
+        kind = str(body.get("type") or "").strip().casefold()
+        if kind not in LOG_TYPES:
+            self._send_json(400, {"ok": False, "error": "bad_type"})
+            return
+        window = _log_window(body)
+        if isinstance(window, str):
+            self._send_json(400, {"ok": False, "error": window})
+            return
+        start, end = window
+        limit = _log_limit(body.get("limit"))
+        grep = str(body.get("grep") or "").strip()
+        run_id = str(body.get("run_id") or "").strip()
+        status = str(body.get("status") or "").strip()
+        thread_id = str(body.get("thread_id") or "").strip()
+        if kind == "audit":
+            records, truncated = _audit_records(
+                start, end, run_id=run_id, status=status, grep=grep, limit=limit
+            )
+        elif kind == "chat":
+            found = self._resolve_tenant(body=body, mint=False)
+            if found is None:
+                self._send_json(400, {"ok": False, "error": "missing_device"})
+                return
+            records, truncated = _chat_records(
+                found.id,
+                start,
+                end,
+                run_id=run_id,
+                thread_id=thread_id,
+                grep=grep,
+                limit=limit,
+            )
+        else:
+            records, truncated = _process_records(grep=grep, limit=limit)
+        payload: dict[str, Any] = {
+            "ok": True,
+            "type": kind,
+            "from": start.isoformat(),
+            "to": end.isoformat(),
+            "count": len(records),
+            "truncated": truncated,
+            "records": records,
+        }
+        self._send_json(200, payload)
 
     def _send_index(self) -> None:
         self._send_ui(UI_FILE)
