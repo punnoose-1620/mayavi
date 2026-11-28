@@ -7,7 +7,7 @@ Local multi-agent runtime that routes a user request into a **small**, **medium*
 
 It is designed to run on a single machine (overnight / sequential). It does **not** keep five models in RAM. Weights come from Hugging Face as GGUF files. Inference uses llama.cpp (`llama-cpp-python`).
 
-Release history lives in [`documentation/CHANGELOG.md`](documentation/CHANGELOG.md), newest version **first**. The current feature set is **1.3.6**.
+Release history lives in [`documentation/CHANGELOG.md`](documentation/CHANGELOG.md), newest version **first**. The current feature set is **1.3.7**.
 
 ## Documentation
 
@@ -385,11 +385,11 @@ If a log write fails: warn and continue only on small/medium with `mail_cal=off`
 | `src/config.py` | Paths, env, allowed/blocked lists |
 | `src/store.py` | Private run registry |
 | `src/profile.py` | Durable operator profile board (`runtime/state/profile.json`). Agents never import this. |
-| `src/formatter.py` | Chat-answer Markdown HTML + sandboxed HTML pages. Agents never import this. |
+| `src/formatter.py` | Chat-answer Markdown HTML, pretty-printed JSON code blocks, and sandboxed HTML pages. Agents never import this. |
 | `src/coding/rules.md` | Injected on every coding committee run |
 | `documentation/Hardware Requirements.md` | Ubuntu/Windows, headless vs desktop, named NVIDIA and Ryzen SKUs |
 | `documentation/Server Hardware.md` | Headless box cart (CPU, GPU, disks) |
-| `documentation/CHANGELOG.md` | Hand-written release history, newest first (never updated automatically). Current version **1.3.6**. |
+| `documentation/CHANGELOG.md` | Hand-written release history, newest first (never updated automatically). Current version **1.3.7**. |
 | `documentation/Multi-Phase Testing (Testing Plan).md` | Multi-phase eval plan |
 | `documentation/Multi-Phase Testing (Results).md` | Multi-phase eval results |
 | `documentation/Memory Board Continuity (Results).md` | Memory-board continuity results |

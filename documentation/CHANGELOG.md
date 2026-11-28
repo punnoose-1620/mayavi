@@ -6,6 +6,10 @@ Newest version first — the top entry is the current feature set, older release
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.7] - 2026-11-28
+
+Chat answers pretty-print JSON in the same labeled code block as fenced source. A reply that is one JSON object or array, a `json` fence, or a JSON object/array in the markdown, is indented and shown as `data-lang="json"`. Invalid JSON is left as written.
+
 ## [1.3.6] - 2026-11-28
 
 Live search no longer needs API keys when the host has outbound internet. `search.webSearch` chains CSE, SerpAPI, ScraperAPI, then DuckDuckGo HTML (`html_search`: HTTP GET first, Playwright Chromium only if that page is empty or blocked). `/web-status` is `available` when `net_ok()` is true. Result fetches stay `get_url`. `google.com/search` is not a backend.

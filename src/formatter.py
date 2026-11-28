@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 from urllib.parse import urlencode
 
 import config
@@ -114,6 +115,9 @@ CSP = (
 )
 
 
+_JSON_FENCE_LANGS = frozenset({"", "text", "json", "jsonc"})
+
+
 def format_answer(text: str) -> dict[str, Any]:
     """Turn raw answer text into sanitized Markdown HTML plus HTML view-pages."""
     raw = str(text or "")
@@ -124,31 +128,113 @@ def format_answer(text: str) -> dict[str, Any]:
         if match.start() > idx:
             md, docs = _take_documents(raw[idx : match.start()])
             pages.extend(docs)
-            html_bit = render_markdown(md)
+            html_bit = _render_markdown_with_json(md)
             if html_bit:
                 chunks.append(html_bit)
         lang = (match.group(1) or "").strip().split()[0].lower() if match.group(1) else ""
         body = match.group(2) or ""
-        label = html.escape(lang or "text")
-        chunks.append(
-            f'<pre class="code" data-lang="{label}"><code>'
-            + html.escape(body.rstrip("\n"))
-            + "</code></pre>"
-        )
+        chunks.append(_fence_html(lang, body))
         if lang == "html":
             pages.append(_page(len(pages), "page", body))
         idx = match.end()
     if idx < len(raw):
         md, docs = _take_documents(raw[idx:])
         pages.extend(docs)
-        html_bit = render_markdown(md)
+        html_bit = _render_markdown_with_json(md)
         if html_bit:
             chunks.append(html_bit)
     elif not chunks:
-        html_bit = render_markdown(raw)
+        html_bit = _render_markdown_with_json(raw)
         if html_bit:
             chunks.append(html_bit)
     return {"html": "\n".join(chunks), "pages": pages[:_MAX_PAGES]}
+
+
+def _fence_html(lang: str, body: str) -> str:
+    pretty = _pretty_json(body) if lang in _JSON_FENCE_LANGS else None
+    if pretty is not None:
+        return _code_block("json", pretty)
+    return _code_block(lang or "text", body)
+
+
+def _code_block(lang: str, body: str) -> str:
+    label = html.escape(lang or "text")
+    return (
+        f'<pre class="code" data-lang="{label}"><code>'
+        + html.escape(body.rstrip("\n"))
+        + "</code></pre>"
+    )
+
+
+def _pretty_json(text: str) -> str | None:
+    """Indented JSON if `text` is one object or array; otherwise None."""
+    source = str(text or "").strip()
+    if not source or source[0] not in "{[":
+        return None
+    decoder = json.JSONDecoder()
+    try:
+        obj, end = decoder.raw_decode(source)
+    except json.JSONDecodeError:
+        return None
+    if source[end:].strip() or not isinstance(obj, (dict, list)):
+        return None
+    return json.dumps(obj, indent=2, ensure_ascii=False)
+
+
+def _iter_json_spans(text: str) -> Iterator[tuple[int, int, str]]:
+    decoder = json.JSONDecoder()
+    i = 0
+    n = len(text or "")
+    while i < n:
+        while i < n and text[i] not in "{[":
+            i += 1
+        if i >= n:
+            break
+        try:
+            obj, end = decoder.raw_decode(text, i)
+        except json.JSONDecodeError:
+            i += 1
+            continue
+        raw = text[i:end]
+        if _json_span_worth_showing(obj, raw):
+            yield i, end, json.dumps(obj, indent=2, ensure_ascii=False)
+        i = end
+
+
+def _json_span_worth_showing(obj: Any, raw: str) -> bool:
+    """Avoid turning markdown `[1]` / empty `{}` into code blocks."""
+    if isinstance(obj, dict):
+        return bool(obj)
+    if not isinstance(obj, list) or not obj:
+        return False
+    if any(isinstance(x, (dict, list, str, bool)) or x is None for x in obj):
+        return True
+    return "\n" in raw or len(raw) >= 32
+
+
+def _render_markdown_with_json(text: str) -> str:
+    source = str(text or "")
+    if not source.strip():
+        return ""
+    whole = _pretty_json(source)
+    if whole is not None:
+        return _code_block("json", whole)
+    parts: list[str] = []
+    idx = 0
+    for start, end, pretty in _iter_json_spans(source):
+        if start > idx:
+            bit = render_markdown(source[idx:start])
+            if bit:
+                parts.append(bit)
+        parts.append(_code_block("json", pretty))
+        idx = end
+    if idx < len(source):
+        bit = render_markdown(source[idx:])
+        if bit:
+            parts.append(bit)
+    elif not parts:
+        return render_markdown(source)
+    return "\n".join(parts)
 
 
 def render_markdown(text: str) -> str:
