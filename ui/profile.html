@@ -472,9 +472,29 @@
         ["Description", "description", row.description],
       ], { kind: "project", collapsed: identityComplete("project", row) });
     }
+    function skillKey(text) {
+      return String(text || "").trim().toLowerCase().split(/\s+/).filter(Boolean).join(" ");
+    }
+
+    function uniqueSkills(names) {
+      const seen = new Set();
+      const out = [];
+      for (const name of names || []) {
+        const text = String(name || "").trim();
+        const key = skillKey(text);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(text);
+      }
+      return out;
+    }
+
     function addSkill(name) {
       const text = String(name || "").trim();
       if (!text) return false;
+      const key = skillKey(text);
+      if (!key) return false;
+      if (skillNames().some((item) => skillKey(item) === key)) return false;
       const chip = document.createElement("span");
       chip.className = "skill";
       const label = document.createElement("span");
@@ -522,12 +542,22 @@
       });
     }
 
-    function commitSkills() {
+    function splitSkillParts(text) {
+      return String(text || "").split(/[\n,;\t]+/);
+    }
+
+    function commitSkills(text, keepRemainder) {
+      const raw = text == null ? skillEntry.value : String(text);
+      const parts = splitSkillParts(raw);
+      let remainder = "";
+      if (keepRemainder && !/[\n,;\t]\s*$/.test(raw) && parts.length) {
+        remainder = (parts.pop() || "").replace(/^\s+/, "");
+      }
       let added = false;
-      for (const part of skillEntry.value.split(",")) {
+      for (const part of parts) {
         if (addSkill(part)) added = true;
       }
-      skillEntry.value = "";
+      skillEntry.value = remainder;
       if (added) refreshSave();
     }
 
@@ -593,7 +623,7 @@
         phone: document.getElementById("phone").value,
         location: document.getElementById("location").value,
         summary: document.getElementById("summary").value,
-        skills: skillNames(),
+        skills: uniqueSkills(skillNames()),
         links: cardState(linksEl),
         experience: cardState(experienceEl),
         projects: cardState(projectsEl),
@@ -644,9 +674,28 @@
     document.getElementById("add-project").addEventListener("click", () => { addProject({}); refreshSave(); });
     document.getElementById("add-school").addEventListener("click", () => { addSchool({}); refreshSave(); });
     skillEntry.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter") return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitSkills(skillEntry.value, false);
+        return;
+      }
+      if (event.key === "," || event.key === ";") {
+        event.preventDefault();
+        commitSkills(skillEntry.value, false);
+      }
+    });
+    skillEntry.addEventListener("paste", (event) => {
       event.preventDefault();
-      commitSkills();
+      const clip = event.clipboardData || window.clipboardData;
+      const pasted = clip ? (clip.getData("text/plain") || clip.getData("text") || "") : "";
+      const start = skillEntry.selectionStart ?? skillEntry.value.length;
+      const end = skillEntry.selectionEnd ?? skillEntry.value.length;
+      const next = skillEntry.value.slice(0, start) + pasted + skillEntry.value.slice(end);
+      commitSkills(next, false);
+    });
+    skillEntry.addEventListener("input", () => {
+      if (!/[,;\n\t]/.test(skillEntry.value)) return;
+      commitSkills(skillEntry.value, true);
     });
 
     document.getElementById("form").addEventListener("submit", async (event) => {
@@ -665,7 +714,7 @@
         summary: document.getElementById("summary").value.trim(),
         experience: readCards(experienceEl),
         projects: readCards(projectsEl),
-        skills: skillNames(),
+        skills: uniqueSkills(skillNames()),
         education: readCards(educationEl),
       };
       try {

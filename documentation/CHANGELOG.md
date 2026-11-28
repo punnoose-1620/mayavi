@@ -6,6 +6,10 @@ Newest version first — the top entry is the current feature set, older release
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.8] - 2026-11-28
+
+Profile save drops duplicate skills. Comparison folds case and collapses space between words; the first original spelling is kept. The skills field commits chips on comma, paste (including Ctrl+V and Ctrl+Shift+V), and Enter.
+
 ## [1.3.7] - 2026-11-28
 
 Chat answers pretty-print JSON in the same labeled code block as fenced source. A reply that is one JSON object or array, a `json` fence, or a JSON object/array in the markdown, is indented and shown as `data-lang="json"`. Invalid JSON is left as written.

@@ -53,6 +53,25 @@ def _text(value) -> str:
     return str(value or "").strip()
 
 
+def _skill_key(text: str) -> str:
+    """Case-fold and collapse word spacing for comparisons only."""
+    return " ".join(str(text or "").casefold().split())
+
+
+def _unique_skills(items) -> list[str]:
+    """Drop duplicate skills. Keep the first original spelling."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items or []:
+        text = _text(item)
+        key = _skill_key(text)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(text)
+    return out
+
+
 def _description(value) -> str:
     """A description is text. A nested object is left empty so it can be requested again."""
     if isinstance(value, str):
@@ -176,7 +195,7 @@ def normalize_profile(data: dict | None) -> dict:
     skills = data.get("skills") or []
     if isinstance(skills, str):
         skills = [part.strip() for part in skills.split(",")]
-    base["skills"] = [_text(item) for item in skills if _text(item)]
+    base["skills"] = _unique_skills(skills)
     base["experience"] = [_role(item) for item in data.get("experience") or [] if isinstance(item, dict)]
     base["education"] = [_school(item) for item in data.get("education") or [] if isinstance(item, dict)]
     base["projects"] = [_project(item) for item in data.get("projects") or [] if isinstance(item, dict)]
@@ -550,11 +569,12 @@ def merge_profile(existing: dict, update: dict) -> tuple[dict, list[str]]:
             match["title"] = link["title"]
     if incoming["summary"] and not base["summary"]:
         base["summary"] = incoming["summary"]
-    have_skills = {_norm(item) for item in base["skills"]}
+    have_skills = {_skill_key(item) for item in base["skills"]}
     for skill in incoming["skills"]:
-        if _norm(skill) not in have_skills:
+        key = _skill_key(skill)
+        if key and key not in have_skills:
             base["skills"].append(skill)
-            have_skills.add(_norm(skill))
+            have_skills.add(key)
     for role in incoming["experience"]:
         match = next(
             (
@@ -1010,11 +1030,12 @@ def overlay_profile(existing: dict, generated: dict) -> dict:
             match["url"] = link["url"]
     if incoming["summary"]:
         base["summary"] = incoming["summary"]
-    have_skills = {_norm(item) for item in base["skills"]}
+    have_skills = {_skill_key(item) for item in base["skills"]}
     for skill in incoming["skills"]:
-        if _norm(skill) not in have_skills:
+        key = _skill_key(skill)
+        if key and key not in have_skills:
             base["skills"].append(skill)
-            have_skills.add(_norm(skill))
+            have_skills.add(key)
     for role in incoming["experience"]:
         match = next(
             (
@@ -1097,9 +1118,9 @@ def audit_updates(existing: dict, generated: dict, source: str, failures: list[s
                 source,
                 "Copy the sentence as it appears in the resume, or leave the saved summary.",
             )
-    saved_skills = {_norm(item) for item in current["skills"]}
+    saved_skills = {_skill_key(item) for item in current["skills"]}
     for index, skill in enumerate(incoming["skills"]):
-        if _norm(skill) in saved_skills:
+        if _skill_key(skill) in saved_skills:
             continue
         _check_value(
             failures,
