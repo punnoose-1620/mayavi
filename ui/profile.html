@@ -60,9 +60,9 @@
     }
     .back:hover .tip,
     .back:focus-visible .tip { display: block; }
-    #add-link, #add-role, #add-project, #add-school,
-    .row button { margin-top: 12px; }
-    .row label { margin-bottom: 0; }
+    #add-link, #add-role, #add-project, #add-school { margin-top: 12px; }
+    .row-body > button { margin-top: 12px; }
+    .row-body label { margin-bottom: 0; }
     .intro { color: var(--muted); margin: 0 0 20px; }
     section {
       background: var(--panel);
@@ -107,7 +107,66 @@
       font: inherit;
     }
     textarea { min-height: 38px; resize: none; overflow: hidden; }
-    .row { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin: 12px 0 0; }
+    .row {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0;
+      margin: 12px 0 0;
+      overflow: hidden;
+    }
+    .row-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: 8px;
+      align-items: start;
+      padding: 10px 12px;
+    }
+    .row-title, .row-sub {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      color: var(--text);
+    }
+    .row-title { grid-column: 1; grid-row: 1; font-weight: 600; }
+    .row-sub { grid-column: 1; grid-row: 2; margin-top: 2px; color: var(--muted); }
+    .row-sub[hidden] { display: none; }
+    .row-toggle {
+      grid-column: 2;
+      grid-row: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .row-toggle:hover { background: #242424; color: var(--text); }
+    .row-toggle i { font-size: 12px; }
+    .row.collapsed .row-body { display: none; }
+    .row:not(.collapsed) .row-title,
+    .row:not(.collapsed) .row-sub { display: none; }
+    .row:not(.collapsed) .row-head {
+      display: flex;
+      justify-content: flex-end;
+      padding: 4px 6px 0;
+      background: transparent;
+    }
+    .row-body { padding: 10px; }
+    .row[data-kind] .row-body { padding: 0 10px 10px; }
+    .row.incomplete { border-color: #8b1e1e; }
+    .row.incomplete.collapsed .row-head {
+      background: #f3d0d0;
+      color: #7a1515;
+    }
+    .row.incomplete.collapsed .row-title,
+    .row.incomplete.collapsed .row-sub,
+    .row.incomplete.collapsed .row-toggle { color: #7a1515; }
+    .row.incomplete.collapsed .row-toggle:hover { background: #e4b4b4; color: #5c1010; }
     button, .linkish {
       background: transparent;
       color: var(--accent);
@@ -117,6 +176,12 @@
       font: inherit;
       cursor: pointer;
     }
+    .row-toggle {
+      border: 0;
+      padding: 0;
+      color: var(--muted);
+    }
+    .row.incomplete.collapsed .row-toggle { color: #7a1515; }
     #save { background: var(--accent); color: #1a1a1a; font-weight: 600; border: 0; }
     #save:disabled { opacity: 0.45; cursor: default; }
     #summary, #skill-entry { margin-top: 12px; }
@@ -275,10 +340,90 @@
       return wrap;
     }
 
-    function card(parent, pairs, remover) {
+    function fieldValue(row, key) {
+      const el = row.querySelector('[data-key="' + key + '"]');
+      return el ? String(el.value || "").trim() : "";
+    }
+
+    function identityComplete(kind, item) {
+      const text = (key) => String((item && item[key]) || "").trim();
+      if (kind === "project") return Boolean(text("title"));
+      if (kind === "experience") return Boolean(text("position") && text("company"));
+      if (kind === "education") return Boolean(text("degree") && text("specialization") && text("school"));
+      return false;
+    }
+
+    function paintSummary(row) {
+      const kind = row.dataset.kind;
+      const titleEl = row.querySelector(".row-title");
+      const subEl = row.querySelector(".row-sub");
+      if (!kind || !titleEl || !subEl) return;
+      let incomplete = false;
+      if (kind === "project") {
+        const title = fieldValue(row, "title");
+        titleEl.textContent = title || "Unknown Title";
+        subEl.hidden = true;
+        subEl.textContent = "";
+        incomplete = !title;
+      } else if (kind === "experience") {
+        const position = fieldValue(row, "position");
+        const company = fieldValue(row, "company");
+        titleEl.textContent = position || "Unknown Position";
+        subEl.hidden = false;
+        subEl.textContent = company || "Unknown Company";
+        incomplete = !position || !company;
+      } else if (kind === "education") {
+        const degree = fieldValue(row, "degree");
+        const spec = fieldValue(row, "specialization");
+        const school = fieldValue(row, "school");
+        titleEl.textContent = (degree || "Unknown Degree") + "(" + (spec || "Unknown Specialization") + ")";
+        subEl.hidden = false;
+        subEl.textContent = school || "Unknown School";
+        incomplete = !degree || !spec || !school;
+      }
+      row.classList.toggle("incomplete", incomplete);
+    }
+
+    function card(parent, pairs, options) {
+      const kind = options && options.kind;
       const box = document.createElement("div");
       box.className = "row";
-      for (const [label, key, value] of pairs) box.appendChild(field(label, value, key));
+      const body = document.createElement("div");
+      body.className = "row-body";
+      if (kind) {
+        box.dataset.kind = kind;
+        const head = document.createElement("div");
+        head.className = "row-head";
+        const title = document.createElement("span");
+        title.className = "row-title";
+        const sub = document.createElement("span");
+        sub.className = "row-sub";
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "row-toggle";
+        const icon = document.createElement("i");
+        icon.className = "fa-solid fa-chevron-down";
+        icon.setAttribute("aria-hidden", "true");
+        toggle.appendChild(icon);
+        const collapsed = Boolean(options && options.collapsed);
+        box.classList.toggle("collapsed", collapsed);
+        function syncToggle(shut) {
+          icon.className = shut ? "fa-solid fa-chevron-down" : "fa-solid fa-chevron-up";
+          toggle.setAttribute("aria-expanded", shut ? "false" : "true");
+          toggle.setAttribute("aria-label", shut ? "Expand this entry" : "Collapse this entry");
+        }
+        syncToggle(collapsed);
+        toggle.addEventListener("click", () => {
+          const shut = box.classList.toggle("collapsed");
+          syncToggle(shut);
+          if (!shut) {
+            for (const area of box.querySelectorAll("textarea")) fitText(area);
+          }
+        });
+        head.append(title, sub, toggle);
+        box.appendChild(head);
+      }
+      for (const [label, key, value] of pairs) body.appendChild(field(label, value, key));
       const remove = document.createElement("button");
       remove.type = "button";
       remove.textContent = "Remove";
@@ -286,8 +431,10 @@
         box.remove();
         refreshSave();
       });
-      box.appendChild(remove);
+      body.appendChild(remove);
+      box.appendChild(body);
       parent.appendChild(box);
+      if (kind) paintSummary(box);
       for (const area of box.querySelectorAll("textarea")) fitText(area);
     }
 
@@ -308,17 +455,22 @@
       card(linksEl, [["Title", "title", item.title || ""], ["URL", "url", item.url || ""]]);
     }
     function addRole(item) {
+      const row = item || {};
       card(experienceEl, [
-        ["Position", "position", item.position],
-        ["Company", "company", item.company],
-        ["Location", "location", item.location],
-        ["Start", "start", item.start],
-        ["End", "end", item.end],
-        ["Description", "description", item.description],
-      ]);
+        ["Position", "position", row.position],
+        ["Company", "company", row.company],
+        ["Location", "location", row.location],
+        ["Start", "start", row.start],
+        ["End", "end", row.end],
+        ["Description", "description", row.description],
+      ], { kind: "experience", collapsed: identityComplete("experience", row) });
     }
     function addProject(item) {
-      card(projectsEl, [["Title", "title", item.title], ["Description", "description", item.description]]);
+      const row = item || {};
+      card(projectsEl, [
+        ["Title", "title", row.title],
+        ["Description", "description", row.description],
+      ], { kind: "project", collapsed: identityComplete("project", row) });
     }
     function addSkill(name) {
       const text = String(name || "").trim();
@@ -384,15 +536,16 @@
     }
 
     function addSchool(item) {
+      const row = item || {};
       card(educationEl, [
-        ["School", "school", item.school],
-        ["Location", "location", item.location],
-        ["Start", "start", item.start],
-        ["End", "end", item.end],
-        ["Degree", "degree", item.degree],
-        ["Specialization", "specialization", item.specialization],
-        ["Description", "description", item.description],
-      ]);
+        ["School", "school", row.school],
+        ["Location", "location", row.location],
+        ["Start", "start", row.start],
+        ["End", "end", row.end],
+        ["Degree", "degree", row.degree],
+        ["Specialization", "specialization", row.specialization],
+        ["Description", "description", row.description],
+      ], { kind: "education", collapsed: identityComplete("education", row) });
     }
 
     function readCards(parent) {
@@ -462,6 +615,8 @@
     function watch(el) {
       el.addEventListener("input", (event) => {
         if (event.target && event.target.tagName === "TEXTAREA") fitText(event.target);
+        const row = event.target && event.target.closest(".row");
+        if (row && row.dataset.kind) paintSummary(row);
         refreshSave();
       });
     }
